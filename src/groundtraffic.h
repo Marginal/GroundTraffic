@@ -15,6 +15,7 @@
 #include <float.h>
 #include <limits.h>
 #include <math.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -28,7 +29,7 @@
 #  define strncasecmp(s1, s2, n) _strnicmp(s1, s2, n)
 #endif
 
-#if LIN
+#if APL || LIN
 #  include <dirent.h>
 #  include <libgen.h>
 #endif
@@ -56,11 +57,19 @@
 #define PROBE_INTERVAL 4	/* How often to probe ahead for altitude [s] */
 
 /* Geolocation */
-#define INVALID_ALT DBL_MAX
+#define INVALID_ALT FLT_MAX
 typedef struct
 {
-    double lat, lon, alt;	/* we do want double precision to prevent jerkiness */
+    float lat, lon, alt;	/* drawing routines use float, so no point storing higher precision */
 } loc_t;
+
+#define DAY_MON 1
+#define DAY_TUE 2
+#define DAY_WED 4
+#define DAY_THU 8
+#define DAY_FRI 16
+#define DAY_SAT 32
+#define DAY_SUN 64
 
 /* Route path - locations or commands */
 typedef struct
@@ -69,20 +78,7 @@ typedef struct
     float x, y, z;		/* Local OpenGL co-ordinates */
     int pausetime;
     short attime;		/* minutes past midnight */
-    union
-    {
-        unsigned char bits;
-        struct
-        {
-            int mon : 1;
-            int tue : 1;
-            int wed : 1;
-            int thu : 1;
-            int fri : 1;
-            int sat : 1;
-            int sun : 1;
-        };
-    } atdays;
+    unsigned char atdays;
     unsigned char reverse;
 } path_t;
         

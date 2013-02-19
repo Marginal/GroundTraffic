@@ -32,11 +32,11 @@ int xplog(char *msg)
 
 static inline int intilerange(loc_t tile, loc_t loc)
 {
-    return ((abs(tile.lat - floor(loc.lat)) <= TILE_RANGE) &&
-            (abs(tile.lon  - floor(loc.lon)) <= TILE_RANGE));
+    return ((abs(tile.lat - floorf(loc.lat)) <= TILE_RANGE) &&
+            (abs(tile.lon  - floorf(loc.lon)) <= TILE_RANGE));
 }
 
-static inline int indrawrange(double xdist, double ydist, double zdist, double range)
+static inline int indrawrange(float xdist, float ydist, float zdist, float range)
 {
     return (xdist*xdist + ydist*ydist + zdist*zdist <= range*range);
 }
@@ -122,7 +122,7 @@ static int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon
     float view_x, view_y, view_z;
     float now;
     int tod=-1;
-    double x, y, z, foo;
+    double x, y, z, foo, alt;
     loc_t tile;
     route_t *route;
     XPLMProbeInfo_t probeinfo;
@@ -143,10 +143,11 @@ static int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon
          * airport might be up to two tiles away - http://forums.x-plane.org/index.php?showtopic=38688&page=3&#entry566469 */
         XPLMWorldToLocal(airport.tower.lat, airport.tower.lon, 0, &x, &y, &z);	// 1
         XPLMProbeTerrainXYZ(ref_probe, x, y, z, &probeinfo);			// 2
-        XPLMLocalToWorld(probeinfo.locationX, probeinfo.locationY, probeinfo.locationZ, &foo, &foo, &airport.tower.alt);	// 3
-        XPLMWorldToLocal(airport.tower.lat, airport.tower.lon, airport.tower.alt, &x, &y, &z);	// 4
+        XPLMLocalToWorld(probeinfo.locationX, probeinfo.locationY, probeinfo.locationZ, &foo, &foo, &alt);	// 3
+        XPLMWorldToLocal(airport.tower.lat, airport.tower.lon, alt, &x, &y, &z);	// 4
         XPLMProbeTerrainXYZ(ref_probe, x, y, z, &probeinfo);			// 5
-        XPLMLocalToWorld(probeinfo.locationX, probeinfo.locationY, probeinfo.locationZ, &foo, &foo, &airport.tower.alt);
+        XPLMLocalToWorld(probeinfo.locationX, probeinfo.locationY, probeinfo.locationZ, &foo, &foo, &alt);
+        airport.tower.alt=alt;
     }
     else
     {
@@ -192,7 +193,6 @@ static int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon
     is_night = (int)(XPLMGetDataf(ref_night)+0.67);
     for(route=airport.routes; route; route=route->next)
     {
-        float progress;
         path_t *last_node, *next_node;
 
         if (now >= route->next_time)
@@ -251,11 +251,12 @@ static int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon
                 /* Probe first node using tower location */
                 XPLMWorldToLocal(last_node->waypoint.lat, last_node->waypoint.lon, airport.tower.alt, &x, &y, &z);
                 XPLMProbeTerrainXYZ(ref_probe, x, y, z, &probeinfo);
-                XPLMLocalToWorld(probeinfo.locationX, probeinfo.locationY, probeinfo.locationZ, &foo, &foo, &last_node->waypoint.alt);
+                XPLMLocalToWorld(probeinfo.locationX, probeinfo.locationY, probeinfo.locationZ, &foo, &foo, &alt);
                 /* Probe twice since it might be some distance from the tower */
-                XPLMWorldToLocal(route->path[0].waypoint.lat, route->path[0].waypoint.lon, last_node->waypoint.alt, &x, &y, &z);
+                XPLMWorldToLocal(route->path[0].waypoint.lat, route->path[0].waypoint.lon, alt, &x, &y, &z);
                 XPLMProbeTerrainXYZ(ref_probe, x, y, z, &probeinfo);
-                XPLMLocalToWorld(probeinfo.locationX, probeinfo.locationY, probeinfo.locationZ, &foo, &foo, &last_node->waypoint.alt);
+                XPLMLocalToWorld(probeinfo.locationX, probeinfo.locationY, probeinfo.locationZ, &foo, &foo, &alt);
+                last_node->waypoint.alt=alt;
                 last_node->x=probeinfo.locationX;  last_node->y=probeinfo.locationY;  last_node->z=probeinfo.locationZ;
             }
             else if (!last_node->x && !last_node->y && !last_node->z)
@@ -269,7 +270,8 @@ static int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon
                 /* Assume this node is reasonably close to the last node so re-use its altitude to only probe once */
                 XPLMWorldToLocal(next_node->waypoint.lat, next_node->waypoint.lon, route->path[route->last_node].waypoint.alt, &x, &y, &z);
                 XPLMProbeTerrainXYZ(ref_probe, x, y, z, &probeinfo);
-                XPLMLocalToWorld(probeinfo.locationX, probeinfo.locationY, probeinfo.locationZ, &foo, &foo, &next_node->waypoint.alt);
+                XPLMLocalToWorld(probeinfo.locationX, probeinfo.locationY, probeinfo.locationZ, &foo, &foo, &alt);
+                next_node->waypoint.alt=alt;
                 next_node->x=probeinfo.locationX;  next_node->y=probeinfo.locationY;  next_node->z=probeinfo.locationZ;
             }
             else if (!next_node->x && !next_node->y && !next_node->z)
@@ -322,6 +324,8 @@ static int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon
         /* Finally do the drawing */
         if (!(route->state.waiting||route->state.paused))
         {
+            double progress;	/* double to force type promotion for accuracy */
+
             if (now >= route->next_probe)
             {
                 /* Probe four seconds in the future */
