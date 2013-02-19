@@ -42,11 +42,8 @@ $(TARGET):	$(OBJS)
 $(BUILDDIR):
 	$(MD) $(BUILDDIR)
 
-$(BUILDDIR)/%.o:	%.c $(BUILDDIR)
+$(BUILDDIR)/%.o:	%.c groundtraffic.h $(BUILDDIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
 	$(RM) *~ *.bak $(OBJS) $(TARGET)
-
-$(BUILDDIR)/groundtraffic.o:	groundtraffic.h
-$(BUILDDIR)/routes.o:	groundtraffic.h

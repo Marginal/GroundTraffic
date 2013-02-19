@@ -24,8 +24,8 @@
 
 #ifdef _MSC_VER
 #  define PATH_MAX MAX_PATH
-#  define stat _stat
-#  define strcasecmp _stricmp
+#  define strcasecmp(s1, s2) _stricmp(s1, s2)
+#  define strncasecmp(s1, s2, n) _strnicmp(s1, s2, n)
 #endif
 
 #if LIN
