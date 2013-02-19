@@ -200,9 +200,18 @@ static int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon
             if (route->state.waiting)
             {
                 /* We don't get notified when time-of-day changes in the sim, so poll once a minute */
+                int i;
                 if (tod < 0) tod = (int) (XPLMGetDataf(ref_tod)/60);
-                if (route->path[route->last_node].attime == tod)
-                    route->state.waiting = 0;
+                for (i=0; i<MAX_ATTIMES; i++)
+                {
+                    if (route->path[route->last_node].attime[i] == INVALID_AT)
+                        break;
+                    else if (route->path[route->last_node].attime[i] == tod)
+                    {
+                        route->state.waiting = 0;
+                        break;
+                    }
+                }
                 /* last and next were calculated when we first hit this waypoint */
             }
             else if (route->state.paused)
@@ -227,7 +236,7 @@ static int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon
                     route->next_node = 1;
                 }
 
-                if (route->path[route->last_node].attime >= 0)
+                if (route->path[route->last_node].attime[0] != INVALID_AT)
                 {
                     route->state.waiting = 1;
                 }

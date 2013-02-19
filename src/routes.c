@@ -173,26 +173,29 @@ int readconfig(char *pkgpath, airport_t *airport)
             }
             else if (!strcasecmp(c1, "at"))
             {
-                int hour, minute;
-                char daynames[7][4] = { "mon", "tue", "wed", "thu", "fri", "sat", "sun" };
+                int hour, minute, i=0;
+                char daynames[7][10] = { "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday" };
                 int dayvals[7] = { DAY_MON, DAY_TUE, DAY_WED, DAY_THU, DAY_FRI, DAY_SAT, DAY_SUN };
 
                 if (!currentroute->pathlen)
                     return failconfig(h, airport, buffer, "Route can't start with an \"at\", at line %d", lineno);
 
-                c1=strtok(NULL, sep);
-                if (sscanf(c1, "%d:%d%n", &hour, &minute, &eol1)!=2 || c1[eol1] || hour<0 || hour>23 || minute<0 || minute>59)
-                    return failconfig(h, airport, buffer, "Expecting a time-of-day \"HH:MM\", found \"%s\" at line %d", c1, lineno);
-
-                c1=strtok(NULL, sep);
-                if (strcasecmp(c1, "on"))
-                    return failconfig(h, airport, buffer, "Expecting \"on\", found \"%s\" at line %d", c1, lineno);
+                while ((c1=strtok(NULL, sep)))
+                {
+                    if (!strcasecmp(c1, "on"))
+                        break;
+                    else if (i>=MAX_ATTIMES)
+                        return failconfig(h, airport, buffer, "Exceeded %d times-of-day at line %d", MAX_ATTIMES, lineno);
+                    else if (sscanf(c1, "%d:%d%n", &hour, &minute, &eol1)!=2 || c1[eol1] || hour<0 || hour>23 || minute<0 || minute>59)
+                        return failconfig(h, airport, buffer, "Expecting a time-of-day \"HH:MM\" or \"on\", found \"%s\" at line %d", c1, lineno);
+                    path[currentroute->pathlen-1].attime[i++] = hour*60+minute;
+                }
+                if (i<MAX_ATTIMES) path[currentroute->pathlen-1].attime[i] = INVALID_AT;	/* Terminate */
 
                 while ((c1=strtok(NULL, sep)))
                 {
-                    int i;
                     for (i=0; i<7; i++)
-                        if (!strcasecmp(c1, daynames[i]))
+                        if (!strncasecmp(c1, daynames[i], strlen(c1)))
                         {
                             path[currentroute->pathlen-1].atdays |= dayvals[i];
                             break;
@@ -200,8 +203,6 @@ int readconfig(char *pkgpath, airport_t *airport)
                     if (i>=7)
                         return failconfig(h, airport, buffer, "Expecting a day name, found \"%s\" at line %d", c1, lineno);
                 }
-
-                path[currentroute->pathlen-1].attime = hour*60+minute;
             }
             else if (!strcasecmp(c1, "reverse"))
             {
@@ -214,13 +215,13 @@ int readconfig(char *pkgpath, airport_t *airport)
             else				/* waypoint */
             {
                 memset(path + currentroute->pathlen, 0, sizeof(path_t));
-                path[currentroute->pathlen].waypoint.alt=INVALID_ALT;
+                path[currentroute->pathlen].waypoint.alt = INVALID_ALT;
+                path[currentroute->pathlen].attime[0] = INVALID_AT;
                 c2=strtok(NULL, sep);
                 if (!c1 || !sscanf(c1, "%f%n", &path[currentroute->pathlen].waypoint.lat, &eol1) || c1[eol1] ||
                     !c2 || !sscanf(c2, "%f%n", &path[currentroute->pathlen].waypoint.lon, &eol2) || c2[eol2])
                     return failconfig(h, airport, buffer, "Expecting a waypoint \"lat lon\", found \"%s %s\" at line %d", N(c1), N(c2), lineno);
 
-                path[currentroute->pathlen].attime=-1;
                 currentroute->pathlen++;
             }
         }

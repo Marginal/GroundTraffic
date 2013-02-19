@@ -70,6 +70,8 @@ typedef struct
 #define DAY_FRI 16
 #define DAY_SAT 32
 #define DAY_SUN 64
+#define MAX_ATTIMES 24		/* Number of times allowed in an At command */
+#define INVALID_AT -1
 
 /* Route path - locations or commands */
 typedef struct
@@ -77,7 +79,7 @@ typedef struct
     loc_t waypoint;		/* World */
     float x, y, z;		/* Local OpenGL co-ordinates */
     int pausetime;
-    short attime;		/* minutes past midnight */
+    short attime[MAX_ATTIMES];	/* minutes past midnight */
     unsigned char atdays;
     unsigned char reverse;
 } path_t;
