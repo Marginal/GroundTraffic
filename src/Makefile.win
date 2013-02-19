@@ -1,0 +1,47 @@
+# -*-Makefile-*- in NMAKE format
+
+!include ..\version.mak
+
+# Work out which target we're set up for by looking for a program (ml64.exe) that only exists in the path for one target
+!if [ml64 >nul 2>&1] == 0
+CPU=x64
+ARCHDIR=64
+ARCHXP=_64
+!else
+CPU=x86
+ARCHDIR=
+ARCHXP=
+!endif
+
+XPSDK=..\..\XPSDK212
+
+CC=cl
+#BUILD=-ZI -DDEBUG
+BUILD=-Ox -GF -DNDEBUG
+DEFINES=-DIBM=1 -DAPL=0 -DLIN=0 -DVERSION=$(VERSION)
+INC=-I$(XPSDK)\CHeaders\XPLM -I$(XPSDK)/CHeaders/Widgets
+CFLAGS=-nologo -LD $(BUILD) $(DEFINES) $(INC)
+
+SRC=routes.c groundtraffic.c
+
+TARGET=..\$(PROJECT)\$(ARCHDIR)\win.xpl
+LIBS=$(XPSDK)\Libraries\Win\XPLM$(ARCHXP).lib $(XPSDK)\Libraries\Win\XPWidgets$(ARCHXP).lib GlU32.Lib OpenGL32.Lib
+
+RM=del /q
+CP=copy /y
+MD=mkdir
+
+all:	$(TARGET)
+
+install:	$(TARGET)
+	-$(MD) "X:\Desktop\X-Plane 10\Custom Scenery\KSEA Demo GroundTraffic\plugins\$(PROJECT)\$(ARCHDIR)"
+	$(CP) $(TARGET) "X:\Desktop\X-Plane 10\Custom Scenery\KSEA Demo GroundTraffic\plugins\$(PROJECT)\$(ARCHDIR)\"
+
+$(TARGET):	clean $(SRC)
+	$(CC) $(CFLAGS) -Fe$@ -Fd$* $(SRC) $(LIBS)
+
+clean:
+	-$(RM) *~ *.bak *.obj $(TARGET:.xpl=).*
+
+groundtraffic.c:	groundtraffic.h
+routes.c:	groundtraffic.h

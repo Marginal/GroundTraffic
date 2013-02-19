@@ -1,0 +1,172 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+  <meta content="text/html; charset=ISO-8859-1" http-equiv="content-type">
+  <meta content="Animated jetway and docking guidance system for X-Plane scenery package developers">
+  <meta content="X-Plane, simulator, scenery" name="keywords">
+  <title>GroundTraffic</title>
+  <meta content="Jonathan Harris" name="author">
+  <style type="text/css">
+.banner { font-family: Arial,Helvetica,sans-serif; background-color: lightskyblue; text-align: left; height: 32px; }
+.dnl { font-family: Arial,Helvetica,sans-serif; font-size: small; background-color: lightskyblue; }
+samp { font-family: Arial,Helvetica,sans-serif; }
+h2 { font-family: Arial,Helvetica,sans-serif; }
+h3 { font-family: Arial,Helvetica,sans-serif; }
+h4 { font-family: Arial,Helvetica,sans-serif; }
+h5 { font-family: Arial,Helvetica,sans-serif; }
+ul { margin: 0; }
+kbd {font-family: sans-serif; color: black; background-color: white; border: 1px solid black; -webkit-border-radius:5px; -moz-border-radius:5px; border-radius: 5px; padding: 1px 1px 0px; }
+pre { border: 1px solid; padding: 8px; width: 75%; }
+  </style>
+</head>
+<body>
+<table style="width: 100%;" border="0" cellpadding="2">
+  <tbody>
+    <tr>
+      <td class="banner">Marginal&nbsp;&rarr; <a href="http://marginal.org.uk/x-planescenery/">X-Plane Scenery</a>&nbsp;&rarr; <a href="http://marginal.org.uk/x-planescenery/tools.html">Tools</a>&nbsp;&rarr; GroundTraffic</td>
+    </tr>
+  </tbody>
+</table>
+<hr>
+
+<h2>GroundTraffic kit for X-Plane<small><sup>&reg;</sup></small></h2>
+
+<h3>Overview</h3>
+
+<p>This kit allows X-Plane scenery designers to add animated ground vehicle traffic to airport scenery packages. It requires X-Plane 10.0 and later.</p>
+
+<h3>How it works</h3>
+<p>This kit supplies a plugin that you can distribute with your scenery package. The plugin reads instructions from a text file that you create (and which you should also distribute with your scenery package) and animates X-Plane scenery objects according to those instructions.</p>
+
+<h3>Installation</h3>
+
+<ul>
+  <li>Create a folder named <code>plugins</code> within your scenery package folder.</li>
+  <li>Copy the <code>GroundTraffic</code> folder from this kit into the <code>plugins</code> folder.</li>
+</ul>
+
+<h3>Animation instructions</h3>
+
+<p>Use Notepad, TextEdit, or any other text editor to create a plain text file named <code>GroundTraffic.txt</code> in your scenery package folder. Save this blank file with an &ldquo;ANSI&rdquo;, &ldquo;Western&rdquo; or &ldquo;UTF-8&rdquo; encoding. (If using TextEdit, you may have to first choose <samp>Format&nbsp;&rarr; Make Plain Text</samp> in order to see those choices).</p>
+<p>Add a &ldquo;Header&rdquo; statement to this file, followed by one or more &ldquo;Routes&rdquo;:</p>
+
+<h4>Header</h4>
+<p>The Header statement tells the plugin the location of your airport. It should be of the form &ldquo;<code>ICAO&nbsp;lat&nbsp;lon</code>&rdquo;, where:</p>
+<dl>
+  <dt>ICAO</dt>
+  <dd>Four-character ICAO airport code.</dd>
+  <dt>lat &amp; lon</dt>
+  <dd>A location near the centre of your airport. The control tower is often a good choice.</dd>
+</dl>
+<p>For example Seattle-Tacoma airport tower:</p>
+<pre>KSEA	47.4557260 -122.3013928
+
+</pre>
+
+<h4>Route</h4>
+<p>A Route statement starts a new animation. It should be of the form &ldquo;<code>route&nbsp;speed&nbsp;object&nbsp;heading</code>&rdquo;, where:</p>
+<dl>
+  <dt>route</dt>
+  <dd>The word <code>route</code>.</dd>
+  <dt>speed</dt>
+  <dd>The speed of the animated object, in km/h.</dd>
+  <dt>object</dt>
+  <dd>The name of the animated object. This can be a library object from X-Plane's built-in library or from an add-on library, or an object in your scenery package.</dd>
+  <dt>heading [optional]</dt>
+  <dd>Rotation in degrees to be applied to the animated object.</dd>
+</dl>
+<p>For example, a route using an object from X-Plane 10's built-in library, travelling at 16km/h (~10mph), to be rotated 180&deg;:</p>
+<pre>
+
+route	16	lib/airport/Ramp_Equipment/Lugg_Train_Straight2.obj	180
+...</pre>
+<p>A route using an object from the scenery package, travelling at 24km/h (~15mph):</p>
+<pre>
+
+route	24	objects/veh_air_forklift.obj
+...</pre>
+<p>The Route statement should be followed by a sequence of &ldquo;waypoints&rdquo; and &ldquo;commands&rdquo;. The Route ends with a blank line.</p>
+
+<h4>Waypoint</h4>
+<p>Animated objects move from one waypoint to the next at the speed specified in the Route statement. When the object passes the last waypoint it proceeds towards the first waypoint, forming a circular route (unless you specify a &ldquo;reverse&rdquo; command; described below).</p>
+<p>Waypoints should be of the form &ldquo;<code>lat&nbsp;lon</code>&rdquo;. For example:</p>
+<pre>...
+47.4484450 -122.3001950
+...</pre>
+
+<h4>Pause command</h4>
+<p>The Pause command instructs the animated object to wait at the preceding waypoint for a while before moving on. It should be of the form &ldquo;<code>pause&nbsp;time</code>&rdquo;, where:</p>
+<dl>
+  <dt>pause</dt>
+  <dd>The word <code>pause</code>.</dd>
+  <dt>time</dt>
+  <dd>Time to wait, in seconds.</dd>
+</dl>
+<p>For example, waiting at a waypoint for 30 minutes:</p>
+<pre>...
+47.4629025 -122.3020905
+pause 1800
+...</pre>
+
+<h4>At command</h4>
+<p>The At command instructs the animated object to wait at the preceeding waypoint until a particular time of day. It should be of the form &ldquo;<code>at&nbsp;HH:MM&nbsp;on&nbsp;days</code>&rdquo;, where:</p>
+<dl>
+  <dt>at</dt>
+  <dd>The word <code>at</code>.</dd>
+  <dt>HH:MM</dt>
+  <dd>The time of day at which to proceed with the animation. In local time, and 24 hour clock.</dd>
+  <dt>on [optional]</dt>
+  <dd>Limit the animation to only occur on specified days of the week.</dd>
+  <dt>days [optional]</dt>
+  <dd>List of days.</dd>
+</dl>
+<p>For example, an animation that waits until 8am:</p>
+<pre>...
+47.4559849 -122.3028592
+at 08:00
+...</pre>
+<p>An animation that waits until 8am on a weekday:</p>
+<pre>...
+47.4559849 -122.3028592
+at 08:00 on Mon Tue Wed Thu Fri
+...</pre>
+
+<h4>Reverse command</h4>
+<p>Normally, when the animated object passes the last waypoint it proceeds towards the first waypoint, forming a circular route. The Reverse command instead instructs the object to change direction at the last waypoint and re-trace its steps. The Reverse command just consists of the word &ldquo;<code>reverse</code>&rdquo; and must be at the end of the Route. For example:</p>
+<pre>...
+reverse
+
+</pre>
+
+<h4>Comment</h4>
+<p>Lines starting with &ldquo;<code>#</code>&rdquo; are treated as comments and are ignored. For example:</p>
+<pre># This is a comment</pre>
+
+<h3>Troubleshooting</h3>
+<p>You can check that the plugin has been loaded and is operating correctly by opening the file <code>Log.txt</code> in the X-Plane folder. You should see:</p>
+<pre>Fetching plugins for Custom Scenery/<i>my scenery package</i>/plugins
+Loaded: Custom Scenery/<i>my scenery package</i>/plugins/GroundTraffic/mac.xpl.</pre>
+<p>If the plugin is operating correctly it produces no other output in the log. However if the plugin has a problem reading your <code>GroundTraffic.txt</code> file you will see one or more entries starting with &ldquo;GroundTraffic:&rdquo; in the log and the plugin will not perform any animation. For example:</p>
+<pre>GroundTraffic: Empty route at line 15</pre>
+<p>The plugin examines your <code>GroundTraffic.txt</code> file when you make a selection from the <samp>Location&nbsp;&rarr; Select&nbsp;Global&nbsp;Airport</samp> dialog; if you have edited the file then the plugin will re-read it and re-start the animations. Or you can force the plugin to re-read the file and to re-start the animations by disabling and re-enabling it in the <samp>Plugin&nbsp;&rarr; Plugin&nbsp;Admin&nbsp;&rarr; Enable/Disable</samp> dialog.</p>
+
+<h3>Acknowledgements</h3>
+
+<p>&ldquo;X-Plane&rdquo; is a registered trademark of <a href="http://www.x-plane.com/">Laminar Research</a>.</p>
+
+<h3>License</h3>
+
+<p>This kit is licensed under the Creative Commons <a rel="license" href="http://creativecommons.org/licenses/by/3.0/">Attribution</a> license. In short, you can use the plugin provided by this kit in commerical scenery packages, but you must give the author credit.<p>
+<p>The author would appreciate a courtesy copy of any commercial scenery that you make using this kit, but you are under no obligation.</p>
+
+<hr>
+<table style="width: 100%;" border="0" cellpadding="2">
+  <tbody>
+    <tr>
+      <td class="banner">Version 0.10 &copy; 2013 <a href="mailto:x-plane@marginal.org.uk">Jonathan Harris</a>
+      <a rel="license" href="http://creativecommons.org/licenses/by/3.0/"><img style="border: 0px solid ; width: 88px; height: 31px; vertical-align: text-bottom;" alt="Creative Commons License" src="http://i.creativecommons.org/l/by/3.0/88x31.png"></a></td>    </tr>
+  </tbody>
+</table>
+
+</body>
+</html>

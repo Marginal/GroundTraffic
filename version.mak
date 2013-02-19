@@ -1,0 +1,3 @@
+PROJECT=GroundTraffic
+VER=010
+VERSION=0.10
