@@ -19,6 +19,10 @@ static char *pkgpath;
 static XPLMDataRef ref_plane_lat, ref_plane_lon, ref_view_x, ref_view_y, ref_view_z, ref_night, ref_monotonic, ref_tod;
 static XPLMProbeRef ref_probe;
 static airport_t airport = { 0 };
+static route_t *route;	/* Global so can be accessed in dataref callback */
+
+/* Published DataRefs */
+const char datarefs[dataref_count][60] = { REF_DISTANCE, REF_SPEED, REF_NODE_LAST, REF_NODE_LAST_DISTANCE, REF_NODE_NEXT, REF_NODE_NEXT_DISTANCE };	/* Must be in same order as dataref_t */
 
 
 int xplog(char *msg)
@@ -124,7 +128,6 @@ static int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon
     int tod=-1;
     double x, y, z, foo, alt;
     loc_t tile;
-    route_t *route;
     XPLMProbeInfo_t probeinfo;
     probeinfo.structSize = sizeof(XPLMProbeInfo_t);
 
@@ -223,6 +226,11 @@ static int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon
             {
                 route->last_node = route->next_node;
                 route->next_node += route->direction;
+                if (!route->last_node)
+                    route->last_distance = 0;	/* reset distance travelled to prevent growing stupidly large */
+                else
+                    route->last_distance += route->next_distance;
+                route->distance = route->last_distance;
 
                 if (route->next_node >= route->pathlen)
                 {
@@ -294,7 +302,10 @@ static int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon
             /* Assume distances are too small to care about earth curvature so just calculate using OpenGL coords */
             route->drawinfo.heading = atan2(next_node->x - last_node->x, last_node->z - next_node->z) * 180.0*M_1_PI + route->heading;
             route->drawinfo.x = last_node->x;  route->drawinfo.y = last_node->y;  route->drawinfo.z = last_node->z;
+            route->next_distance = sqrtf((next_node->x - last_node->x) * (next_node->x - last_node->x) +
+                                         (next_node->z - last_node->z) * (next_node->z - last_node->z));
             route->last_time = now;
+
             if (route->state.waiting)
             {
                 route->next_time = now + 60;	/* poll every 60 seconds */
@@ -305,8 +316,7 @@ static int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon
             }
             else
             {
-                route->next_time = now + sqrtf((next_node->x - last_node->x) * (next_node->x - last_node->x) +
-                                               (next_node->z - last_node->z) * (next_node->z - last_node->z)) / route->speed;
+                route->next_time = now + route->next_distance / route->speed;
                 /* Force re-probe */
                 route->next_probe = now;
                 route->next_y = last_node->y;
@@ -350,11 +360,13 @@ static int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon
                 route->drawinfo.x = last_node->x + progress * (next_node->x - last_node->x);
                 route->drawinfo.y = route->next_y + (route->last_y - route->next_y) * (route->next_probe - now) / PROBE_INTERVAL;
                 route->drawinfo.z = last_node->z + progress * (next_node->z - last_node->z);
+                route->distance = route->last_distance + progress * route->next_distance;
             }
             else
             {
                 /* We must be in replay, and we've gone back in time beyond the last decision. Just show at the last node. */
                 route->drawinfo.x = last_node->x;  route->drawinfo.y = last_node->y;  route->drawinfo.z = last_node->z;
+                route->distance = route->last_distance;
             }
         }
         XPLMDrawObjects(route->objref, 1, &(route->drawinfo), is_night, 1);
@@ -364,6 +376,69 @@ static int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon
 }
 
 
+/* Flight loop callback for registering DataRefs with DRE */
+float flightcallback(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop, int inCounter, void *inRefcon)
+{
+    int i;
+    XPLMPluginID PluginID = XPLMFindPluginBySignature("xplanesdk.examples.DataRefEditor");
+    if (PluginID != XPLM_NO_PLUGIN_ID)
+        for(i=0; i<dataref_count; i++)
+            XPLMSendMessageToPlugin(PluginID, 0x01000000, (void*) datarefs[i]);
+    return 0;	/* Don't call again */
+}
+
+
+/* dataref accesor callback */
+static float floatrefcallback(XPLMDataRef inDataRef)
+{
+    route_t *r;
+
+    if (route)				/* We were called during XPLMDrawObjects */
+        r=route;
+    else if (airport.state==active)	/* We were called by DataRefEditor - return first route */
+        r=airport.routes;
+    else
+        return 0;
+
+    switch ((dataref_t) ((intptr_t) inDataRef))
+    {
+    case distance:
+        return r->distance;
+    case speed:
+        return (r->state.waiting||r->state.paused) ? 0 : r->speed;
+    case node_last_distance:
+        return r->distance - r->last_distance;
+    case node_next_distance:
+        return r->next_distance - (r->distance - r->last_distance);
+    default:
+        return 0;
+    }
+}
+
+
+/* dataref accesor callback */
+static int intrefcallback(XPLMDataRef inDataRef)
+{
+    route_t *r;
+
+    if (route)				/* We were called during XPLMDrawObjects */
+        r=route;
+    else if (airport.state==active)	/* We were called by DataRefEditor - return first route */
+        r=airport.routes;
+    else
+        return 0;
+
+    switch ((dataref_t) ((intptr_t) inDataRef))
+    {
+    case node_last:
+        return r->last_node;
+    case node_next:
+        return r->next_node;
+    default:
+        return 0;
+    }
+}
+
 
 /**********************************************************************
  Plugin entry points
@@ -372,6 +447,7 @@ static int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon
 PLUGIN_API int XPluginStart(char *outName, char *outSignature, char *outDescription)
 {
     char buffer[PATH_MAX], *c;
+    int i;
 
     sprintf(outName, "GroundTraffic v%.2f", VERSION);
     strcpy(outSignature, "Marginal.GroundTraffic");
@@ -413,14 +489,22 @@ PLUGIN_API int XPluginStart(char *outName, char *outSignature, char *outDescript
     
     srand(time(NULL));	/* Seed rng */
 
-    XPLMRegisterDrawCallback(drawcallback, xplm_Phase_Objects, 0, NULL);		/* After other 3D objects */
+    for(i=0; i<dataref_count; i++)
+        XPLMRegisterDataAccessor(datarefs[i], (i==node_last || i==node_next) ? xplmType_Int : xplmType_Float, 0,
+                                 intrefcallback, NULL, floatrefcallback, NULL, NULL, NULL,
+                                 NULL, NULL, NULL, NULL, NULL, NULL, (void*) ((intptr_t) i), NULL);
+    XPLMRegisterFlightLoopCallback(flightcallback, -1, NULL);			/* Just for registering datarefs with DRE */
+    XPLMRegisterDrawCallback(drawcallback, xplm_Phase_Objects, 0, NULL);	/* After other 3D objects */
 
     return 1;
 }
 
+
 PLUGIN_API void XPluginStop(void)
 {
-    XPLMDestroyProbe(ref_probe);				/* Deallocate resources */
+    XPLMUnregisterFlightLoopCallback(flightcallback, NULL);
+    XPLMUnregisterDrawCallback(drawcallback, xplm_Phase_Objects, 0, NULL);
+    XPLMDestroyProbe(ref_probe);
 }
 
 PLUGIN_API int XPluginEnable(void)
