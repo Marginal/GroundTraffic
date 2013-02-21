@@ -60,12 +60,12 @@
 #define PROBE_INTERVAL 4	/* How often to probe ahead for altitude [s] */
 
 /* Published DataRefs */
-#define REF_DISTANCE		"marginal.org.uk/groundtraffic/distance"
-#define REF_SPEED		"marginal.org.uk/groundtraffic/speed"
-#define REF_NODE_LAST		"marginal.org.uk/groundtraffic/waypoint/last"
-#define REF_NODE_LAST_DISTANCE	"marginal.org.uk/groundtraffic/waypoint/last/distance"
-#define REF_NODE_NEXT		"marginal.org.uk/groundtraffic/waypoint/next"
-#define REF_NODE_NEXT_DISTANCE	"marginal.org.uk/groundtraffic/waypoint/next/distance"
+#define REF_DISTANCE		"marginal/groundtraffic/distance"
+#define REF_SPEED		"marginal/groundtraffic/speed"
+#define REF_NODE_LAST		"marginal/groundtraffic/waypoint/last"
+#define REF_NODE_LAST_DISTANCE	"marginal/groundtraffic/waypoint/last/distance"
+#define REF_NODE_NEXT		"marginal/groundtraffic/waypoint/next"
+#define REF_NODE_NEXT_DISTANCE	"marginal/groundtraffic/waypoint/next/distance"
 typedef enum
 {
     distance=0, speed, node_last, node_last_distance, node_next, node_next_distance,

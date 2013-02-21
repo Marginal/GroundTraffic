@@ -139,22 +139,22 @@ reverse
 
 <p>The plugin publishes the following DataRefs that you can use to create animated objects in a 3D modelling application that supports X-Plane animations:</p>
 <dl>
-  <dt><code>marginal.org.uk/groundtraffic/distance</code></dt>
+  <dt><code>marginal/groundtraffic/distance</code></dt>
   <dd>Distance travelled from the first waypoint, in metres. Resets to zero every time the object passes the first waypoint.</dd>
   <br>
-  <dt><code>marginal.org.uk/groundtraffic/speed</code></dt>
+  <dt><code>marginal/groundtraffic/speed</code></dt>
   <dd>Speed of the object, in metres/second. This returns zero if the object is stationary, or up to the speed that you specified in the Route statement (converted to [m/s]) if it is moving.</dd>
   <br>
-  <dt><code>marginal.org.uk/groundtraffic/waypoint/last</code></dt>
+  <dt><code>marginal/groundtraffic/waypoint/last</code></dt>
   <dd>The last waypoint in the Route (counting from zero) visited by the object.</dd>
   <br>
-  <dt><code>marginal.org.uk/groundtraffic/waypoint/last/distance</code></dt>
+  <dt><code>marginal/groundtraffic/waypoint/last/distance</code></dt>
   <dd>The distance from the last waypoint, in metres. This returns zero if the object is stationary.</dd>
   <br>
-  <dt><code>marginal.org.uk/groundtraffic/waypoint/next</code></dt>
+  <dt><code>marginal/groundtraffic/waypoint/next</code></dt>
   <dd>The next waypoint in the Route (counting from zero) visited by the object. This is one greater than the last waypoint unless the object is reversing its route or is circling back to the first waypoint.</dd>
   <br>
-  <dt><code>marginal.org.uk/groundtraffic/waypoint/next/distance</code></dt>
+  <dt><code>marginal/groundtraffic/waypoint/next/distance</code></dt>
   <dd>The distance to the next waypoint, in metres.</dd>
 </dl>
 <p>These DataRefs return values specific to the route that the object is following. You can examine these values using <a target="_blank" href="http://developer.x-plane.com/tools/datarefeditor/">DataRefEditor</a>, but it will only display the values for the first route listed in <samp>GroundTraffic.txt</samp>.</p>
@@ -163,14 +163,14 @@ reverse
 <p>The speed of rotation of a wheel depends on its size; a smaller wheel needs to rotate more quickly in order to cover a given distance than a larger wheel. In your 3D modelling application measure the diameter of the wheel (in metres) and multiple this value by &pi; in order to obtain the wheel's circumference.</p>
 <p>Set up an animation for the wheel containing two keyframes. Rotate the wheel by 90&deg; around its axle between the two keyframes. Specify the X-Plane animation values as follows:</p>
 <ul>
-  <li>DataRef: <code>marginal.org.uk/groundtraffic/distance</code></li>
+  <li>DataRef: <code>marginal/groundtraffic/distance</code></li>
   <li>Keyframe#0: DataRef value = 0.</li>
   <li>Keyframe#1: DataRef value = one quarter of the circumference of the wheel [m].</li>
   <li>Loop DataRef value = the circumference of the wheel [m].</li>
 </ul>
 <p>For example, for a wheel 1.155m in diameter:<p>
 <ul>
-  <li>DataRef: <code>marginal.org.uk/groundtraffic/distance</code></li>
+  <li>DataRef: <code>marginal/groundtraffic/distance</code></li>
   <li>Keyframe#0: DataRef value = 0</li>
   <li>Keyframe#1: DataRef value = 1.155 &times; &pi; &div; 4 = 1.155 &times; 0.7854 = 0.907</li>
   <li>Loop DataRef value = 1.155 &times; &pi; = 1.155 &times; 3.1416 = 3.628</li>
