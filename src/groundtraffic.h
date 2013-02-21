@@ -51,9 +51,12 @@
 #endif
 
 /* constants */
+#define MAX_NAME 256		/* Arbitrary limit on object name lengths */
 #define TILE_RANGE 1		/* How many tiles away from plane's tile to consider getting out of bed for */
-#define DRAW_DISTANCE 5000.0	/* Distance [m] from tower location at which to actually get out of bed */
-#define DRAW_HYSTERESIS (DRAW_DISTANCE*0.05)
+#define ACTIVE_DISTANCE 6000.0	/* Distance [m] from tower location at which to actually get out of bed */
+#define ACTIVE_HYSTERESIS (ACTIVE_DISTANCE*0.05)
+#define DRAW_DISTANCE 3500.0	/* Distance [m] from object to draw it. Divided by LOD value. */
+#define DEFAULT_LOD 2.25	/* Equivalent to "medium" world detail distance */
 #define PROBE_INTERVAL 4	/* How often to probe ahead for altitude [s] */
 
 /* Published DataRefs */

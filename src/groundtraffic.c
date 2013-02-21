@@ -16,8 +16,9 @@ BOOL APIENTRY DllMain(HANDLE hModule, DWORD ul_reason, LPVOID lpReserved)
 
 /* Globals */
 static char *pkgpath;
-static XPLMDataRef ref_plane_lat, ref_plane_lon, ref_view_x, ref_view_y, ref_view_z, ref_night, ref_monotonic, ref_tod;
+static XPLMDataRef ref_plane_lat, ref_plane_lon, ref_view_x, ref_view_y, ref_view_z, ref_night, ref_monotonic, ref_tod, ref_LOD;
 static XPLMProbeRef ref_probe;
+static float draw_distance = DRAW_DISTANCE/DEFAULT_LOD;
 static airport_t airport = { 0 };
 static route_t *route;	/* Global so can be accessed in dataref callback */
 
@@ -42,7 +43,8 @@ static inline int intilerange(loc_t tile, loc_t loc)
 
 static inline int indrawrange(float xdist, float ydist, float zdist, float range)
 {
-    return (xdist*xdist + ydist*ydist + zdist*zdist <= range*range);
+    float dist2 = xdist*xdist + ydist*ydist + zdist*zdist;
+    return (dist2 <= range*range);
 }
 
 
@@ -163,13 +165,13 @@ static int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon
 
     if (airport.state==active)
     {
-        if (!indrawrange(x-view_x, y-view_y, z-view_z, DRAW_DISTANCE+DRAW_HYSTERESIS))
+        if (!indrawrange(x-view_x, y-view_y, z-view_z, ACTIVE_DISTANCE+ACTIVE_HYSTERESIS))
         {
             deactivate(&airport);
             return 1;
         }
     }
-    else if (!indrawrange(x-view_x, y-view_y, z-view_z, DRAW_DISTANCE))
+    else if (!indrawrange(x-view_x, y-view_y, z-view_z, ACTIVE_DISTANCE))
     {
         return 1;	/* stay inactive */
     }
@@ -187,7 +189,9 @@ static int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon
     if (now == last_frame)
     {
         for(route=airport.routes; route; route=route->next)
-            XPLMDrawObjects(route->objref, 1, &(route->drawinfo), is_night, 1);
+            /* Have to check draw range every frame since "now" isn't updated while sim paused */
+            if (indrawrange(route->drawinfo.x-view_x, route->drawinfo.y-view_y, route->drawinfo.z-view_z, draw_distance))
+                XPLMDrawObjects(route->objref, 1, &(route->drawinfo), is_night, 1);
         return 1;
     }
         
@@ -369,7 +373,9 @@ static int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon
                 route->distance = route->last_distance;
             }
         }
-        XPLMDrawObjects(route->objref, 1, &(route->drawinfo), is_night, 1);
+        /* All the preceeding mucking about is pretty inexpensive. But drawing is expensive so test for range */
+        if (indrawrange(route->drawinfo.x-view_x, route->drawinfo.y-view_y, route->drawinfo.z-view_z, draw_distance))
+            XPLMDrawObjects(route->objref, 1, &(route->drawinfo), is_night, 1);
     }
 
     return 1;
@@ -461,6 +467,7 @@ PLUGIN_API int XPluginStart(char *outName, char *outSignature, char *outDescript
     ref_night    =XPLMFindDataRef("sim/graphics/scenery/percent_lights_on");
     ref_monotonic=XPLMFindDataRef("sim/time/total_running_time_sec");
     ref_tod      =XPLMFindDataRef("sim/time/local_time_sec");
+    ref_LOD      =XPLMFindDataRef("sim/private/controls/reno/LOD_bias_rat");
     ref_probe    =XPLMCreateProbe(xplm_ProbeY);
     if (!(ref_view_x && ref_view_y && ref_view_z && ref_night && ref_monotonic && ref_tod)) return xplog("Can't access X-Plane datarefs!");
 
@@ -526,8 +533,14 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFrom, long inMessage, void 
     }
     else if (inMessage==XPLM_MSG_SCENERY_LOADED)
     {
-        /* May be a scenery shift - invalidate cached OpenGL locations */
         route_t *route;
+        float lod=0;
+
+        /* Changing the world detail distance setting causes a reload */
+        if (ref_LOD) lod=XPLMGetDataf(ref_LOD);
+        draw_distance = DRAW_DISTANCE / (lod ? lod : DEFAULT_LOD);
+
+        /* May be a scenery shift - invalidate cached OpenGL locations */
         for(route=airport.routes; route; route=route->next)
         {
             int i;
