@@ -22,10 +22,10 @@ DEFINES=-DIBM=1 -DAPL=0 -DLIN=0 -DVERSION=$(VERSION)
 INC=-I$(XPSDK)\CHeaders\XPLM -I$(XPSDK)/CHeaders/Widgets
 CFLAGS=-nologo -LD $(BUILD) $(DEFINES) $(INC)
 
-SRC=routes.c groundtraffic.c
+SRC=groundtraffic.c draw.c routes.c
 
 TARGET=..\$(PROJECT)\$(ARCHDIR)\win.xpl
-LIBS=$(XPSDK)\Libraries\Win\XPLM$(ARCHXP).lib $(XPSDK)\Libraries\Win\XPWidgets$(ARCHXP).lib GlU32.Lib OpenGL32.Lib
+LIBS=$(XPSDK)\Libraries\Win\XPLM$(ARCHXP).lib $(XPSDK)\Libraries\Win\XPWidgets$(ARCHXP).lib
 
 RM=del /q
 CP=copy /y

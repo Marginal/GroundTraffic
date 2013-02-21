@@ -143,7 +143,21 @@ typedef struct
 
 
 /* prototypes */
+int activate(airport_t *airport);
+void deactivate(airport_t *airport);
+
 int xplog(char *msg);
 void deactivate(airport_t *airport);
 int readconfig(char *pkgpath, airport_t *airport);
 void clearconfig(airport_t *airport);
+
+int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon);
+
+
+/* Globals */
+extern char *pkgpath;
+extern XPLMDataRef ref_plane_lat, ref_plane_lon, ref_view_x, ref_view_y, ref_view_z, ref_night, ref_monotonic, ref_tod, ref_LOD;
+extern XPLMProbeRef ref_probe;
+extern float draw_distance;
+extern airport_t airport;
+extern route_t *route;	/* Global so can be accessed in dataref callback */

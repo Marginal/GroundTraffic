@@ -13,7 +13,7 @@ DEFINES=-DAPL=1 -DIBM=0 -DLIN=0 -DVERSION=$(VERSION)
 INC=-F$(XPSDK)/Libraries/Mac -I$(XPSDK)/CHeaders/XPLM
 CFLAGS=-arch i586 -arch x86_64 -pipe -Wall -bundle -fvisibility=hidden -mmacosx-version-min=10.5 $(BUILD) $(DEFINES) $(INC)
 
-SRC=routes.c groundtraffic.c
+SRC=groundtraffic.c draw.c routes.c
 LIBS=-framework XPLM
 
 RM=rm -f
@@ -39,10 +39,12 @@ install:	$(TARGET)
 $(TARGET):	$(OBJS)
 	$(CC) $(CFLAGS) $(LDFLAGS) $(LIBS) -o $@ $+
 
+$(OBJS): | $(BUILDDIR)
+
 $(BUILDDIR):
 	$(MD) $(BUILDDIR)
 
-$(BUILDDIR)/%.o:	%.c groundtraffic.h $(BUILDDIR)
+$(BUILDDIR)/%.o:	%.c groundtraffic.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:

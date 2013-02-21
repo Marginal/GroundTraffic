@@ -13,8 +13,6 @@ static time_t mtime=-1;	/* control file modification time  */
 
 void clearconfig(airport_t *airport)
 {
-    route_t *route=airport->routes;
-
     deactivate(airport);
 
     airport->ICAO[0]='\0';
@@ -23,6 +21,7 @@ void clearconfig(airport_t *airport)
     airport->state = noconfig;
     airport->routes=NULL;
 
+    route=airport->routes;
     while (route)
     {
         route_t *next=route->next;
@@ -266,6 +265,12 @@ int readconfig(char *pkgpath, airport_t *airport)
     if (airport->state==noconfig)
     {
         xplog("Can't read groundtraffic.txt");
+        return 1;
+    }
+    else if (!airport->routes)
+    {
+        clearconfig(airport);
+        xplog("No routes defined!");
         return 1;
     }
 #if 0
