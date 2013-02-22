@@ -99,11 +99,18 @@ typedef struct
     unsigned char atdays;
     unsigned char reverse;
 } path_t;
-        
+
+typedef struct
+{
+    char name[MAX_NAME];
+    float heading;		/* rotation applied before drawing */
+    float offset;		/* offset applied after rotation before drawing. [m] in train defn, [s] in route */
+} objdef_t;
+
 /* A route from routes.txt */
 typedef struct route_t
 {
-    char objname[PATH_MAX];
+    objdef_t object;
     XPLMObjectRef objref;
     path_t *path;
     int pathlen;
@@ -115,7 +122,6 @@ typedef struct route_t
     int direction;		/* Traversing path 1=forwards, -1=reverse */
     int last_node, next_node;	/* The last and next waypoints visited on the path */
     float last_time, next_time;	/* Time we left last_node, expected time to hit the next node */
-    float heading;		/* rotation applied before drawing */
     float speed;		/* [m/s] */
     float last_distance;	/* Cumulative distance travelled from first to last_node [m] */
     float next_distance;	/* Distance from last_node to next_node [m] */
@@ -124,21 +130,34 @@ typedef struct route_t
     float next_probe;		/* Time we should probe altitude again */
     float last_y, next_y;	/* OpenGL co-ordinates at last probe point */
     int objnum;			/* Only used while reading library object */
+    struct route_t *parent;	/* Points to head of a train */
     struct route_t *next;
 } route_t;
 
+
+/* A train of interconnected objects */
+#define MAX_TRAIN 8
+typedef struct train_t
+{
+    char name[MAX_NAME];
+    objdef_t objects[MAX_TRAIN];
+    struct train_t *next;
+} train_t;
+
+
+/* airport info from routes.txt */
 typedef enum
 {
     noconfig=0, inactive, active
 } state_t;
 
-/* airport info from routes.txt */
 typedef struct
 {
     state_t state;
     char ICAO[5];
     loc_t tower;
     route_t *routes;
+    train_t *trains;
 } airport_t;
 
 

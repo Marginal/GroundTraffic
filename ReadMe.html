@@ -60,7 +60,7 @@ blockquote { font-family: monospace; }
   <dd>A location near the centre of your airport. The control tower is often a good choice.</dd>
 </dl>
 <p>For example Seattle-Tacoma airport tower:</p>
-<pre>KSEA	47.4557260 -122.3013928
+<pre>KSEA 	47.4557260 -122.3013928
 
 </pre>
 
@@ -70,24 +70,24 @@ blockquote { font-family: monospace; }
   <dt>speed</dt>
   <dd>The speed of the animated object, in km/h.</dd>
   <dt>object</dt>
-  <dd>The name of the animated object. This can be a library object from X-Plane's built-in library or from an add-on library, or an object in your scenery package.</dd>
+  <dd>The name of the animated object. This can be the name of a library object from X-Plane's built-in library or from an add-on library, the name of an object in your scenery package, or the name of a &ldquo;<a href="#Train">Train</a>&rdquo;.</dd>
   <dt>heading <i>(optional)</i></dt>
   <dd>Rotation in degrees to be applied to the animated object.</dd>
 </dl>
-<p>For example, a route using an object from X-Plane 10's built-in library, travelling at 16km/h (~10mph), to be rotated 180&deg;:</p>
+<p>For example, a route using an object from the scenery package, travelling at 30km/h (~18mph):</p>
 <pre>
 
-route	16	lib/airport/Ramp_Equipment/Lugg_Train_Straight2.obj	180
+route 	30 	objects/airport_fuel_truck.obj
 ...</pre>
-<p>A route using an object from the scenery package, travelling at 24km/h (~15mph):</p>
+<p>A route using an object from X-Plane 10's built-in library, travelling at 24km/h (~15mph), to be rotated 180&deg;:</p>
 <pre>
 
-route	24	objects/veh_air_forklift.obj
+route 	24 	lib/airport/Ramp_Equipment/Luggage_Truck.obj 	180
 ...</pre>
 <p>The Route statement should be followed by a sequence of &ldquo;waypoints&rdquo; and &ldquo;commands&rdquo;. The Route ends with a blank line.</p>
 
 <h4>Waypoint</h4>
-<p>Animated objects move from one waypoint to the next at the speed specified in the Route statement. When the object passes the last waypoint it proceeds towards the first waypoint, forming a circular route (unless you specify a &ldquo;reverse&rdquo; command; described below).</p>
+<p>Animated objects move from one waypoint to the next at the speed specified in the Route statement. When the object passes the last waypoint it proceeds towards the first waypoint, forming a circular route (unless you specify a &ldquo;<a href="#reverse">reverse</a>&rdquo; command).</p>
 <p>Waypoints should be of the form &ldquo;lat&nbsp;lon&rdquo;. For example:</p>
 <pre>...
 47.4484450 -122.3001950
@@ -124,7 +124,7 @@ at 08:00
 at 08:00 20:00 on Mon Tue Wed Thu Fri
 ...</pre>
 
-<h4>Reverse command</h4>
+<h4><a name="reverse">Reverse</a> command</h4>
 <p>Normally, when the animated object passes the last waypoint it proceeds towards the first waypoint, forming a circular route. The Reverse command instead instructs the object to change direction at the last waypoint and re-trace its steps. The Reverse command just consists of the word &ldquo;<code>reverse</code>&rdquo; and must be at the end of the Route. For example:</p>
 <pre>...
 reverse
@@ -134,6 +134,36 @@ reverse
 <h4>Comment</h4>
 <p>Lines starting with &ldquo;<code>#</code>&rdquo; are treated as comments and are ignored. For example:</p>
 <pre># This is a comment</pre>
+
+<h3><a name="Train">Train</a></h4>
+<p>Instead of animating a single object along a Route, you can animate a number of objects to follow each other in succession like train cars/coaches follow their locomotive.</p>
+<p>A Train statement starts a description of a train of connected objects. It should be of the form &ldquo;<code>train</code>&nbsp;name&rdquo;, where:</p>
+<dl>
+  <dt>name</dt>
+  <dd>The name of your train. Use this name in a Route statement to animate this train. To avoid any ambiguity don't name your train with the same name as a library object or an object in your scenery package.</dd>
+</dl>
+<p>For example a suitable name for a train consisting of a tug and four luggage carts:</p>
+<pre>
+
+train	marginal/luggage_train_4
+...</pre>
+<p>The Train statement should be followed by a list of the &ldquo;cars&rdquo; that form the train. The Train description ends with a blank line.</p>
+
+<h4>Car</h4>
+<p>A train car should be of the form &ldquo;<code>route</code>&nbsp;object&nbsp;offset&nbsp;heading&rdquo;, where:</p>
+<dl>
+  <dt>object</dt>
+  <dd>The name of the animated object. This can be the name of a library object from X-Plane's built-in library or from an add-on library, or the name of an object in your scenery package. It should not be the name of this or another Train.</dd>
+  <dt>offset</dt>
+  <dd>Distance in metres that the object should lag behind the lead object in the train.</dd>
+  <dt>heading <i>(optional)</i></dt>
+  <dd>Rotation in degrees to be applied to the animated object.</dd>
+</dl>
+<p>For example two objects, the first of which needs to be rotated 180&deg;, the second of which is 3.36m behind the first:</p>
+<pre>...
+lib/airport/Ramp_Equipment/Luggage_Truck.obj	0	180
+lib/airport/Ramp_Equipment/Luggage_Cart.obj	3.36
+...</pre>
 
 <h3>Animation DataRefs</h3>
 

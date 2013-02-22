@@ -37,7 +37,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
     probeinfo.structSize = sizeof(XPLMProbeInfo_t);
 
     if (airport.state==noconfig) return 1;
-    
+
     tile.lat=floor(XPLMGetDatad(ref_plane_lat));
     tile.lon=floor(XPLMGetDatad(ref_plane_lon));
     if (!intilerange(tile, airport.tower))
@@ -105,8 +105,9 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
     for(route=airport.routes; route; route=route->next)
     {
         path_t *last_node, *next_node;
+        float route_now = now - route->object.offset;	/* Train objects are drawn in the past */
 
-        if (now >= route->next_time)
+        if (route_now >= route->next_time)
         {
             if (route->state.waiting)
             {
@@ -152,18 +153,21 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                     route->next_node = 1;
                 }
 
-                if (route->path[route->last_node].attime[0] != INVALID_AT)
+                if (!route->parent)
                 {
-                    route->state.waiting = 1;
-                }
-                if (route->path[route->last_node].pausetime)
-                {
-                    route->state.paused = 1;
-                }
-                if (route->path[route->last_node].reverse)
-                {
-                    route->direction = -1;
-                    route->next_node = route->pathlen-2;
+                    if (route->path[route->last_node].attime[0] != INVALID_AT)
+                    {
+                        route->state.waiting = 1;
+                    }
+                    if (route->path[route->last_node].pausetime)
+                    {
+                        route->state.paused = 1;
+                    }
+                    if (route->path[route->last_node].reverse)
+                    {
+                        route->direction = -1;
+                        route->next_node = route->pathlen-2;
+                    }
                 }
             }
             
@@ -212,28 +216,54 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
             route->drawinfo.x = last_node->x;  route->drawinfo.y = last_node->y;  route->drawinfo.z = last_node->z;
             route->next_distance = sqrtf((next_node->x - last_node->x) * (next_node->x - last_node->x) +
                                          (next_node->z - last_node->z) * (next_node->z - last_node->z));
-            route->last_time = now;
 
-            if (route->state.waiting)
+            if (route->parent)
             {
-                route->next_time = now + 60;	/* poll every 60 seconds */
-            }
-            else if (route->state.paused)
-            {
-                route->next_time = now + route->path[route->last_node].pausetime;
+                /* Parent controls our state */
+                route->last_time = route->parent->last_time;	/* Maintain spacing from head of train */
+                route->next_time = route->last_time + route->next_distance / route->speed;
             }
             else
             {
-                route->next_time = now + route->next_distance / route->speed;
+                route->last_time = now;
+
+                if (route->state.waiting)
+                    route->next_time = route->last_time + 60;	/* poll every 60 seconds */
+                else if (route->state.paused)
+                    route->next_time = route->last_time + route->path[route->last_node].pausetime;
+                else
+                    route->next_time = route->last_time + route->next_distance / route->speed;
+            }
+            
+            if (!(route->state.waiting||route->state.paused))
+            {
                 /* Force re-probe */
-                route->next_probe = now;
+                route->next_probe = route_now;
                 route->next_y = last_node->y;
             }
         }
-        else	// (now >= route->next_time)
+        else	// (route_now < route->next_time)
         {
             next_node = route->path + route->next_node;
             last_node = route->path + route->last_node;
+
+            if (route->parent)
+            {
+                /* Parent controls our state */
+                if ((route->parent->state.waiting|route->parent->state.paused) && !route->state.paused)
+                {
+                    /* Parent has just paused */
+                    route->state.paused = 1;
+                    route->next_time = FLT_MAX;
+                }
+                else if (!(route->parent->state.waiting|route->parent->state.paused) && route->state.paused)
+                {
+                    /* Parent has just unpaused */
+                    route->state.paused = 0;
+                    route->next_time = route->parent->last_time;	/* Maintain spacing from head of train */
+                    route->last_time = route->next_time - route->next_distance / route->speed;
+                }
+            }
         
             /* Re-cache waypoints' OpenGL co-ordinates if they were reset during a scenery shift */
             if (!last_node->x && !last_node->y && !last_node->z)
@@ -253,20 +283,20 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
         {
             double progress;	/* double to force type promotion for accuracy */
 
-            if (now >= route->next_probe)
+            if (route_now >= route->next_probe)
             {
                 /* Probe four seconds in the future */
-                route->next_probe = now + PROBE_INTERVAL;
+                route->next_probe = route_now + PROBE_INTERVAL;
                 route->last_y = route->next_y;
                 progress = (route->next_probe - route->last_time) / (route->next_time - route->last_time);
                 XPLMProbeTerrainXYZ(ref_probe, last_node->x + progress * (next_node->x - last_node->x), route->last_y, last_node->z + progress * (next_node->z - last_node->z), &probeinfo);
                 route->next_y = probeinfo.locationY;
             }
-            progress = (now - route->last_time) / (route->next_time - route->last_time);
-            if (progress >= 0)
+            if (now >= route->last_time)
             {
+                progress = (route_now - route->last_time) / (route->next_time - route->last_time);
                 route->drawinfo.x = last_node->x + progress * (next_node->x - last_node->x);
-                route->drawinfo.y = route->next_y + (route->last_y - route->next_y) * (route->next_probe - now) / PROBE_INTERVAL;
+                route->drawinfo.y = route->next_y + (route->last_y - route->next_y) * (route->next_probe - route_now) / PROBE_INTERVAL;
                 route->drawinfo.z = last_node->z + progress * (next_node->z - last_node->z);
                 route->distance = route->last_distance + progress * route->next_distance;
             }

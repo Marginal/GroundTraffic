@@ -228,14 +228,17 @@ int activate(airport_t *airport)
         else
         {
             /* Try local object */
+            struct stat info;
+
             strcpy(path, pkgpath);
             strcat(path, "/");
             strncat(path, route->object.name, PATH_MAX-strlen(pkgpath)-2);
-            route->objref=XPLMLoadObject(path);
+            if (!stat(path, &info))	/* stat it first to suppress misleading error in Log */
+                route->objref=XPLMLoadObject(path);
         }
         if (!(route->objref))
         {
-            sprintf(path, "Can't load object \"%s\"", route->object.name);
+            sprintf(path, "Can't find object or train \"%s\"", route->object.name);
             xplog(path);
             return 0;
         }
