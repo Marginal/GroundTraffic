@@ -161,3 +161,5 @@ extern XPLMProbeRef ref_probe;
 extern float draw_distance;
 extern airport_t airport;
 extern route_t *route;	/* Global so can be accessed in dataref callback */
+
+float last_frame;	/* Global so can be reset while disabled */

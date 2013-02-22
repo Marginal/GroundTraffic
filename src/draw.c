@@ -8,6 +8,7 @@
 #include "groundtraffic.h"
 
 /* Globals */
+float last_frame=0;	/* last time we recalculated */
 
 
 static inline int intilerange(loc_t tile, loc_t loc)
@@ -25,7 +26,6 @@ static inline int indrawrange(float xdist, float ydist, float zdist, float range
 
 int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
 {
-    static float last_frame=0;	/* last time we recalculated */
     static int is_night=0;
 
     float view_x, view_y, view_z;
@@ -98,9 +98,9 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
         route=airport.routes;	/* Leave at the first route for DataRefEditor */
         return 1;
     }
+    last_frame=now;
         
     /* Update and draw */
-    last_frame=now;
     is_night = (int)(XPLMGetDataf(ref_night)+0.67);
     for(route=airport.routes; route; route=route->next)
     {

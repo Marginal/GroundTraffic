@@ -261,4 +261,5 @@ void deactivate(airport_t *airport)
     }
 
     airport->state=inactive;
+    last_frame = 0;
 }
