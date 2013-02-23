@@ -119,20 +119,11 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFrom, long inMessage, void 
     }
     else if (inMessage==XPLM_MSG_SCENERY_LOADED)
     {
-        route_t *route;
         float lod=0;
 
         /* Changing the world detail distance setting causes a reload */
         if (ref_LOD) lod=XPLMGetDataf(ref_LOD);
         draw_distance = DRAW_DISTANCE / (lod ? lod : DEFAULT_LOD);
-
-        /* May be a scenery shift - invalidate cached OpenGL locations */
-        for(route=airport.routes; route; route=route->next)
-        {
-            int i;
-            for (i=0; i<route->pathlen; i++)
-                route->path[i].x = route->path[i].y = route->path[i].z = 0;
-        }
     }
 }
 
@@ -218,8 +209,7 @@ int activate(airport_t *airport)
     route_t *route;
     char path[PATH_MAX];
 
-    assert (airport->state!=noconfig);
-    if (airport->state==active) return 1;
+    assert (airport->state==inactive);
 
     for(route=airport->routes; route; route=route->next)
     {
@@ -270,4 +260,83 @@ void deactivate(airport_t *airport)
 
     airport->state=inactive;
     last_frame = 0;
+}
+
+
+/* Probe out route paths */
+void proberoutes(airport_t *airport)
+{
+    route_t *route = airport->routes;
+    int i;
+    double x, y, z, foo, alt;
+    XPLMProbeInfo_t probeinfo;
+    probeinfo.structSize = sizeof(XPLMProbeInfo_t);
+
+    /* First find airport location. Probe twice to correct for slant error, since our
+     * airport might be up to two tiles away - http://forums.x-plane.org/index.php?showtopic=38688&page=3&#entry566469 */
+    XPLMWorldToLocal(airport->tower.lat, airport->tower.lon, 0, &x, &y, &z);	// 1
+    XPLMProbeTerrainXYZ(ref_probe, x, y, z, &probeinfo);			// 2
+    XPLMLocalToWorld(probeinfo.locationX, probeinfo.locationY, probeinfo.locationZ, &foo, &foo, &alt);	// 3
+    XPLMWorldToLocal(airport->tower.lat, airport->tower.lon, alt, &x, &y, &z);	// 4
+    XPLMProbeTerrainXYZ(ref_probe, x, y, z, &probeinfo);			// 5
+    XPLMLocalToWorld(probeinfo.locationX, probeinfo.locationY, probeinfo.locationZ, &foo, &foo, &alt);
+    airport->tower.alt=alt;
+
+    /* Re-convert once more to get values that we'll compare every frame to check for OpenGL projection shifting */
+    XPLMWorldToLocal(airport->tower.lat, airport->tower.lon, airport->tower.alt, &x, &y, &z);
+    airport->x=x; airport->y=y; airport->z=z;
+
+    while (route)
+    {
+        if (!route->parent)	/* Children share parents' route paths, so already probed */
+            for (i=0; i<route->pathlen; i++)
+            {
+                path_t *path=route->path+i;
+
+                if (!i)
+                {
+                    /* Probe first node using tower location */
+                    XPLMWorldToLocal(path->waypoint.lat, path->waypoint.lon, airport->tower.alt, &x, &y, &z);
+                    XPLMProbeTerrainXYZ(ref_probe, x, y, z, &probeinfo);
+                    XPLMLocalToWorld(probeinfo.locationX, probeinfo.locationY, probeinfo.locationZ, &foo, &foo, &alt);
+                    /* Probe twice since it might be some distance from the tower */
+                    XPLMWorldToLocal(path->waypoint.lat, path->waypoint.lon, alt, &x, &y, &z);
+                    XPLMProbeTerrainXYZ(ref_probe, x, y, z, &probeinfo);
+                    XPLMLocalToWorld(probeinfo.locationX, probeinfo.locationY, probeinfo.locationZ, &foo, &foo, &alt);
+                    path->x=probeinfo.locationX;  path->y=probeinfo.locationY;  path->z=probeinfo.locationZ;
+                    path->waypoint.alt=alt;
+                }
+                else
+                {
+                    /* Assume this node is reasonably close to the last node so re-use its altitude to only probe once */
+                    XPLMWorldToLocal(path->waypoint.lat, path->waypoint.lon, route->path[i-1].waypoint.alt, &x, &y, &z);
+                    XPLMProbeTerrainXYZ(ref_probe, x, y, z, &probeinfo);
+                    XPLMLocalToWorld(probeinfo.locationX, probeinfo.locationY, probeinfo.locationZ, &foo, &foo, &alt);
+                    path->x=probeinfo.locationX;  path->y=probeinfo.locationY;  path->z=probeinfo.locationZ;
+                    path->waypoint.alt=alt;
+                }
+            }
+        route = route->next;
+    }
+}
+
+/* Determine OpenGL co-ordinates of route paths */
+void maproutes(airport_t *airport)
+{
+    route_t *route = airport->routes;
+    int i;
+    double x, y, z;
+
+    while (route)
+    {
+        if (!route->parent)	/* Children share parents' route paths, so already probed */
+            for (i=0; i<route->pathlen; i++)
+            {
+                path_t *path=route->path+i;
+
+                XPLMWorldToLocal(path->waypoint.lat, path->waypoint.lon, path->waypoint.alt, &x, &y, &z);
+                path->x=x;  path->y=y;  path->z=z;
+            }
+        route = route->next;
+    }
 }

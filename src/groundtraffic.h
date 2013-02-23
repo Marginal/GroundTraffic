@@ -156,6 +156,7 @@ typedef struct
     state_t state;
     char ICAO[5];
     loc_t tower;
+    float x, y, z;		/* Local OpenGL co-ordinates */
     route_t *routes;
     train_t *trains;
 } airport_t;
@@ -164,6 +165,8 @@ typedef struct
 /* prototypes */
 int activate(airport_t *airport);
 void deactivate(airport_t *airport);
+void proberoutes(airport_t *airport);
+void maproutes(airport_t *airport);
 
 int xplog(char *msg);
 void deactivate(airport_t *airport);

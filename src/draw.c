@@ -31,7 +31,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
     float view_x, view_y, view_z;
     float now;
     int tod=-1;
-    double x, y, z, foo, alt;
+    float airport_x, airport_y, airport_z;
     loc_t tile;
     XPLMProbeInfo_t probeinfo;
     probeinfo.structSize = sizeof(XPLMProbeInfo_t);
@@ -47,19 +47,14 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
     }
     else if (airport.tower.alt==INVALID_ALT)
     {
-        /* First time we've encountered our airport. Determine elevation. Probe twice to correct for slant error, since our
-         * airport might be up to two tiles away - http://forums.x-plane.org/index.php?showtopic=38688&page=3&#entry566469 */
-        XPLMWorldToLocal(airport.tower.lat, airport.tower.lon, 0, &x, &y, &z);	// 1
-        XPLMProbeTerrainXYZ(ref_probe, x, y, z, &probeinfo);			// 2
-        XPLMLocalToWorld(probeinfo.locationX, probeinfo.locationY, probeinfo.locationZ, &foo, &foo, &alt);	// 3
-        XPLMWorldToLocal(airport.tower.lat, airport.tower.lon, alt, &x, &y, &z);	// 4
-        XPLMProbeTerrainXYZ(ref_probe, x, y, z, &probeinfo);			// 5
-        XPLMLocalToWorld(probeinfo.locationX, probeinfo.locationY, probeinfo.locationZ, &foo, &foo, &alt);
-        airport.tower.alt=alt;
+        /* First time we've encountered our airport. Determine elevations. */
+        proberoutes(&airport);
     }
     else
     {
+        double x, y, z;
         XPLMWorldToLocal(airport.tower.lat, airport.tower.lon, airport.tower.alt, &x, &y, &z);
+        airport_x=x; airport_y=y; airport_z=z;
     }
 
     view_x=XPLMGetDataf(ref_view_x);
@@ -68,22 +63,30 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
 
     if (airport.state==active)
     {
-        if (!indrawrange(x-view_x, y-view_y, z-view_z, ACTIVE_DISTANCE+ACTIVE_HYSTERESIS))
+        if (!indrawrange(airport_x-view_x, airport_y-view_y, airport_z-view_z, ACTIVE_DISTANCE+ACTIVE_HYSTERESIS))
         {
             deactivate(&airport);
             return 1;
         }
     }
-    else if (!indrawrange(x-view_x, y-view_y, z-view_z, ACTIVE_DISTANCE))
+    else
     {
-        return 1;	/* stay inactive */
+        if (!indrawrange(airport_x-view_x, airport_y-view_y, airport_z-view_z, ACTIVE_DISTANCE)) return 1;	/* stay inactive */
+
+        /* Going active */
+        if (!activate(&airport))
+        {
+            clearconfig(&airport);
+            return 1;
+        }
     }
 
-    if (!activate(&airport))
+    if (airport_x!=airport.x || airport_y!=airport.y || airport_z!=airport.z)
     {
-        clearconfig(&airport);
-        return 1;
-    }        
+        /* OpenGL projection has shifted */
+        airport.x=airport_x;  airport.y=airport_y;  airport.z=airport_z;
+        maproutes(&airport);
+    }
 
     /* We can be called multiple times per frame depending on shadow settings -
      * ("sim/graphics/view/world_render_type" = 0 if normal draw, 3 if shadow draw (which precedes normal))
@@ -174,41 +177,6 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
             last_node = route->path + route->last_node;
             next_node = route->path + route->next_node;
 
-            if (last_node->waypoint.alt==INVALID_ALT)
-            {
-                assert (!route->last_node);	/* Nodes other than the first should have been worked out below */
-                /* Probe first node using tower location */
-                XPLMWorldToLocal(last_node->waypoint.lat, last_node->waypoint.lon, airport.tower.alt, &x, &y, &z);
-                XPLMProbeTerrainXYZ(ref_probe, x, y, z, &probeinfo);
-                XPLMLocalToWorld(probeinfo.locationX, probeinfo.locationY, probeinfo.locationZ, &foo, &foo, &alt);
-                /* Probe twice since it might be some distance from the tower */
-                XPLMWorldToLocal(route->path[0].waypoint.lat, route->path[0].waypoint.lon, alt, &x, &y, &z);
-                XPLMProbeTerrainXYZ(ref_probe, x, y, z, &probeinfo);
-                XPLMLocalToWorld(probeinfo.locationX, probeinfo.locationY, probeinfo.locationZ, &foo, &foo, &alt);
-                last_node->waypoint.alt=alt;
-                last_node->x=probeinfo.locationX;  last_node->y=probeinfo.locationY;  last_node->z=probeinfo.locationZ;
-            }
-            else if (!last_node->x && !last_node->y && !last_node->z)
-            {
-                XPLMWorldToLocal(last_node->waypoint.lat, last_node->waypoint.lon, last_node->waypoint.alt, &x, &y, &z);
-                last_node->x=x;  last_node->y=y;  last_node->z=z;
-            }
-
-            if (next_node->waypoint.alt==INVALID_ALT)
-            {
-                /* Assume this node is reasonably close to the last node so re-use its altitude to only probe once */
-                XPLMWorldToLocal(next_node->waypoint.lat, next_node->waypoint.lon, route->path[route->last_node].waypoint.alt, &x, &y, &z);
-                XPLMProbeTerrainXYZ(ref_probe, x, y, z, &probeinfo);
-                XPLMLocalToWorld(probeinfo.locationX, probeinfo.locationY, probeinfo.locationZ, &foo, &foo, &alt);
-                next_node->waypoint.alt=alt;
-                next_node->x=probeinfo.locationX;  next_node->y=probeinfo.locationY;  next_node->z=probeinfo.locationZ;
-            }
-            else if (!next_node->x && !next_node->y && !next_node->z)
-            {
-                XPLMWorldToLocal(next_node->waypoint.lat, next_node->waypoint.lon, next_node->waypoint.alt, &x, &y, &z);
-                next_node->x=x;  next_node->y=y;  next_node->z=z;
-            }
-
             /* calculate time and heading to next node */
 
             /* Assume distances are too small to care about earth curvature so just calculate using OpenGL coords */
@@ -263,18 +231,6 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                     route->next_time = route->parent->last_time;	/* Maintain spacing from head of train */
                     route->last_time = route->next_time - route->next_distance / route->speed;
                 }
-            }
-        
-            /* Re-cache waypoints' OpenGL co-ordinates if they were reset during a scenery shift */
-            if (!last_node->x && !last_node->y && !last_node->z)
-            {
-                XPLMWorldToLocal(last_node->waypoint.lat, last_node->waypoint.lon, last_node->waypoint.alt, &x, &y, &z);
-                last_node->x=x;  last_node->y=y;  last_node->z=z;
-            }
-            if (!next_node->x && !next_node->y && !next_node->z)
-            {
-                XPLMWorldToLocal(next_node->waypoint.lat, next_node->waypoint.lon, next_node->waypoint.alt, &x, &y, &z);
-                next_node->x=x;  next_node->y=y;  next_node->z=z;
             }
         }
 
