@@ -70,6 +70,11 @@ PLUGIN_API int XPluginStart(char *outName, char *outSignature, char *outDescript
     if (!(pkgpath=realpath(buffer, NULL))) return xplog("Can't find my scenery folder");
     for (c=pkgpath+strlen(pkgpath); *(c-1)!='/' && c>pkgpath; c--);		/* basename */
 #endif
+    if (!strcasecmp(c, "Resources"))
+    {
+        xplog("This plugin should be installed in a scenery package folder!");
+        return 0;	/* Fail */
+    }
     strcat(outName, " ");
     strcat(outName, c);
     strcat(outSignature, ".");
