@@ -284,7 +284,7 @@ void proberoutes(airport_t *airport)
 
     /* Re-convert once more to get values that we'll compare every frame to check for OpenGL projection shifting */
     XPLMWorldToLocal(airport->tower.lat, airport->tower.lon, airport->tower.alt, &x, &y, &z);
-    airport->x=x; airport->y=y; airport->z=z;
+    airport->p.x=x; airport->p.y=y; airport->p.z=z;
 
     while (route)
     {
@@ -303,7 +303,6 @@ void proberoutes(airport_t *airport)
                     XPLMWorldToLocal(path->waypoint.lat, path->waypoint.lon, alt, &x, &y, &z);
                     XPLMProbeTerrainXYZ(ref_probe, x, y, z, &probeinfo);
                     XPLMLocalToWorld(probeinfo.locationX, probeinfo.locationY, probeinfo.locationZ, &foo, &foo, &alt);
-                    path->x=probeinfo.locationX;  path->y=probeinfo.locationY;  path->z=probeinfo.locationZ;
                     path->waypoint.alt=alt;
                 }
                 else
@@ -312,7 +311,6 @@ void proberoutes(airport_t *airport)
                     XPLMWorldToLocal(path->waypoint.lat, path->waypoint.lon, route->path[i-1].waypoint.alt, &x, &y, &z);
                     XPLMProbeTerrainXYZ(ref_probe, x, y, z, &probeinfo);
                     XPLMLocalToWorld(probeinfo.locationX, probeinfo.locationY, probeinfo.locationZ, &foo, &foo, &alt);
-                    path->x=probeinfo.locationX;  path->y=probeinfo.locationY;  path->z=probeinfo.locationZ;
                     path->waypoint.alt=alt;
                 }
             }
@@ -324,19 +322,53 @@ void proberoutes(airport_t *airport)
 void maproutes(airport_t *airport)
 {
     route_t *route = airport->routes;
-    int i;
-    double x, y, z;
 
     while (route)
     {
-        if (!route->parent)	/* Children share parents' route paths, so already probed */
+        if (!route->parent)	/* Children share parents' route paths, so already mapped */
+        {
+            /* doesn't make sense to do bezier turns at start and end waypoints of a reversible route */
+            int i;
+            int reversible = route->path[route->pathlen-1].reverse ? 1 : 0;
+
             for (i=0; i<route->pathlen; i++)
             {
-                path_t *path=route->path+i;
+                double x, y, z;
+                path_t *path = route->path + i;
 
                 XPLMWorldToLocal(path->waypoint.lat, path->waypoint.lon, path->waypoint.alt, &x, &y, &z);
-                path->x=x;  path->y=y;  path->z=z;
+                path->p.x=x;  path->p.y=y;  path->p.z=z;
             }
+
+            /* Now do bezier turn points */
+            for (i = reversible; i < route->pathlen - reversible; i++)
+            {
+                path_t *this = route->path + i;
+                path_t *next = route->path + (i+1) % route->pathlen;
+                path_t *last = route->path + (i-1+route->pathlen) % route->pathlen;	/* mod of negative is undefined */
+                double dist, ratio;
+
+                /* back */
+                dist = sqrtf((last->p.x - this->p.x) * (last->p.x - this->p.x) +
+                             (last->p.z - this->p.z) * (last->p.z - this->p.z));
+                if (dist < route->speed * TURN_TIME)
+                    ratio = 0.5;	/* Node is too close - put control point halfway */
+                else
+                    ratio = route->speed * (TURN_TIME/2) / dist;
+                this->p1.x = this->p.x + ratio * (last->p.x - this->p.x);
+                this->p1.z = this->p.z + ratio * (last->p.z - this->p.z);
+
+                /* fwd */
+                dist = sqrtf((next->p.x - this->p.x) * (next->p.x - this->p.x) +
+                             (next->p.z - this->p.z) * (next->p.z - this->p.z));
+                if (dist < route->speed * TURN_TIME)
+                    ratio = 0.5;	/* Node is too close - put control point halfway */
+                else
+                    ratio = route->speed * (TURN_TIME/2) / dist;
+                this->p3.x = this->p.x + ratio * (next->p.x - this->p.x);
+                this->p3.z = this->p.z + ratio * (next->p.z - this->p.z);
+            }
+        }
         route = route->next;
     }
 }

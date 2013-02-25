@@ -58,6 +58,7 @@
 #define DRAW_DISTANCE 3500.0	/* Distance [m] from object to draw it. Divided by LOD value. */
 #define DEFAULT_LOD 2.25	/* Equivalent to "medium" world detail distance */
 #define PROBE_INTERVAL 4	/* How often to probe ahead for altitude [s] */
+#define TURN_TIME 2		/* Time [s] to execute a turn at a waypoint */
 
 /* Published DataRefs */
 #define REF_DISTANCE		"marginal/groundtraffic/distance"
@@ -79,6 +80,12 @@ typedef struct
     float lat, lon, alt;	/* drawing routines use float, so no point storing higher precision */
 } loc_t;
 
+/* OpenGL coordinate */
+typedef struct
+{
+    float x, y,z;
+} point_t;
+
 #define DAY_MON 1
 #define DAY_TUE 2
 #define DAY_WED 4
@@ -93,7 +100,8 @@ typedef struct
 typedef struct
 {
     loc_t waypoint;		/* World */
-    float x, y, z;		/* Local OpenGL co-ordinates */
+    point_t p;			/* Local OpenGL co-ordinates */
+    point_t p1, p3;		/* Bezier points for turn */
     int pausetime;
     short attime[MAX_ATTIMES];	/* minutes past midnight */
     unsigned char atdays;
@@ -126,6 +134,7 @@ typedef struct route_t
     float last_distance;	/* Cumulative distance travelled from first to last_node [m] */
     float next_distance;	/* Distance from last_node to next_node [m] */
     float distance;		/* Cumulative distance travelled from first node [m] */
+    float next_heading;		/* Heading from last_node to next_node [m] */
     XPLMDrawInfo_t drawinfo;	/* Where to draw - current OpenGL co-ordinates */
     float next_probe;		/* Time we should probe altitude again */
     float last_y, next_y;	/* OpenGL co-ordinates at last probe point */
@@ -156,7 +165,7 @@ typedef struct
     state_t state;
     char ICAO[5];
     loc_t tower;
-    float x, y, z;		/* Local OpenGL co-ordinates */
+    point_t p;
     route_t *routes;
     train_t *trains;
 } airport_t;
