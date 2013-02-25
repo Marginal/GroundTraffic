@@ -281,10 +281,7 @@ void proberoutes(airport_t *airport)
     XPLMProbeTerrainXYZ(ref_probe, x, y, z, &probeinfo);			// 5
     XPLMLocalToWorld(probeinfo.locationX, probeinfo.locationY, probeinfo.locationZ, &foo, &foo, &alt);
     airport->tower.alt=alt;
-
-    /* Re-convert once more to get values that we'll compare every frame to check for OpenGL projection shifting */
-    XPLMWorldToLocal(airport->tower.lat, airport->tower.lon, airport->tower.alt, &x, &y, &z);
-    airport->p.x=x; airport->p.y=y; airport->p.z=z;
+    airport->p.x = airport->p.y = airport->p.z = 0;	/* We will need to run maproutes() */
 
     while (route)
     {

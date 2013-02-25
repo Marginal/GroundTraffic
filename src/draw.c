@@ -31,6 +31,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
 {
     static int is_night=0;
 
+    double x, y, z;
     float view_x, view_y, view_z;
     float now;
     int tod=-1;
@@ -48,19 +49,15 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
         deactivate(&airport);
         return 1;
     }
-    else if (airport.tower.alt==INVALID_ALT)
+
+    if (airport.tower.alt==INVALID_ALT)
     {
         /* First time we've encountered our airport. Determine elevations. */
         proberoutes(&airport);
-        maproutes(&airport);
-    }
-    else
-    {
-        double x, y, z;
-        XPLMWorldToLocal(airport.tower.lat, airport.tower.lon, airport.tower.alt, &x, &y, &z);
-        airport_x=x; airport_y=y; airport_z=z;
     }
 
+    XPLMWorldToLocal(airport.tower.lat, airport.tower.lon, airport.tower.alt, &x, &y, &z);
+    airport_x=x;  airport_y=y;  airport_z=z;
     view_x=XPLMGetDataf(ref_view_x);
     view_y=XPLMGetDataf(ref_view_y);
     view_z=XPLMGetDataf(ref_view_z);
