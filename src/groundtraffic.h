@@ -86,13 +86,15 @@ typedef struct
     float x, y,z;
 } point_t;
 
-#define DAY_MON 1
-#define DAY_TUE 2
-#define DAY_WED 4
-#define DAY_THU 8
-#define DAY_FRI 16
-#define DAY_SAT 32
-#define DAY_SUN 64
+/* Days in same order as tm_wday in struct tm, such that 2**tm_wday==DAY_X */
+#define DAY_SUN 1
+#define DAY_MON 2
+#define DAY_TUE 4
+#define DAY_WED 8
+#define DAY_THU 16
+#define DAY_FRI 32
+#define DAY_SAT 64
+#define DAY_ALL (DAY_SUN|DAY_MON|DAY_TUE|DAY_WED|DAY_THU|DAY_FRI|DAY_SAT)
 #define MAX_ATTIMES 24		/* Number of times allowed in an At command */
 #define INVALID_AT -1
 
@@ -187,10 +189,11 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon);
 
 /* Globals */
 extern char *pkgpath;
-extern XPLMDataRef ref_plane_lat, ref_plane_lon, ref_view_x, ref_view_y, ref_view_z, ref_night, ref_monotonic, ref_tod, ref_LOD;
+extern XPLMDataRef ref_plane_lat, ref_plane_lon, ref_view_x, ref_view_y, ref_view_z, ref_night, ref_monotonic, ref_doy, ref_tod, ref_LOD;
 extern XPLMProbeRef ref_probe;
 extern float draw_distance;
 extern airport_t airport;
-extern route_t *route;	/* Global so can be accessed in dataref callback */
+extern route_t *route;		/* Global so can be accessed in dataref callback */
+extern int year;		/* Current year (in GMT tz) */
 
-float last_frame;	/* Global so can be reset while disabled */
+extern float last_frame;	/* Global so can be reset while disabled */

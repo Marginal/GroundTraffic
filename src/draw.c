@@ -35,6 +35,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
     float view_x, view_y, view_z;
     float now;
     int tod=-1;
+    unsigned int dow=0;
     float airport_x, airport_y, airport_z;
     loc_t tile;
     XPLMProbeInfo_t probeinfo;
@@ -117,12 +118,19 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
             {
                 /* We don't get notified when time-of-day changes in the sim, so poll once a minute */
                 int i;
+                if (!dow)
+                {
+                    /* Get current day-of-week. FIXME: This is in user's timezone, not the airport's. */
+                    struct tm tm = { 0, 0, 12, XPLMGetDatai(ref_doy)+1, 0, year };
+                    dow = (mktime(&tm) == -1) ? DAY_SUN : 1 << tm.tm_wday;
+                }
                 if (tod < 0) tod = (int) (XPLMGetDataf(ref_tod)/60);
                 for (i=0; i<MAX_ATTIMES; i++)
                 {
                     if (route->path[route->last_node].attime[i] == INVALID_AT)
                         break;
-                    else if (route->path[route->last_node].attime[i] == tod)
+                    else if ((route->path[route->last_node].attime[i] == tod) &&
+                             (route->path[route->last_node].atdays & dow))
                     {
                         route->state.waiting = 0;
                         break;

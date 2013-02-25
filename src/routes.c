@@ -199,8 +199,8 @@ int readconfig(char *pkgpath, airport_t *airport)
             else if (!strcasecmp(c1, "at"))
             {
                 int hour, minute, i=0;
-                char daynames[7][10] = { "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday" };
-                int dayvals[7] = { DAY_MON, DAY_TUE, DAY_WED, DAY_THU, DAY_FRI, DAY_SAT, DAY_SUN };
+                char daynames[7][10] = { "sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday" };
+                int dayvals[7] = { DAY_SUN, DAY_MON, DAY_TUE, DAY_WED, DAY_THU, DAY_FRI, DAY_SAT };
 
                 if (!currentroute->pathlen)
                     return failconfig(h, airport, buffer, "Route can't start with an \"at\", at line %d", lineno);
@@ -228,6 +228,7 @@ int readconfig(char *pkgpath, airport_t *airport)
                     if (i>=7)
                         return failconfig(h, airport, buffer, "Expecting a day name, found \"%s\" at line %d", c1, lineno);
                 }
+                if (!path[currentroute->pathlen-1].atdays) path[currentroute->pathlen-1].atdays = DAY_ALL;
             }
             else if (!strcasecmp(c1, "reverse"))
             {

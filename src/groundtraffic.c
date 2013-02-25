@@ -16,11 +16,12 @@ BOOL APIENTRY DllMain(HANDLE hModule, DWORD ul_reason, LPVOID lpReserved)
 
 /* Globals */
 char *pkgpath;
-XPLMDataRef ref_plane_lat, ref_plane_lon, ref_view_x, ref_view_y, ref_view_z, ref_night, ref_monotonic, ref_tod, ref_LOD;
+XPLMDataRef ref_plane_lat, ref_plane_lon, ref_view_x, ref_view_y, ref_view_z, ref_night, ref_monotonic, ref_doy, ref_tod, ref_LOD;
 XPLMProbeRef ref_probe;
 float draw_distance = DRAW_DISTANCE/DEFAULT_LOD;
 airport_t airport = { 0 };
 route_t *route = NULL;	/* Global so can be accessed in dataref callback */
+int year=113;		/* Current year (in GMT tz) since 1900 */
 
 /* Published DataRefs */
 const char datarefs[dataref_count][60] = { REF_DISTANCE, REF_SPEED, REF_NODE_LAST, REF_NODE_LAST_DISTANCE, REF_NODE_NEXT, REF_NODE_NEXT_DISTANCE };	/* Must be in same order as dataref_t */
@@ -34,6 +35,8 @@ static int intrefcallback(XPLMDataRef inDataRef);
 PLUGIN_API int XPluginStart(char *outName, char *outSignature, char *outDescription)
 {
     char buffer[PATH_MAX], *c;
+    time_t t;
+    struct tm *tm;
     int i;
 
     sprintf(outName, "GroundTraffic v%.2f", VERSION);
@@ -47,10 +50,11 @@ PLUGIN_API int XPluginStart(char *outName, char *outSignature, char *outDescript
     ref_view_z   =XPLMFindDataRef("sim/graphics/view/view_z");
     ref_night    =XPLMFindDataRef("sim/graphics/scenery/percent_lights_on");
     ref_monotonic=XPLMFindDataRef("sim/time/total_running_time_sec");
+    ref_doy      =XPLMFindDataRef("sim/time/local_date_days");
     ref_tod      =XPLMFindDataRef("sim/time/local_time_sec");
     ref_LOD      =XPLMFindDataRef("sim/private/controls/reno/LOD_bias_rat");
     ref_probe    =XPLMCreateProbe(xplm_ProbeY);
-    if (!(ref_view_x && ref_view_y && ref_view_z && ref_night && ref_monotonic && ref_tod)) return xplog("Can't access X-Plane datarefs!");
+    if (!(ref_view_x && ref_view_y && ref_view_z && ref_night && ref_monotonic && ref_doy && ref_tod)) return xplog("Can't access X-Plane datarefs!");
 
     XPLMEnableFeature("XPLM_WANTS_REFLECTIONS", 0);	/* Let's assume there aren't a lot of puddles around */
     XPLMEnableFeature("XPLM_USE_NATIVE_PATHS", 1);	/* Get paths in posix format */
@@ -81,6 +85,7 @@ PLUGIN_API int XPluginStart(char *outName, char *outSignature, char *outDescript
     strcat(outSignature, c);
     
     srand(time(NULL));	/* Seed rng */
+    if (time(&t)!=-1 && (tm = localtime(&t)))	year=tm->tm_year;	/* What year is it? */
 
     for(i=0; i<dataref_count; i++)
         XPLMRegisterDataAccessor(datarefs[i], (i==node_last || i==node_next) ? xplmType_Int : xplmType_Float, 0,
