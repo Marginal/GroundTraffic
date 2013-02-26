@@ -126,6 +126,7 @@ typedef struct route_t
     int pathlen;
     struct
     {
+        int frozen : 1;		/* Child whose parent is paused or waiting */
         int paused :1;
         int waiting : 1;
     } state;
