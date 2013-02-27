@@ -59,6 +59,7 @@
 #define DEFAULT_LOD 2.25	/* Equivalent to "medium" world detail distance */
 #define PROBE_INTERVAL 4	/* How often to probe ahead for altitude [s] */
 #define TURN_TIME 2		/* Time [s] to execute a turn at a waypoint */
+#define RESET_TIME 15		/* If we're deactivated for longer than this then reset route timings */
 
 /* Published DataRefs */
 #define REF_DISTANCE		"marginal/groundtraffic/distance"
@@ -114,7 +115,8 @@ typedef struct
 {
     char name[MAX_NAME];
     float heading;		/* rotation applied before drawing */
-    float offset;		/* offset applied after rotation before drawing. [m] in train defn, [s] in route */
+    float offset;		/* offset applied after rotation before drawing. [m] */
+    float lag;			/* time lag. [m] in train defn, [s] in route */
 } objdef_t;
 
 /* A route from routes.txt */

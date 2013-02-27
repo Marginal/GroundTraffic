@@ -37,7 +37,7 @@ blockquote { font-family: monospace; }
 <p>This kit allows X-Plane scenery designers to add animated ground vehicle traffic to airport scenery packages. It requires X-Plane 10.0 and later.</p>
 
 <h3>How it works</h3>
-<p>This kit supplies a plugin that you can distribute with your scenery package. The plugin reads instructions from a text file that you create (and which you should also distribute with your scenery package) and animates X-Plane scenery objects according to those instructions.</p>
+<p>This kit supplies a plugin that you can distribute with your scenery package. The plugin reads instructions from a text file that you create (and which you should also distribute with your scenery package) and animates X-Plane scenery objects according to those instructions. The objects to be animated can come from X-Plane's built-in library, from an add-on object library (<i>e.g.</i> <a href="http://www.opensceneryx.com/" target="_blank">OpenSceneryX</a>), or from your scenery package.</p>
 
 <h3>Installation</h3>
 
@@ -48,7 +48,7 @@ blockquote { font-family: monospace; }
 
 <h3>Animation instructions</h3>
 
-<p>Use Notepad, TextEdit, or any other text editor to create a plain text file named <samp>GroundTraffic.txt</samp> in your scenery package folder. Save this blank file with an &ldquo;ANSI&rdquo;, &ldquo;Western&rdquo; or &ldquo;UTF-8&rdquo; encoding. (If using TextEdit, you may have to first choose <samp>Format&nbsp;&rarr; Make Plain Text</samp> in order to see those choices).</p>
+<p>Use Notepad, TextEdit, or any other text editor to create a plain text file named <samp>GroundTraffic.txt</samp> in your scenery package folder. Save this blank file with an &ldquo;ANSI&rdquo;, &ldquo;Western&rdquo; or &ldquo;UTF-8&rdquo; encoding. (If using TextEdit, you may have to first choose <samp>Format&nbsp;&rarr; Make Plain Text</samp> to see those choices).</p>
 <p>Add a &ldquo;Header&rdquo; statement to this file, followed by one or more &ldquo;Routes&rdquo;:</p>
 
 <h4>Header</h4>
@@ -64,25 +64,34 @@ blockquote { font-family: monospace; }
 
 </pre>
 
-<h4>Route</h4>
-<p>A Route statement starts a new animation. It should be of the form &ldquo;<code>route</code>&nbsp;speed&nbsp;object&nbsp;heading&rdquo;, where:</p>
+<h4><a name="Route">Route</a></h4>
+<p>A Route statement starts a new animation. It should be of the form &ldquo;<code>route</code>&nbsp;speed&nbsp;offset&nbsp;heading&nbsp;object&rdquo;, where:</p>
 <dl>
   <dt>speed</dt>
   <dd>The speed of the animated object, in km/h.</dd>
+  <dt>offset</dt>
+  <dd>Offset in metres to be applied to the object before animation.</dd>
+  <dt>heading</dt>
+  <dd>Rotation in degrees to be applied to the object before animation.</dd>
   <dt>object</dt>
   <dd>The name of the animated object. This can be the name of a library object from X-Plane's built-in library or from an add-on library, the name of an object in your scenery package, or the name of a &ldquo;<a href="#Train">Train</a>&rdquo;.</dd>
-  <dt>heading <i>(optional)</i></dt>
-  <dd>Rotation in degrees to be applied to the animated object.</dd>
 </dl>
+<p>For the animation to look correct objects should be modelled such that they are pointing North and are roughly centered at their origin (since the plugin rotates them about their origins).</p>
+<ul>
+  <li>If using your own objects, design them so they are pointing North (<i>i.e.</i> along the positive green axis in SketchUp or Blender), sitting at or just slightly below ground level to allow for sloped terrain, and centered at or a little forward of their axes' origin. Use <code>0</code> for the &ldquo;offset&rdquo; and &ldquo;heading&rdquo; values in this statement.</li>
+  <li>Objects in X-Plane's built-in library tend to be centered at their origin but are not all pointing North; supply a &ldquo;heading&rdquo; value to rotate such objects.</li>
+  <li>Objects in the <a href="http://www.opensceneryx.com/" target="_blank">OpenSceneryX</a> library all point North but are not centered at their origin; supply an &ldquo;offset&rdquo; value of at least half the length of the object to correct for this.</li>
+  <li>For trains of objects, supply desired &ldquo;offset&rdquo; and &ldquo;heading&rdquo; values in the train <a href="#Train">Car</a> statement; the values supplied here are not used.</p>
+</ul>
 <p>For example, a route using an object from the scenery package, travelling at 30km/h (~18mph):</p>
 <pre>
 
-route 	30 	objects/airport_fuel_truck.obj
+route	30	0	0	objects/airport_fuel_truck.obj
 ...</pre>
 <p>A route using an object from X-Plane 10's built-in library, travelling at 24km/h (~15mph), to be rotated 180&deg;:</p>
 <pre>
 
-route 	24 	lib/airport/Ramp_Equipment/Luggage_Truck.obj 	180
+route	24	0	180	lib/airport/Ramp_Equipment/Luggage_Truck.obj
 ...</pre>
 <p>The Route statement should be followed by a sequence of &ldquo;waypoints&rdquo; and &ldquo;commands&rdquo;. The Route ends with a blank line.</p>
 
@@ -135,7 +144,7 @@ reverse
 <p>Lines starting with &ldquo;<code>#</code>&rdquo; are treated as comments and are ignored. For example:</p>
 <pre># This is a comment</pre>
 
-<h3><a name="Train">Train</a></h4>
+<h4><a name="Train">Train</a></h4>
 <p>Instead of animating a single object along a Route, you can animate a number of objects to follow each other in succession like train cars/coaches follow their locomotive.</p>
 <p>A Train statement starts a description of a train of connected objects. It should be of the form &ldquo;<code>train</code>&nbsp;name&rdquo;, where:</p>
 <dl>
@@ -147,22 +156,25 @@ reverse
 
 train	marginal/luggage_train_4
 ...</pre>
-<p>The Train statement should be followed by a list of the &ldquo;cars&rdquo; that form the train. The Train description ends with a blank line.</p>
+<p>The Train statement should be followed by a list of the &ldquo;Car&rdquo; statements. The Train description ends with a blank line.</p>
 
 <h4>Car</h4>
-<p>A train car should be of the form &ldquo;<code>route</code>&nbsp;object&nbsp;offset&nbsp;heading&rdquo;, where:</p>
+<p>A train Car statement should be of the form &ldquo;lag&nbsp;offset&nbsp;heading&nbsp;object&rdquo;, where:</p>
 <dl>
+  <dt>lag</dt>
+  <dd>Distance in metres that the object should lag behind the lead object in the train.</dd>
+  <dt>offset</dt>
+  <dd>Offset in metres to be applied to the object before animation.</dd>
+  <dt>heading</dt>
+  <dd>Rotation in degrees to be applied to the object before animation.</dd>
   <dt>object</dt>
   <dd>The name of the animated object. This can be the name of a library object from X-Plane's built-in library or from an add-on library, or the name of an object in your scenery package. It should not be the name of this or another Train.</dd>
-  <dt>offset</dt>
-  <dd>Distance in metres that the object should lag behind the lead object in the train.</dd>
-  <dt>heading <i>(optional)</i></dt>
-  <dd>Rotation in degrees to be applied to the animated object.</dd>
 </dl>
+<p>To determine how far an object should lag behind the the lead object you can open/import the objects in your 3D modelling application and measure how far (in metres) you have to move the object behind the lead object for it to appear to &ldquo;link up&rdquo; correctly. If the object needs an <a href="#Route">offset</a> to be centered on its axes then adjust for this before measuring. Repeat the process for further objects.</p>
 <p>For example two objects, the first of which needs to be rotated 180&deg;, the second of which is 3.36m behind the first:</p>
 <pre>...
-lib/airport/Ramp_Equipment/Luggage_Truck.obj	0	180
-lib/airport/Ramp_Equipment/Luggage_Cart.obj	3.36
+0	0	180	lib/airport/Ramp_Equipment/Luggage_Truck.obj
+3.36	0	0	lib/airport/Ramp_Equipment/Luggage_Cart.obj
 ...</pre>
 
 <h3>Animation DataRefs</h3>
@@ -190,8 +202,8 @@ lib/airport/Ramp_Equipment/Luggage_Cart.obj	3.36
 <p>These DataRefs return values specific to the route that the object is following. You can examine these values using <a target="_blank" href="http://developer.x-plane.com/tools/datarefeditor/">DataRefEditor</a>, but it will only display the values for the first route listed in <samp>GroundTraffic.txt</samp>.</p>
 
 <h4>Animating rotating wheels</h4>
-<p>The speed of rotation of a wheel depends on its size; a smaller wheel needs to rotate more quickly in order to cover a given distance than a larger wheel. In your 3D modelling application measure the diameter of the wheel (in metres) and multiple this value by &pi; in order to obtain the wheel's circumference.</p>
-<p>Set up an animation for the wheel containing two keyframes. Rotate the wheel by 90&deg; around its axle between the two keyframes. Specify the X-Plane animation values as follows:</p>
+<p>The speed of rotation of a wheel depends on its size; a smaller wheel needs to rotate more quickly to cover a given distance than a larger wheel. In your 3D modelling application measure the diameter of the wheel (in metres) and multiple this value by &pi; to obtain the wheel's circumference.</p>
+<p>Set up an animation for the wheel containing two keyframes. Rotate the wheel 90&deg; forwards around its axle between the two keyframes. Specify the X-Plane animation values as follows:</p>
 <ul>
   <li>DataRef: <code>marginal/groundtraffic/distance</code></li>
   <li>Keyframe#0: DataRef value = 0.</li>

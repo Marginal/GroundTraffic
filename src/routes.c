@@ -130,11 +130,12 @@ int readconfig(char *pkgpath, airport_t *airport)
         xplog(buffer);
         return 1;
     }
-    while (fgets(line, sizeof(line), h))
+    while (fgets(line, sizeof(line)-1, h))
     {
-        char *c1, *c2;
-        int eol1, eol2;
+        char *c1, *c2, *c3;
+        int eol1, eol2, eol3;
 
+        line[strlen(line)+1]='\0';	/* Prevent potential overrun if missing eol on last line */
         if (!lineno && !strncmp(line, "\xef\xbb\xbf", 3))	/* skip UTF-8 BOM */
             c1=strtok(line+3, sep);
         else
@@ -171,6 +172,7 @@ int readconfig(char *pkgpath, airport_t *airport)
             if (!c1 || !sscanf(c1, "%f%n", &airport->tower.lat, &eol1) || c1[eol1] ||
                 !c2 || !sscanf(c2, "%f%n", &airport->tower.lon, &eol2) || c2[eol2])
                 return failconfig(h, airport, buffer, "Expecting an airport \"lat lon\", found \"%s %s\" at line %d", N(c1), N(c2), lineno);
+            if ((c1=strtok(NULL, sep))) return failconfig(h, airport, buffer, "Extraneous input \"%s\" at line %d", c1, lineno);
 
             airport->state=inactive;
         }
@@ -250,6 +252,7 @@ int readconfig(char *pkgpath, airport_t *airport)
 
                 currentroute->pathlen++;
             }
+            if ((c1=strtok(NULL, sep))) return failconfig(h, airport, buffer, "Extraneous input \"%s\" at line %d", c1, lineno);
         }
         else if (currenttrain)			/* Existing train */
         {
@@ -258,17 +261,22 @@ int readconfig(char *pkgpath, airport_t *airport)
             for (n=0; n<MAX_TRAIN && currenttrain->objects[n].name[0]; n++);
             if (n>=MAX_TRAIN)
                 return failconfig(h, airport, buffer, "Exceeded %d objects in a train at line %d", MAX_TRAIN, lineno);
-            if (strlen(c1) >= MAX_NAME-1)
+
+            c2=strtok(NULL, sep);
+            c3=strtok(NULL, sep);
+            if (!c1 || !sscanf(c1, "%f%n", &currenttrain->objects[n].lag, &eol1) || c1[eol1] ||
+                !c2 || !sscanf(c2, "%f%n", &currenttrain->objects[n].offset, &eol2) || c2[eol2] ||
+                !c3 || !sscanf(c3, "%f%n", &currenttrain->objects[n].heading, &eol3) || c3[eol3])
+                return failconfig(h, airport, buffer, "Expecting a car \"lag offset heading\" found \"%s %s %s\" at line %d", N(c1), N(c2), N(c3), lineno);
+
+            for (c1 = c3+strlen(c3)+1; isspace(*c1); c1++);		/* ltrim */
+            for (c2 = c1+strlen(c1)-1; isspace(*c2); *(c2--) = '\0');	/* rtrim */
+            if (c1==c2)
+                return failconfig(h, airport, buffer, "Expecting an object name at line %d", lineno);
+            else if (strlen(c1) >= MAX_NAME-1)
                 return failconfig(h, airport, buffer, "Object name exceeds %d characters at line %d", MAX_NAME-1, lineno);
             else
                 strcpy(currenttrain->objects[n].name, c1);
-
-            c1=strtok(NULL, sep);
-            if (!c1 || !sscanf(c1, "%f%n", &currenttrain->objects[n].offset, &eol1) || c1[eol1])
-                return failconfig(h, airport, buffer, "Expecting an object offset, found \"%s %s\" at line %d", N(c1), lineno);
-            c1=strtok(NULL, sep);
-            if (c1 && (!sscanf(c1, "%f%n", &currenttrain->objects[n].heading, &eol1) || c1[eol1]))
-                return failconfig(h, airport, buffer, "Expecting an object heading (or nothing), found \"%s\" at line %d", c1, lineno);
         }
         else if (!strcasecmp(c1, "route"))	/* New route */
         {
@@ -288,16 +296,20 @@ int readconfig(char *pkgpath, airport_t *airport)
 
             c1=strtok(NULL, sep);
             c2=strtok(NULL, sep);
-            if (!c1 || !sscanf(c1, "%f%n", &newroute->speed, &eol1) || c1[eol1] || !c2)
-                return failconfig(h, airport, buffer, "Expecting a route \"speed object [heading]\", found \"%s\" at line %d",  N(c1), N(c2), lineno);
-            if (strlen(c2) >= MAX_NAME-1)
+            c3=strtok(NULL, sep);
+            if (!c1 || !sscanf(c1, "%f%n", &newroute->speed, &eol1) || c1[eol1] ||
+                !c2 || !sscanf(c2, "%f%n", &newroute->object.offset, &eol2) || c2[eol2] ||
+                !c3 || !sscanf(c3, "%f%n", &newroute->object.heading, &eol3) || c3[eol3])
+                return failconfig(h, airport, buffer, "Expecting a route \"speed offset heading\", found \"%s %s %s\" at line %d",  N(c1), N(c2), N(c3), lineno);
+
+            for (c1 = c3+strlen(c3)+1; isspace(*c1); c1++);		/* ltrim */
+            for (c2 = c1+strlen(c1)-1; isspace(*c2); *(c2--) = '\0');	/* rtrim */
+            if (c1==c2)
+                return failconfig(h, airport, buffer, "Expecting an object name at line %d", lineno);
+            else if (strlen(c1) >= MAX_NAME-1)
                 return failconfig(h, airport, buffer, "Object name exceeds %d characters at line %d", MAX_NAME-1, lineno);
             else
-                strcpy(newroute->object.name, c2);
-
-            c1=strtok(NULL, sep);
-            if (c1 && (!sscanf(c1, "%f%n", &newroute->object.heading, &eol1) || c1[eol1]))
-                return failconfig(h, airport, buffer, "Expecting an object heading (or nothing), found \"%s\" at line %d", c1, lineno);
+                strcpy(newroute->object.name, c1);
 
             newroute->speed *= (1000.0 / (60*60));	/* convert km/h to m/s */
             currentroute=lastroute=newroute;
@@ -313,8 +325,11 @@ int readconfig(char *pkgpath, airport_t *airport)
                 airport->trains=newtrain;
 
             memset(newtrain, 0, sizeof(train_t));
-            c1=strtok(NULL, sep);
-            if (strlen(c1) >= MAX_NAME-1)
+            for (c1 = c1+strlen(c1)+1; isspace(*c1); c1++);		/* ltrim */
+            for (c2 = c1+strlen(c1)-1; isspace(*c2); *(c2--) = '\0');	/* rtrim */
+            if (c1==c2)
+                return failconfig(h, airport, buffer, "Expecting a train name at line %d", lineno);
+            else if (strlen(c1) >= MAX_NAME-1)
                 return failconfig(h, airport, buffer, "Train name exceeds %d characters at line %d", MAX_NAME-1, lineno);
             else
                 strcpy(newtrain->name, c1);
@@ -325,9 +340,6 @@ int readconfig(char *pkgpath, airport_t *airport)
         {
             return failconfig(h, airport, buffer, "Expecting a route or train, found \"%s\" at line %d", c1, lineno);
         }
-
-        if ((c1=strtok(NULL, sep)))
-            return failconfig(h, airport, buffer, "Extraneous input \"%s\" at line %d", c1, lineno);
     }
     if (currentroute && !expandtrain(airport, currentroute))	/* Handle missing blank line at eof */
         return failconfig(h, airport, buffer, "Out of memory!");
@@ -384,9 +396,10 @@ static route_t *expandtrain(airport_t *airport, route_t *currentroute)
         }
         /* Assign carriage to its route */
         strcpy(route->object.name, train->objects[i].name);
-        route->object.heading += train->objects[i].heading;		/* Could be cumulative? */
-        route->object.offset = train->objects[i].offset / route->speed;	/* Convert distance to time lag */
-        route->next_time = -route->object.offset;			/* Force recalc on first draw */
+        route->object.lag = train->objects[i].lag / route->speed;	/* Convert distance to time lag */
+        route->object.offset = train->objects[i].offset;
+        route->object.heading = train->objects[i].heading;
+        route->next_time = -route->object.lag;				/* Force recalc on first draw */
     }
     route->next = NULL;
 

@@ -111,7 +111,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
     {
         path_t *last_node, *next_node;
         double progress;				/* double to force type promotion for accuracy */
-        float route_now = now - route->object.offset;	/* Train objects are drawn in the past */
+        float route_now = now - route->object.lag;	/* Train objects are drawn in the past */
 
         if (route_now >= route->next_time && !route->state.frozen)
         {
@@ -190,12 +190,12 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                                          (next_node->p.z - last_node->p.z) * (next_node->p.z - last_node->p.z));
 
             /* Maintain speed/progress unless there's been a large gap in draw callbacks because we were deactivated / disabled */
-            if (route->next_time && route_now - route->next_time < 10)
+            if (route->last_time && route_now - route->next_time < RESET_TIME)
                 route->last_time = route->next_time;
             else
             {
                 route->last_time = now;			/* reset */
-                route_now = route->last_time - route->object.offset;
+                route_now = route->last_time - route->object.lag;
             }
 
             if (route->state.waiting)
@@ -205,7 +205,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
             else
                 route->next_time = route->last_time + route->next_distance / route->speed;
 
-            /* Force re-probe */
+            /* Force re-probe since we've changed direction */
             route->next_probe = route_now;
             route->next_y = last_node->p.y;
         }
@@ -218,7 +218,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                 /* Parent has just paused. Necessary to re-sync. */
                 route->state.frozen = 1;
                 route->direction = route->parent->direction;
-                route->distance = route->parent->distance - route->object.offset * route->speed;	/* Negative at first node */
+                route->distance = route->parent->distance - route->object.lag * route->speed;	/* Negative at first node */
                 if (route->path[route->pathlen-1].reverse && (!route->parent->last_node || route->parent->last_node==route->pathlen-1))
                 {
                     /* Parent is at end of a reversible route - line up back in time from it */
@@ -244,7 +244,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                     route->next_time = route->parent->last_time;
                     route->last_time = route->last_time - route->next_distance / route->speed;
                 }
-                route_now = route->parent->last_time - route->object.offset;
+                route_now = route->parent->last_time - route->object.lag;
             }
             else if (!(route->parent->state.waiting|route->parent->state.paused) && route->state.frozen)
             {
@@ -260,18 +260,18 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                     route->next_time = route->parent->last_time;
                     route->last_time = route->next_time - route->next_distance / route->speed;
                 }
-                route_now = route->parent->last_time - route->object.offset;
+                route_now = route->parent->last_time - route->object.lag;
             }
         }
 
         /* Calculate drawing position */
         last_node = route->path + route->last_node;
         next_node = route->path + route->next_node;
-        if (!(route->state.waiting||route->state.paused||route->state.frozen))
+        if (!(route->state.paused||route->state.frozen||route->state.waiting))
         {
             if (now < route->last_time)
                 /* We must be in replay, and we've gone back in time beyond the last decision. Just show at the last node. */
-                route_now = route->last_time - route->object.offset;	/* Train objects are drawn in the past */
+                route_now = route->last_time - route->object.lag;	/* Train objects are drawn in the past */
 
             if (route_now >= route->next_probe)
             {
@@ -293,23 +293,23 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
             // FIXME: Do this once at start of pause and the wouldn't have to recalc times here
             if (!route->parent)
             {
-                progress = - (route->object.offset * route->speed) / route->next_distance;
+                progress = - (route->object.lag * route->speed) / route->next_distance;
                 route->last_time = now;
                 // route->next_time = now + route->next_distance / route->speed;	/* cant do this for parents */
             }
             else if (route->last_node==route->parent->last_node)
             {
-                progress = - (route->object.offset * route->speed) / route->next_distance;
+                progress = - (route->object.lag * route->speed) / route->next_distance;
                 route->last_time = now;
                 route->next_time = now + route->next_distance / route->speed;
             }
             else
             {
-                progress = 1 - (route->object.offset * route->speed) / route->next_distance;
+                progress = 1 - (route->object.lag * route->speed) / route->next_distance;
                 route->next_time = now;
                 route->last_time = now - route->next_distance / route->speed;
             }
-            route_now = now - route->object.offset;
+            route_now = now - route->object.lag;
             route->drawinfo.y = last_node->p.y;
         }
 
@@ -321,7 +321,6 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                 bez(&route->drawinfo, &next_node->p1, &next_node->p, &next_node->p3, 0.5+(route_now - route->next_time)/TURN_TIME);
             else	/* Short edge */
                 bez(&route->drawinfo, &next_node->p1, &next_node->p, &next_node->p3, progress - 0.5);
-            route->drawinfo.heading += route->object.heading;
         }
         else if ((route_now - route->last_time < TURN_TIME/2) && (last_node->p3.x || last_node->p3.z))
         {
@@ -330,14 +329,20 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                 bez(&route->drawinfo, &last_node->p1, &last_node->p, &last_node->p3, 0.5+(route_now - route->last_time)/TURN_TIME);
             else	/* Short edge */
                 bez(&route->drawinfo, &last_node->p1, &last_node->p, &last_node->p3, progress + 0.5);
-            route->drawinfo.heading += route->object.heading;
         }
         else
         {
             route->drawinfo.x = last_node->p.x + progress * (next_node->p.x - last_node->p.x);
             route->drawinfo.z = last_node->p.z + progress * (next_node->p.z - last_node->p.z);
-            route->drawinfo.heading = route->next_heading + route->object.heading;
+            route->drawinfo.heading = route->next_heading;
         }
+        if (route->object.offset)
+        {
+            double h = route->drawinfo.heading*M_PI/180;
+            route->drawinfo.x += sin(h) * route->object.offset;
+            route->drawinfo.z -= cos(h) * route->object.offset;
+        }
+        route->drawinfo.heading += route->object.heading;
 
         /* All the preceeding mucking about is pretty inexpensive. But drawing is expensive so test for range */
         if (indrawrange(route->drawinfo.x-view_x, route->drawinfo.y-view_y, route->drawinfo.z-view_z, draw_distance))
@@ -366,5 +371,3 @@ static void bez(XPLMDrawInfo_t *drawinfo, point_t *p1, point_t *p2, point_t *p3,
     tz =-2 * mum1 * (p2->z - p1->z) - 2 * mu * (p3->z - p2->z);
     drawinfo->heading = atan2(tx, tz) * 180.0*M_1_PI;
 }
-
-

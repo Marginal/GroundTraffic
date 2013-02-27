@@ -165,7 +165,7 @@ static float floatrefcallback(XPLMDataRef inDataRef)
     case distance:
         return route->distance;
     case speed:
-        return (route->state.waiting||route->state.paused) ? 0 : route->speed;
+        return (route->state.paused||route->state.frozen||route->state.waiting) ? 0 : route->speed;
     case node_last_distance:
         return route->distance - route->last_distance;
     case node_next_distance:
