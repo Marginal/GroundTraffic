@@ -285,6 +285,10 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
 
             progress = (route_now - route->last_time) / (route->next_time - route->last_time);
             route->drawinfo.y = route->next_y + (route->last_y - route->next_y) * (route->next_probe - route_now) / PROBE_INTERVAL;
+            if (!route->object.heading)
+                route->drawinfo.pitch = sinf((route->next_y - route->last_y) / (PROBE_INTERVAL * route->speed)) * 180.0*M_1_PI;
+            else if (route->object.heading == 180)
+                route->drawinfo.pitch = sinf((route->last_y - route->next_y) / (PROBE_INTERVAL * route->speed)) * 180.0*M_1_PI;
             route->distance = route->last_distance + progress * route->next_distance;
         }
         else
@@ -311,6 +315,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
             }
             route_now = now - route->object.lag;
             route->drawinfo.y = last_node->p.y;
+            route->drawinfo.pitch = 0;	/* Since we're not probing */
         }
 
         /* Finally do the drawing */
