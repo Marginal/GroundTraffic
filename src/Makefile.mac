@@ -23,18 +23,21 @@ MD=mkdir -p
 BUILDDIR=$(shell uname)
 OBJS=$(addprefix $(BUILDDIR)/, $(addsuffix .o, $(basename $(notdir $(SRC)))))
 TARGET=../$(PROJECT)/mac.xpl
+INSTALLDIR=~/Desktop/X-Plane\ 10/Custom\ Scenery/KSEA\ Demo\ GroundTraffic/plugins/$(PROJECT)
 
 RM=rm -f
 CP=cp -p
 MD=mkdir -p
 
+# pull in dependency info
+-include $(OBJS:.o=.d)
+
 .PHONY: all clean install
 
 all:	$(TARGET)
 
-install:	$(TARGET)
-	$(MD) ~/Desktop/X-Plane\ 10/Custom\ Scenery/KSEA\ Demo\ GroundTraffic/plugins/$(PROJECT)
-	$(CP) $(TARGET) ~/Desktop/X-Plane\ 10/Custom\ Scenery/KSEA\ Demo\ GroundTraffic/plugins/$(PROJECT)/
+install:	$(TARGET) | $(INSTALLDIR)
+	$(CP) $(TARGET) $(INSTALLDIR)/
 
 $(TARGET):	$(OBJS)
 	$(CC) $(CFLAGS) $(LDFLAGS) $(LIBS) -o $@ $+
@@ -44,8 +47,12 @@ $(OBJS): | $(BUILDDIR)
 $(BUILDDIR):
 	$(MD) $(BUILDDIR)
 
-$(BUILDDIR)/%.o:	%.c groundtraffic.h
+$(BUILDDIR)/%.o:	%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
+	@$(CC) $(BUILD) $(DEFINES) $(INC) -MM $< | sed -e 's|$*.o|$@|' > $(@:.o=.d)
+
+$(INSTALLDIR):
+	$(MD) $(INSTALLDIR)
 
 clean:
-	$(RM) *~ *.bak $(OBJS) $(TARGET)
+	$(RM) *~ *.bak $(OBJS) $(OBJS:.o=.d) $(TARGET)

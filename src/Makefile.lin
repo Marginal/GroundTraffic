@@ -20,9 +20,12 @@ LIBS=
 BUILD_32=$(shell uname)32
 OBJS_32=$(addprefix $(BUILD_32)/, $(addsuffix .o, $(basename $(notdir $(SRC)))))
 TARGET_32=../$(PROJECT)/lin.xpl
+INSTALL_32=~/Desktop/X-Plane\ 10/Custom\ Scenery/KSEA\ Demo\ GroundTraffic/plugins/$(PROJECT)
+
 BUILD_64=$(shell uname)64
 OBJS_64=$(addprefix $(BUILD_64)/, $(addsuffix .o, $(basename $(notdir $(SRC)))))
 TARGET_64=../$(PROJECT)/64/lin.xpl
+INSTALL_64=~/Desktop/X-Plane\ 10/Custom\ Scenery/KSEA\ Demo\ GroundTraffic/plugins/$(PROJECT)/64
 
 TARGET=$(TARGET_32) $(TARGET_64)
 
@@ -30,15 +33,16 @@ RM=rm -f
 CP=cp -p
 MD=mkdir -p
 
+# pull in dependency info
+-include $(OBJS_32:.o=.d) $(OBJS_64:.o=.d)
+
 .PHONY: all clean install
 
 all:	$(TARGET_32) $(TARGET_64)
 
-install:	$(TARGET_32) $(TARGET_64)
-	$(MD) ~/Desktop/X-Plane\ 10/Custom\ Scenery/KSEA\ Demo\ GroundTraffic/plugins/$(PROJECT)
-	$(CP) $(TARGET_32) ~/Desktop/X-Plane\ 10/Custom\ Scenery/KSEA\ Demo\ GroundTraffic/plugins/$(PROJECT)/
-	$(MD) ~/Desktop/X-Plane\ 10/Custom\ Scenery/KSEA\ Demo\ GroundTraffic/plugins/$(PROJECT)/64
-	$(CP) $(TARGET_64) ~/Desktop/X-Plane\ 10/Custom\ Scenery/KSEA\ Demo\ GroundTraffic/plugins/$(PROJECT)/64/
+install:	$(TARGET_32) $(TARGET_64) | $(INSTALL_32) $(INSTALL_64)
+	$(CP) $(TARGET_32) $(INSTALL_32)/
+	$(CP) $(TARGET_64) $(INSTALL_64)/
 
 $(TARGET_32):	$(OBJS_32)
 	$(CC) $(CFLAGS) $(LDFLAGS) -m32 $(LIBS) -o $@ $+
@@ -56,12 +60,20 @@ $(BUILD_32):
 $(BUILD_64):
 	$(MD) $(BUILD_64)
 
-$(BUILD_32)/%.o:	%.c groundtraffic.h
-	$(CC) $(CFLAGS) -m32 -c -o $@ $<
+$(BUILD_32)/%.o:	%.c
+	$(CC)  $(CFLAGS) -m32 -c -o $@ $<
+	@$(CC) $(CFLAGS) -m32 -MM $< | sed -e 's|$*.o|$@|' > $(@:.o=.d)
 
-$(BUILD_64)/%.o:	%.c groundtraffic.h
-	$(CC) $(CFLAGS) -m64 -c -o $@ $<
+$(BUILD_64)/%.o:	%.c
+	$(CC)  $(CFLAGS) -m64 -c -o $@ $<
+	@$(CC) $(CFLAGS) -m64 -MM $< | sed -e 's|$*.o|$@|' > $(@:.o=.d)
+
+$(INSTALL_32):
+	$(MD) $(INSTALL_32)
+
+$(INSTALL_64):
+	$(MD) $(INSTALL_64)
 
 clean:
-	$(RM) *~ *.bak $(OBJS_32) $(OBJS_64) $(TARGET_32) $(TARGET_64)
+	$(RM) *~ *.bak $(OBJS_32) $(OBJS_32:.o=.d) $(OBJS_64) $(OBJS_64:.o=.d) $(TARGET_32) $(TARGET_64)
 

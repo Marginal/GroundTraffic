@@ -37,7 +37,7 @@ install:	$(TARGET)
 	-$(MD) "X:\Desktop\X-Plane 10\Custom Scenery\KSEA Demo GroundTraffic\plugins\$(PROJECT)\$(ARCHDIR)"
 	$(CP) $(TARGET) "X:\Desktop\X-Plane 10\Custom Scenery\KSEA Demo GroundTraffic\plugins\$(PROJECT)\$(ARCHDIR)\"
 
-$(TARGET):	clean groundtraffic.h $(SRC)
+$(TARGET):	clean $(SRC)
 	$(CC) $(CFLAGS) -Fe$@ -Fd$* $(SRC) $(LIBS)
 
 clean:
