@@ -75,10 +75,7 @@ PLUGIN_API int XPluginStart(char *outName, char *outSignature, char *outDescript
     for (c=pkgpath+strlen(pkgpath); *(c-1)!='/' && c>pkgpath; c--);		/* basename */
 #endif
     if (!strcasecmp(c, "Resources"))
-    {
-        xplog("This plugin should be installed in a scenery package folder!");
-        return 0;	/* Fail */
-    }
+        return xplog("This plugin should be installed in a scenery package folder!");	/* Fail */
     strcat(outName, " ");
     strcat(outName, c);
     strcat(outSignature, ".");
@@ -165,7 +162,12 @@ static float floatrefcallback(XPLMDataRef inDataRef)
     case distance:
         return route->distance;
     case speed:
-        return (route->state.paused||route->state.frozen||route->state.waiting) ? 0 : route->speed;
+        if (route->state.frozen||route->state.paused||route->state.waiting||route->state.collision)
+            return 0;
+        else if (route->state.backup)
+            return -route->speed;
+        else
+            return route->speed;
     case node_last_distance:
         return route->distance - route->last_distance;
     case node_next_distance:
@@ -202,27 +204,29 @@ static void countlibraryobjs(const char *inFilePath, void *inRef)
 static void loadlibraryobj(const char *inFilePath, void *inRef)
 {
     route_t *route=inRef;
-    if (!route->objnum)
+    if (!route->deadlocked)
         route->objref=XPLMLoadObject(inFilePath);	/* Load the nth object */
-    (route->objnum)--;
+    (route->deadlocked)--;
 }
 
 
 /* Going active - load resources. Return non-zero if success */
 int activate(airport_t *airport)
 {
-    route_t *route;
+    route_t *route, *other;
     char path[PATH_MAX];
 
     assert (airport->state==inactive);
 
+    /* Load resources */
     for(route=airport->routes; route; route=route->next)
     {
         /* First try library object */
         int count=XPLMLookupObjects(route->object.name, airport->tower.lat, airport->tower.lon, countlibraryobjs, NULL);
         if (count)
         {
-            route->objnum = rand() % count;	/* Pick one at random. (rand() doesn't give an even distribution; I don't care) */
+            /* Pick one at random (temporarily abuse deadlock variable as a counter) */
+            route->deadlocked = rand() % count;	/* rand() doesn't give an even distribution; I don't care */
             XPLMLookupObjects(route->object.name, airport->tower.lat, airport->tower.lon, loadlibraryobj, route);
         }
         else
@@ -244,6 +248,72 @@ int activate(airport_t *airport)
         }
         /* route->next_time=0;	If previously deactivated, just let it continue when are where it left off */
     }
+
+    /* Check for collisions - O(n2) * O(m2) ! */
+    for(route=airport->routes; route; route=route->next)
+        if (!route->parent)			/* Skip child routes */
+        {
+            int rrev = route->path[route->pathlen-1].reverse;
+
+            for(other=airport->routes; other; other=other->next)
+            {
+                int orev = other->path[other->pathlen-1].reverse;
+                int r0, r1;
+
+                if (other==route || other->parent) continue;	/* Skip child routes */
+
+                for (r0=0; r0 < route->pathlen; r0++)
+                {
+                    int o0, o1;
+                    loc_t *p0, *p1;
+
+                    if ((r1 = r0+1) == route->pathlen)
+                    {
+                        if (rrev)
+                            break;	/* Reversible routes don't circle back */
+                        else
+                            r1=0;
+                    }
+                    p0 = &route->path[r0].waypoint;
+                    p1 = &route->path[r1].waypoint;
+
+                    for (o0=0; o0 < other->pathlen; o0++)
+                    {
+                        loc_t *p2, *p3;
+                        double s, t, d, s1_x, s1_y, s2_x, s2_y;
+
+                        if ((o1 = o0+1) == other->pathlen)
+                        {
+                            if (orev)
+                                break;	/* Reversible routes don't circle back */
+                            else
+                                o1=0;
+                        }
+                        p2 = &other->path[o0].waypoint;
+                        p3 = &other->path[o1].waypoint;
+
+                        /* http://stackoverflow.com/a/1968345 */
+                        s1_x = p1->lon - p0->lon;  s1_y = p1->lat - p0->lat;
+                        s2_x = p3->lon - p2->lon;  s2_y = p3->lat - p2->lat;
+                        d = (-s2_x * s1_y + s1_x * s2_y);
+                        s = (-s1_y * (p0->lon - p2->lon) + s1_x * (p0->lat - p2->lat)) / d;
+                        t = ( s2_x * (p0->lat - p2->lat) - s2_y * (p0->lon - p2->lon)) / d;
+
+                        if (s >= 0 && s <= 1 && t >= 0 && t <= 1)
+                        {
+                            /* Collision */
+                            collision_t *newc;
+                            if (!(newc=malloc(sizeof(collision_t))))
+                                return xplog("Out of memory!");
+                            newc->route = other;
+                            newc->node = o0;
+                            newc->next = route->path[r0].collisions;
+                            route->path[r0].collisions = newc;
+                        }
+                    }
+                }
+            }
+        }
 
     airport->state=active;
     return 2;

@@ -27,23 +27,36 @@ void clearconfig(airport_t *airport)
     airport->tower.alt=INVALID_ALT;
     airport->state = noconfig;
 
-    route=airport->routes;
+    route = airport->routes;
     while (route)
     {
-        route_t *next=route->next;
+        route_t *next = route->next;
         if (!route->parent)	/* Paths are shared with parent */
+        {
+            int i;
+            for (i=0; i<route->pathlen; i++)
+            {
+                collision_t *nextc, *collision = route->path[i].collisions;
+                while (collision)
+                {
+                    nextc = collision->next;
+                    free (collision);
+                    collision = nextc;
+                }
+            }
             free(route->path);
+        }
         free(route);
-        route=next;
+        route = next;
     }
     airport->routes = NULL;
 
     train = airport->trains;
     while (train)
     {
-        train_t *next=train->next;
+        train_t *next = train->next;
         free(train);
-        train=next;
+        train = next;
     }
     airport->trains = NULL;
 
@@ -117,11 +130,7 @@ int readconfig(char *pkgpath, airport_t *airport)
         xplog(buffer);
         return 1;
     }
-#if 0
-    if (info.st_mtimespec.tv_sec==mtime) return 0;	/* file hasn't changed */
-#else
     if (info.st_mtime==mtime) return 0;			/* file hasn't changed */
-#endif
     clearconfig(airport);	/* Free old config */
 
     if (!(h=fopen(buffer, "r")))
@@ -355,11 +364,7 @@ int readconfig(char *pkgpath, airport_t *airport)
         xplog("No routes defined!");
         return 1;
     }
-#if 0
-    mtime=info.st_mtimespec.tv_sec;
-#else
     mtime=info.st_mtime;
-#endif
     return 2;
 }
 

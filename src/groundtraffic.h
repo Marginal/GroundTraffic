@@ -59,6 +59,8 @@
 #define DEFAULT_LOD 2.25	/* Equivalent to "medium" world detail distance */
 #define PROBE_INTERVAL 4	/* How often to probe ahead for altitude [s] */
 #define TURN_TIME 2		/* Time [s] to execute a turn at a waypoint */
+#define COLLISION_INTERVAL 4	/* How long to poll for crossing route path to become free */
+#define COLLISION_TIMEOUT (60/COLLISION_INTERVAL)	/* How many times to poll before giving up to break deadlock */
 #define RESET_TIME 15		/* If we're deactivated for longer than this then reset route timings */
 
 /* Published DataRefs */
@@ -100,6 +102,7 @@ typedef struct
 #define INVALID_AT -1
 
 /* Route path - locations or commands */
+struct collision_t;
 typedef struct
 {
     loc_t waypoint;		/* World */
@@ -109,6 +112,7 @@ typedef struct
     short attime[MAX_ATTIMES];	/* minutes past midnight */
     unsigned char atdays;
     unsigned char reverse;
+    struct collision_t *collisions;	/* Collisions with other routes */
 } path_t;
 
 typedef struct
@@ -129,8 +133,10 @@ typedef struct route_t
     struct
     {
         int frozen : 1;		/* Child whose parent is paused or waiting */
-        int paused :1;
+        int paused : 1;
         int waiting : 1;
+        int collision : 1;
+        int backup : 1;
     } state;
     int direction;		/* Traversing path 1=forwards, -1=reverse */
     int last_node, next_node;	/* The last and next waypoints visited on the path */
@@ -143,7 +149,7 @@ typedef struct route_t
     XPLMDrawInfo_t drawinfo;	/* Where to draw - current OpenGL co-ordinates */
     float next_probe;		/* Time we should probe altitude again */
     float last_y, next_y;	/* OpenGL co-ordinates at last probe point */
-    int objnum;			/* Only used while reading library object */
+    int deadlocked;		/* Counter used to break collision deadlock */
     struct route_t *parent;	/* Points to head of a train */
     struct route_t *next;
 } route_t;
@@ -157,6 +163,15 @@ typedef struct train_t
     objdef_t objects[MAX_TRAIN];
     struct train_t *next;
 } train_t;
+
+
+/* Collision between routes */
+typedef struct collision_t
+{
+    route_t *route;	/* Other route */
+    int node;		/* Other node (assuming forwards direction) */
+    struct collision_t *next;
+} collision_t;
 
 
 /* airport info from routes.txt */

@@ -26,6 +26,20 @@ static inline int indrawrange(float xdist, float ydist, float zdist, float range
     return (dist2 <= range*range);
 }
 
+static int iscollision(route_t *route)
+{
+    collision_t *c = route->direction>0 ? route->path[route->last_node].collisions : route->path[route->next_node].collisions;
+    while (c)
+    {
+        if ((c->route->direction>0 ? c->route->last_node : c->route->next_node) == c->node &&
+            !(c->route->state.paused||c->route->state.waiting||c->route->state.collision) &&	/* No point waiting for a paused route. He'll re-check on exit from pause */
+            c->route->last_node != c->route->next_node)			/* Check we're not just enabled/activated and deadlocked */
+            break;	/* Collision */
+        c = c->next;
+    }
+    return (c!=NULL);
+}
+
 
 int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
 {
@@ -134,15 +148,24 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                              (route->path[route->last_node].atdays & dow))
                     {
                         route->state.waiting = 0;
+                        if ((route->state.collision = iscollision(route)))	/* Re-check for collision */
+                            route->deadlocked = COLLISION_TIMEOUT;
                         break;
                     }
                 }
-                /* last and next were calculated when we first hit this waypoint */
+                /* last and next were calculated when we originally hit this waypoint */
             }
             else if (route->state.paused)
             {
                 route->state.paused = 0;
-                /* last and next were calculated when we first hit this waypoint */
+                if ((route->state.collision = iscollision(route)))	/* Re-check for collision */
+                    route->deadlocked = COLLISION_TIMEOUT;
+                /* last and next were calculated when we originally hit this waypoint */
+            }
+            else if (route->state.collision)
+            {
+                route->state.collision = (--route->deadlocked) ? iscollision(route) : 0;	/* Break deadlock on timeout */
+                /* last and next were calculated when we originally hit this waypoint */
             }
             else	/* next waypoint */
             {
@@ -172,6 +195,8 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                         route->state.waiting = 1;
                     if (route->path[route->last_node].pausetime)
                         route->state.paused = 1;
+                    if ((route->state.collision = iscollision(route)))
+                        route->deadlocked = COLLISION_TIMEOUT;
                 }
                 if (route->path[route->last_node].reverse)
                 {
@@ -202,6 +227,8 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                 route->next_time = route->last_time + 60;	/* poll every 60 seconds */
             else if (route->state.paused)
                 route->next_time = route->last_time + route->path[route->last_node].pausetime;
+            else if (route->state.collision)
+                route->next_time = route->last_time + COLLISION_INTERVAL;
             else
                 route->next_time = route->last_time + route->next_distance / route->speed;
 
@@ -213,7 +240,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
         /* Parent controls state of children */
         if (route->parent)
         {
-            if ((route->parent->state.waiting|route->parent->state.paused) && !route->state.frozen)
+            if ((route->parent->state.paused||route->parent->state.waiting||route->parent->state.collision) && !route->state.frozen)
             {
                 /* Parent has just paused. Necessary to re-sync. */
                 route->state.frozen = 1;
@@ -246,7 +273,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                 }
                 route_now = route->parent->last_time - route->object.lag;
             }
-            else if (!(route->parent->state.waiting|route->parent->state.paused) && route->state.frozen)
+            else if (!(route->parent->state.paused||route->parent->state.waiting||route->parent->state.collision) && route->state.frozen)
             {
                 /* Parent has just unpaused - maintain spacing */
                 route->state.frozen = 0;
@@ -267,7 +294,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
         /* Calculate drawing position */
         last_node = route->path + route->last_node;
         next_node = route->path + route->next_node;
-        if (!(route->state.paused||route->state.frozen||route->state.waiting))
+        if (!(route->state.frozen||route->state.paused||route->state.waiting||route->state.collision))
         {
             if (now < route->last_time)
                 /* We must be in replay, and we've gone back in time beyond the last decision. Just show at the last node. */
