@@ -70,13 +70,13 @@ blockquote { font-family: monospace; }
   <dt>speed</dt>
   <dd>The speed of the animated object, in km/h.</dd>
   <dt>offset</dt>
-  <dd>Offset in metres to be applied to the object before animation.</dd>
+  <dd>Offset in metres to shift the object forwards before animation.</dd>
   <dt>heading</dt>
   <dd>Rotation in degrees to be applied to the object before animation.</dd>
   <dt>object</dt>
   <dd>The name of the animated object. This can be the name of a library object from X-Plane's built-in library or from an add-on library, the name of an object in your scenery package, or the name of a &ldquo;<a href="#Train">Train</a>&rdquo;.</dd>
 </dl>
-<p>For the animation to look correct objects should be modelled such that they are pointing North and are roughly centered at their origin (since the plugin rotates them about their origins).</p>
+<p>For the animation to look correct objects should be modelled such that they are pointing North and are roughly centered at their origin (since the plugin rotates them about their origin).</p>
 <ul>
   <li>If using your own objects, design them so they are pointing North (<i>i.e.</i> along the positive green axis in SketchUp or Blender), sitting at or just slightly below ground level to allow for sloped terrain, and centered at or a little forward of their axes' origin. Use <code>0</code> for the &ldquo;offset&rdquo; and &ldquo;heading&rdquo; values in this statement.</li>
   <li>Objects in X-Plane's built-in library tend to be centered at their origin but are not all pointing North; supply a &ldquo;heading&rdquo; value to rotate such objects.</li>
@@ -93,6 +93,11 @@ route	30	0	0	objects/airport_fuel_truck.obj
 
 route	24	0	180	lib/airport/Ramp_Equipment/Luggage_Truck.obj
 ...</pre>
+<p>A route using an object from the OpenSceneryX library, travelling at 20km/h (~12mph), shifted forwards 2.5m so that it rotates about its center:</p>
+<pre>
+
+route	20	2.5	0	opensceneryx/objects/airport/vehicles/loaders/6.obj
+...</pre>
 <p>The Route statement should be followed by a sequence of &ldquo;waypoints&rdquo; and &ldquo;commands&rdquo;. The Route ends with a blank line.</p>
 
 <h4>Waypoint</h4>
@@ -101,6 +106,7 @@ route	24	0	180	lib/airport/Ramp_Equipment/Luggage_Truck.obj
 <pre>...
 47.4484450 -122.3001950
 ...</pre>
+<p>You can use <a href="http://marginal.org.uk/x-planescenery/tools.html" target="_blank">OverlayEditor</a> or <a href="http://developer.x-plane.com/tools/worldeditor/" target="_blank">WED</a> to map out your route, typing the the waypoint locations into <samp>GroundTraffic.txt</samp> as you go. You may also want to consider placing a &ldquo;line&rdquo; (<i>e.g.</i> one of <code>opensceneryx/lines/airport/zone_outlines/...</code>) in OverlayEditor or WED to record your route; this will make it easier if you want to adjust your route in the future. But remember to remove or hide these lines before publishing your scenery package.</p>
 <p>Objects will try to avoid crashing into each other by waiting at a waypoint if an object on another route is crossing ahead. So where routes cross don't leave a large distance between the waypoints on either side of the crossing point.</p>
 
 <h4>Pause command</h4>
