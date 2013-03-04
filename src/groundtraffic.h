@@ -116,6 +116,7 @@ typedef struct
         int reverse : 1;	/* Reverse whole route */
         int set1 : 1;
         int set2 : 1;
+        int backup : 1;		/* Just reverse to next node */
     } flags;
     struct collision_t *collisions;	/* Collisions with other routes */
     struct userref_t *userref;
@@ -142,7 +143,8 @@ typedef struct route_t
         int paused : 1;
         int waiting : 1;
         int collision : 1;
-        int backup : 1;
+        int backingup : 1;
+        int forwards : 1;	/* Waypoint after backing up */
     } state;
     int direction;		/* Traversing path 1=forwards, -1=reverse */
     int last_node, next_node;	/* The last and next waypoints visited on the path */

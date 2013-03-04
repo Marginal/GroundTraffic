@@ -149,8 +149,17 @@ at 08:00
 at 08:00 20:00 on Mon Tue Wed Thu Fri
 ...</pre>
 
+<h4>Backup command</h4>
+<p>The Backup command instructs the animated object to reverse from the preceding waypoint as far as the next waypoint, and thereafter move forward as normal. For best results the waypoints before and after the &ldquo;backup&rdquo; command should be at the same location, or at least in a straight line.</p>
+<p> The Backup command just consists of the word &ldquo;<code>backup</code>&rdquo;. For example:</p>
+<pre>...
+backup
+...
+</pre>
+
 <h4><a name="reverse">Reverse</a> command</h4>
-<p>Normally, when the animated object passes the last waypoint it proceeds towards the first waypoint, forming a circular route. The Reverse command instead instructs the object to change direction at the last waypoint and re-trace its steps. The Reverse command just consists of the word &ldquo;<code>reverse</code>&rdquo; and must be at the end of the Route. For example:</p>
+<p>Normally, when the animated object passes the last waypoint it proceeds towards the first waypoint, forming a circular route. The Reverse command instead instructs the object to change direction at the last waypoint and re-trace its steps.</p>
+<p> The Reverse command just consists of the word &ldquo;<code>reverse</code>&rdquo; and must be at the end of the Route. For example:</p>
 <pre>...
 reverse
 

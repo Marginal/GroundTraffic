@@ -271,6 +271,13 @@ int readconfig(char *pkgpath, airport_t *airport)
                 }
                 if (!path[currentroute->pathlen-1].atdays) path[currentroute->pathlen-1].atdays = DAY_ALL;
             }
+            else if (!strcasecmp(c1, "backup"))
+            {
+                if (!currentroute->pathlen)
+                    return failconfig(h, airport, buffer, "Route can't start with a backup command, at line %d", lineno);
+
+                path[currentroute->pathlen-1].flags.backup=1;
+            }
             else if (!strcasecmp(c1, "reverse"))
             {
                 if (!currentroute->pathlen)

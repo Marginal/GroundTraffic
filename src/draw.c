@@ -177,6 +177,8 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                 route->next_node += route->direction;
                 if (!route->last_node)
                     route->last_distance = 0;	/* reset distance travelled to prevent growing stupidly large */
+                else if (route->state.backingup)
+                    route->last_distance -= route->next_distance;
                 else
                     route->last_distance += route->next_distance;
                 route->distance = route->last_distance;
@@ -203,6 +205,21 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                         route->deadlocked = COLLISION_TIMEOUT;
                     if (route->path[route->last_node].flags.set1 || route->path[route->last_node].flags.set2)
                         doset = 1;
+                    if (route->path[route->last_node].flags.backup)
+                    {
+                        route->state.backingup = 1;
+                        route->state.forwards = 0;
+                    }
+                    else if (route->state.backingup)
+                    {
+                        route->state.backingup = 1;
+                        route->state.forwards = 1;
+                    }
+                    else
+                    {
+                        route->state.backingup = 0;
+                        route->state.forwards = 0;
+                    }
                 }
                 if (route->path[route->last_node].flags.reverse)
                 {
@@ -235,6 +252,11 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                 route->next_time = route->last_time + route->path[route->last_node].pausetime;
             else if (route->state.collision)
                 route->next_time = route->last_time + COLLISION_INTERVAL;
+            else if (route->state.forwards)
+            {
+                route->next_distance += route->speed * TURN_TIME;	/* Allow for extra turning distance */
+                route->next_time = route->last_time + route->next_distance / route->speed;
+            }
             else
                 route->next_time = route->last_time + route->next_distance / route->speed;
 
@@ -267,7 +289,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                 route->state.frozen = 1;
                 route->direction = route->parent->direction;
                 route->distance = route->parent->distance - route->object.lag * route->speed;	/* Negative at first node */
-                if (route->path[route->pathlen-1].reverse && (!route->parent->last_node || route->parent->last_node==route->pathlen-1))
+                if (route->path[route->pathlen-1].flags.reverse && (!route->parent->last_node || route->parent->last_node==route->pathlen-1))
                 {
                     /* Parent is at end of a reversible route - line up back in time from it */
                     route->last_node = route->parent->last_node;
@@ -317,9 +339,18 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
         next_node = route->path + route->next_node;
         if (!(route->state.frozen||route->state.paused||route->state.waiting||route->state.collision))
         {
-            if (now < route->last_time)
+            if (route->state.backingup && route->state.forwards && route_now-route->last_time >= TURN_TIME/2)
+            {
+                /* Reached mirror of p3. Fixup things so we're backwards in time on otherwise normal path */
+                route->state.backingup = 0;
+                route->last_time += TURN_TIME;
+                route->next_distance -= route->speed * TURN_TIME;
+            }
+            else if (!route->state.forwards && now < route->last_time)
+            {
                 /* We must be in replay, and we've gone back in time beyond the last decision. Just show at the last node. */
                 route_now = route->last_time - route->object.lag;	/* Train objects are drawn in the past */
+            }
 
             if (route_now >= route->next_probe)
             {
@@ -337,7 +368,10 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                 route->drawinfo.pitch = sinf((route->next_y - route->last_y) / (PROBE_INTERVAL * route->speed)) * 180.0*M_1_PI;
             else if (route->object.heading == 180)
                 route->drawinfo.pitch = sinf((route->last_y - route->next_y) / (PROBE_INTERVAL * route->speed)) * 180.0*M_1_PI;
-            route->distance = route->last_distance + progress * route->next_distance;
+            if (route->state.backingup)
+                route->distance = route->last_distance - progress * route->next_distance;
+            else
+                route->distance = route->last_distance + progress * route->next_distance;
         }
         else
         {
@@ -367,7 +401,39 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
         }
 
         /* Finally do the drawing */
-        if ((progress>=0.5 && route->next_time - route_now < TURN_TIME/2) && (next_node->p1.x || next_node->p1.z))
+        if (route->state.backingup)
+        {
+            point_t pr;	/* Mirror of p3 */
+
+            if (progress>=0.5 && (route->next_time - route_now < TURN_TIME/2) && (next_node->p1.x || next_node->p1.z))
+            {
+                /* Approaching a waypoint while backing up */
+                pr.x = next_node->p.x + next_node->p.x - next_node->p3.x;
+                pr.z = next_node->p.z + next_node->p.z - next_node->p3.z;
+                if (route->speed * 2 <= route->next_distance)
+                    bez(&route->drawinfo, &next_node->p1, &next_node->p, &pr, 0.5+(route_now - route->next_time)/TURN_TIME);
+                else	/* Short edge */
+                    bez(&route->drawinfo, &next_node->p1, &next_node->p, &pr, progress - 0.5);
+            }
+            else if ((route_now - route->last_time < TURN_TIME/2) && (last_node->p3.x || last_node->p3.z))
+            {
+                /* Leaving a waypoint while backing up */
+                pr.x = last_node->p.x + last_node->p.x - last_node->p3.x;
+                pr.z = last_node->p.z + last_node->p.z - last_node->p3.z;
+                if (route->speed * 2 <= route->next_distance)
+                    bez(&route->drawinfo, &last_node->p1, &last_node->p, &pr, 0.5+(route_now - route->last_time)/TURN_TIME);
+                else	/* Short edge */
+                    bez(&route->drawinfo, &last_node->p1, &last_node->p, &pr, progress + 0.5);
+            }
+            else
+            {
+                route->drawinfo.x = last_node->p.x + progress * (next_node->p.x - last_node->p.x);
+                route->drawinfo.z = last_node->p.z + progress * (next_node->p.z - last_node->p.z);
+                route->drawinfo.heading = route->next_heading;
+            }
+            route->drawinfo.heading += route->object.heading - 180;
+        }
+        else if (progress>=0.5 && (route->next_time - route_now < TURN_TIME/2) && (next_node->p1.x || next_node->p1.z))
         {
             /* Approaching a waypoint */
             if (route->speed * 2 <= route->next_distance)
@@ -375,7 +441,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
             else	/* Short edge */
                 bez(&route->drawinfo, &next_node->p1, &next_node->p, &next_node->p3, progress - 0.5);
         }
-        else if ((route_now - route->last_time < TURN_TIME/2) && (last_node->p3.x || last_node->p3.z))
+        else if (!route->state.forwards && (route_now - route->last_time < TURN_TIME/2) && (last_node->p3.x || last_node->p3.z))
         {
             /* Leaving a waypoint (may be from a negative direction if a paused child) */
             if (route->speed * 2 <= route->next_distance)

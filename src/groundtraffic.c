@@ -292,11 +292,11 @@ int activate(airport_t *airport)
     for(route=airport->routes; route; route=route->next)
         if (!route->parent)			/* Skip child routes */
         {
-            int rrev = route->path[route->pathlen-1].reverse;
+            int rrev = route->path[route->pathlen-1].flags.reverse;
 
             for(other=airport->routes; other; other=other->next)
             {
-                int orev = other->path[other->pathlen-1].reverse;
+                int orev = other->path[other->pathlen-1].flags.reverse;
                 int r0, r1;
 
                 if (other==route || other->parent) continue;	/* Skip child routes */
@@ -470,6 +470,8 @@ void maproutes(airport_t *airport)
                 path_t *next = route->path + (i+1) % route->pathlen;
                 path_t *last = route->path + (i-1+route->pathlen) % route->pathlen;	/* mod of negative is undefined */
                 double dist, ratio;
+
+                if (this->flags.backup) continue;	/* Want to be straight aligned at backing-up waypoint */
 
                 /* back */
                 dist = sqrtf((last->p.x - this->p.x) * (last->p.x - this->p.x) +
