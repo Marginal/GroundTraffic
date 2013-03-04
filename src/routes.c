@@ -7,18 +7,21 @@
 
 #include "groundtraffic.h"
 
-#define N(c) (c?c:"")
+#define N(c) (c?c:"<nothing>")
 
 /* Globals */
 static time_t mtime=-1;	/* control file modification time  */
+static const char sep[]=" \t\r\n";
 
 /* In this file */
+static userref_t *readuserref(airport_t *airport, char *buffer, int lineno);
 static route_t *expandtrain(airport_t *airport, route_t *currentroute);
 
 
 void clearconfig(airport_t *airport)
 {
     train_t *train;
+    userref_t *userref;
 
     deactivate(airport);
 
@@ -60,6 +63,17 @@ void clearconfig(airport_t *airport)
     }
     airport->trains = NULL;
 
+    userref = airport->userrefs;
+    while (userref)
+    {
+        userref_t *next = userref->next;
+        if (userref->ref)
+            XPLMUnregisterDataAccessor(userref->ref);
+        free(userref);
+        userref = next;
+    }
+    airport->userrefs = NULL;
+
     mtime=-1;		/* Don't cache */
 }   
 
@@ -87,9 +101,9 @@ int readconfig(char *pkgpath, airport_t *airport)
     char buffer[MAX_NAME+128], line[MAX_NAME+64];
     FILE *h;
     int lineno=0;
-    char sep[]=" \t\r\n";
     route_t *lastroute=NULL, *currentroute=NULL;
     train_t *lasttrain=NULL, *currenttrain=NULL;
+    userref_t *userref;
 
 #if APL || LIN		/* Might be a case sensitive file system */
     DIR *dir;
@@ -130,8 +144,8 @@ int readconfig(char *pkgpath, airport_t *airport)
         xplog(buffer);
         return 1;
     }
-    if (info.st_mtime==mtime) return 0;			/* file hasn't changed */
-    clearconfig(airport);	/* Free old config */
+    if (info.st_mtime==mtime) return 0;		/* File hasn't changed */
+    clearconfig(airport);			/* File has changed - free old config */
 
     if (!(h=fopen(buffer, "r")))
     {
@@ -180,7 +194,7 @@ int readconfig(char *pkgpath, airport_t *airport)
             c2=strtok(NULL, sep);
             if (!c1 || !sscanf(c1, "%f%n", &airport->tower.lat, &eol1) || c1[eol1] ||
                 !c2 || !sscanf(c2, "%f%n", &airport->tower.lon, &eol2) || c2[eol2])
-                return failconfig(h, airport, buffer, "Expecting an airport \"lat lon\", found \"%s %s\" at line %d", N(c1), N(c2), lineno);
+                return failconfig(h, airport, buffer, "Expecting an airport location \"lat lon\", found \"%s %s\" at line %d", N(c1), N(c2), lineno);
             if ((c1=strtok(NULL, sep))) return failconfig(h, airport, buffer, "Extraneous input \"%s\" at line %d", c1, lineno);
 
             airport->state=inactive;
@@ -197,15 +211,31 @@ int readconfig(char *pkgpath, airport_t *airport)
             {
                 int pausetime;
                 if (!currentroute->pathlen)
-                    return failconfig(h, airport, buffer, "Route can't start with a pause, at line %d", lineno);
+                    return failconfig(h, airport, buffer, "Route can't start with a pause command, at line %d", lineno);
 
                 c1=strtok(NULL, sep);
-                if (!sscanf(c1, "%d%n", &pausetime, &eol1) || c1[eol1])
-                    return failconfig(h, airport, buffer, "Expecting a pause time, found \"%s\" at line %d", c1, lineno);
+                if (!c1 || !sscanf(c1, "%d%n", &pausetime, &eol1) || c1[eol1])
+                    return failconfig(h, airport, buffer, "Expecting a pause time, found \"%s\" at line %d", N(c1), lineno);
                 else if (pausetime <= 0 || pausetime >= 86400)
                     return failconfig(h, airport, buffer, "Pause time should be between 1 and 86399 seconds at line %d", lineno);
-
                 path[currentroute->pathlen-1].pausetime = pausetime;
+
+                if ((c1=strtok(NULL, sep)))
+                {
+                    if (strcasecmp(c1, "set"))
+                        return failconfig(h, airport, buffer, "Expecting \"set\" or nothing, found \"%s\" at line %d", c1, lineno);
+                    else if ((path[currentroute->pathlen-1].userref = readuserref(airport, buffer, lineno)))
+                    {
+                        path[currentroute->pathlen-1].flags.set2=1;
+                    }
+                    else
+                    {
+                        fclose(h);
+                        clearconfig(airport);
+                        xplog(buffer);
+                        return 1;
+                    }
+                }
             }
             else if (!strcasecmp(c1, "at"))
             {
@@ -246,8 +276,22 @@ int readconfig(char *pkgpath, airport_t *airport)
                 if (!currentroute->pathlen)
                     return failconfig(h, airport, buffer, "Empty route at line %d", lineno);
 
-                path[currentroute->pathlen-1].reverse=1;
+                path[currentroute->pathlen-1].flags.reverse=1;
                 currentroute=NULL;		/* reverse terminates */
+            }
+            else if (!strcasecmp(c1, "set"))
+            {
+                if ((path[currentroute->pathlen-1].userref = readuserref(airport, buffer, lineno)))
+                {
+                    path[currentroute->pathlen-1].flags.set1=1;
+                }
+                else
+                {
+                    fclose(h);
+                    clearconfig(airport);
+                    xplog(buffer);
+                    return 1;
+                }
             }
             else				/* waypoint */
             {
@@ -282,7 +326,7 @@ int readconfig(char *pkgpath, airport_t *airport)
             for (c2 = c1+strlen(c1)-1; isspace(*c2); *(c2--) = '\0');	/* rtrim */
             if (c1==c2)
                 return failconfig(h, airport, buffer, "Expecting an object name at line %d", lineno);
-            else if (strlen(c1) >= MAX_NAME-1)
+            else if (strlen(c1) >= MAX_NAME)
                 return failconfig(h, airport, buffer, "Object name exceeds %d characters at line %d", MAX_NAME-1, lineno);
             else
                 strcpy(currenttrain->objects[n].name, c1);
@@ -290,7 +334,7 @@ int readconfig(char *pkgpath, airport_t *airport)
         else if (!strcasecmp(c1, "route"))	/* New route */
         {
             route_t *newroute;
-            if (!(newroute=malloc(sizeof(route_t))))
+            if (!(newroute=calloc(1, sizeof(route_t))))
                 return failconfig(h, airport, buffer, "Out of memory!");
             else if (lastroute)
                 lastroute->next=newroute;
@@ -298,7 +342,6 @@ int readconfig(char *pkgpath, airport_t *airport)
                 airport->routes=newroute;
 
             /* Initialise the route */
-            memset(newroute, 0, sizeof(route_t));
             newroute->direction = 1;
             newroute->drawinfo.structSize = sizeof(XPLMDrawInfo_t);
             newroute->drawinfo.pitch = newroute->drawinfo.roll = 0;
@@ -315,7 +358,7 @@ int readconfig(char *pkgpath, airport_t *airport)
             for (c2 = c1+strlen(c1)-1; isspace(*c2); *(c2--) = '\0');	/* rtrim */
             if (c1==c2)
                 return failconfig(h, airport, buffer, "Expecting an object name at line %d", lineno);
-            else if (strlen(c1) >= MAX_NAME-1)
+            else if (strlen(c1) >= MAX_NAME)
                 return failconfig(h, airport, buffer, "Object name exceeds %d characters at line %d", MAX_NAME-1, lineno);
             else
                 strcpy(newroute->object.name, c1);
@@ -326,19 +369,18 @@ int readconfig(char *pkgpath, airport_t *airport)
         else if (!strcasecmp(c1, "train"))	/* New train */
         {
             train_t *newtrain;
-            if (!(newtrain=malloc(sizeof(train_t))))
+            if (!(newtrain=calloc(1, sizeof(train_t))))
                 return failconfig(h, airport, buffer, "Out of memory!");
             else if (lasttrain)
                 lasttrain->next=newtrain;
             else
                 airport->trains=newtrain;
 
-            memset(newtrain, 0, sizeof(train_t));
             for (c1 = c1+strlen(c1)+1; isspace(*c1); c1++);		/* ltrim */
             for (c2 = c1+strlen(c1)-1; isspace(*c2); *(c2--) = '\0');	/* rtrim */
             if (c1==c2)
                 return failconfig(h, airport, buffer, "Expecting a train name at line %d", lineno);
-            else if (strlen(c1) >= MAX_NAME-1)
+            else if (strlen(c1) >= MAX_NAME)
                 return failconfig(h, airport, buffer, "Train name exceeds %d characters at line %d", MAX_NAME-1, lineno);
             else
                 strcpy(newtrain->name, c1);
@@ -364,9 +406,87 @@ int readconfig(char *pkgpath, airport_t *airport)
         xplog("No routes defined!");
         return 1;
     }
+
+    /* Register user's DataRefs.
+     * Have to do this early rather than during activate() because objects in DSF are loaded while we're still inactive */
+    userref = airport->userrefs;
+    while (userref)
+    {
+        userref->ref = XPLMRegisterDataAccessor(userref->name, xplmType_Float, 0,
+                                                NULL, NULL, userrefcallback, NULL, NULL, NULL,
+                                                NULL, NULL, NULL, NULL, NULL, NULL, userref, NULL);
+        userref = userref->next;
+    }
+
     mtime=info.st_mtime;
     return 2;
 }
+
+/* Read standalone or pause "set" command. Returns NULL on failure, and leaves error message in buffer. */
+static userref_t *readuserref(airport_t *airport, char *buffer, int lineno)
+{
+    userref_t *userref;
+    char *c1;
+    int eol1;
+
+    if (!(c1=strtok(NULL, sep)))
+    {
+        sprintf(buffer, "Expecting a custom DataRef name at line %d", lineno);
+        return 0;
+    }
+    else if (strlen(c1) >= MAX_NAME)
+    {
+        sprintf(buffer, "DataRef name exceeds %d characters at line %d", MAX_NAME-1, lineno);
+        return 0;
+    }
+
+    userref = airport->userrefs;
+    while (userref && strcmp(c1, userref->name)) userref=userref->next;
+    if (!userref)
+    {
+        /* new */
+        if (!(userref=calloc(1, sizeof(userref_t))))
+        {
+            strcpy(buffer, "Out of memory!");
+            return 0;
+        }
+        strcpy(userref->name, c1);
+        userref->next = airport->userrefs;
+        airport->userrefs = userref;
+    }
+
+    c1=strtok(NULL, sep);
+    if (c1 && !strcasecmp(c1, "rise"))
+        userref->slope = rising;
+    else if (c1 && !strcasecmp(c1, "fall"))
+        userref->slope = falling;
+    else
+    {
+        sprintf(buffer, "Expecting a slope \"rise\" or \"fall\" found \"%s\" at line %d", N(c1), lineno);
+        return 0;
+    }
+
+    c1=strtok(NULL, sep);
+    if (c1 && !strcasecmp(c1, "linear"))
+        userref->curve = linear;
+    else if (c1 && !strcasecmp(c1, "sine"))
+        userref->curve = sine;
+    else
+    {
+        sprintf(buffer, "Expecting a curve \"linear\" or \"sine\" found \"%s\" at line %d", N(c1), lineno);
+        return 0;
+    }
+
+    c1=strtok(NULL, sep);
+    if (!c1 || !sscanf(c1, "%f%n", &userref->duration, &eol1) || c1[eol1])
+    {
+        sprintf(buffer, "Expecting a duration found \"%s\" at line %d", N(c1), lineno);
+        return 0;
+    }
+
+    return userref;
+}
+
 
 /* Check if this route names a train; if so replicate into multiple routes, and return pointer to last */
 static route_t *expandtrain(airport_t *airport, route_t *currentroute)

@@ -110,16 +110,25 @@ route	20	2.5	0	opensceneryx/objects/airport/vehicles/loaders/6.obj
 <p>Objects will try to avoid crashing into each other by waiting at a waypoint if an object on another route is crossing ahead. So where routes cross don't leave a large distance between the waypoints on either side of the crossing point.</p>
 
 <h4>Pause command</h4>
-<p>The Pause command instructs the animated object to wait at the preceding waypoint for a while before moving on. It should be of the form &ldquo;<code>pause</code>&nbsp;time&rdquo;, where:</p>
+<p>The Pause command instructs the animated object to wait at the preceding waypoint for a while before moving on. Optionally, you can cause the value of a custom DataRef to change while the animated object is waiting, and change back before it proceeds.</p>
+<p>The Pause command should be of the form &ldquo;<code>pause</code>&nbsp;time&nbsp;<code>set</code>&nbsp;name&nbsp;slope&nbsp;curve&nbsp;duration&rdquo;, where:</p>
 <dl>
   <dt>time</dt>
   <dd>Time to wait, in seconds.</dd>
+  <dt><code>set</code> name slope curve duration <i>(optional)</i></dt>
+  <dd>As for the &ldquo;<a href="#Set">Set</a>&rdquo; command.</dd>
 </dl>
 <p>For example, waiting at a waypoint for 30 minutes:</p>
 <pre>...
 47.4629025 -122.3020905
 pause 1800
 ...</pre>
+<p>Waiting at a waypoint for one minute while setting the value of a custom DataRef such that it rises from 0 to 1 over five seconds, stays at 1, then starts going back to 0 five seconds before the object proceeds:</p>
+<pre>...
+47.4380074 -122.3040742
+pause 60 set marginal/KSEA_Demo/catering_lift rise linear 5
+...
+</pre>
 
 <h4>At command</h4>
 <p>The At command instructs the animated object to wait at the preceeding waypoint until a particular time of day. It should be of the form &ldquo;<code>at</code>&nbsp;HH:MM&nbsp;<code>on</code>&nbsp;days&rdquo;, where:</p>
@@ -146,6 +155,21 @@ at 08:00 20:00 on Mon Tue Wed Thu Fri
 reverse
 
 </pre>
+
+<h4><a name="Set">Set</a> command</h4>
+<p>The Set command causes the value of a custom DataRef to change when the animated object arrives at the preceding waypoint. It should be of the form &ldquo;<code>set</code>&nbsp;name&nbsp;slope&nbsp;curve&nbsp;duration&rdquo;, where:</p>
+<dl>
+  <dt>name</dt>
+  <dd>The name of your custom DataRef.</dd>
+  <dt>slope</dt>
+  <dd><code>rise</code> or <code>fall</code> - whether the value of your custom DataRef rises from 0.0 to 1.0, or falls from 1.0 to 0.0.</dd>
+  <dt>curve</dt>
+  <dd><code>linear</code> or <code>sine</code> - whether the value of your custom DataRef changes linearly or in the shape of half a sine wave.</dd>
+  <dt>duration</dt>
+  <dd>The time in seconds that the DataRef takes to change value. This can be <code>0</code> if you want the DataRef to change value instantly.</dd>
+</dl>
+<p>The custom DataRef defined by this command can be used to drive animations in a 3D modelling application to produce objects that are used in a Route or that are placed conventionally within an X-Plane scenery package. Don't use the Set command to set the same DataRef in more than one Route, and don't attempt to override one of X-Plane's built-in DataRefs.</p>
+<p>The Pause command also supports changing the value of a custom DataRef when the animated object arrives at a waypoint. The Pause command restores the DataRef to its previous value before the object moves on from the waypoint; this command does not.<p>
 
 <h4>Comment</h4>
 <p>Lines starting with &ldquo;<code>#</code>&rdquo; are treated as comments and are ignored. For example:</p>

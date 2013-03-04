@@ -103,6 +103,7 @@ typedef struct
 
 /* Route path - locations or commands */
 struct collision_t;
+struct userref_t;
 typedef struct
 {
     loc_t waypoint;		/* World */
@@ -111,8 +112,13 @@ typedef struct
     int pausetime;
     short attime[MAX_ATTIMES];	/* minutes past midnight */
     unsigned char atdays;
-    unsigned char reverse;
+    struct {
+        int reverse : 1;	/* Reverse whole route */
+        int set1 : 1;
+        int set2 : 1;
+    } flags;
     struct collision_t *collisions;	/* Collisions with other routes */
+    struct userref_t *userref;
 } path_t;
 
 typedef struct
@@ -156,7 +162,7 @@ typedef struct route_t
 
 
 /* A train of interconnected objects */
-#define MAX_TRAIN 8
+#define MAX_TRAIN 16
 typedef struct train_t
 {
     char name[MAX_NAME];
@@ -174,20 +180,29 @@ typedef struct collision_t
 } collision_t;
 
 
-/* airport info from routes.txt */
-typedef enum
+/* User-defined DataRef */
+typedef struct userref_t
 {
-    noconfig=0, inactive, active
-} state_t;
+    char name[MAX_NAME];
+    XPLMDataRef ref;
+    float duration;
+    float start1, start2;
+    enum { rising, falling } slope;
+    enum { linear, sine } curve;
+    struct userref_t *next;
+} userref_t;
 
+
+/* airport info from routes.txt */
 typedef struct
 {
-    state_t state;
+    enum { noconfig=0, inactive, active } state;
     char ICAO[5];
     loc_t tower;
     point_t p;
     route_t *routes;
     train_t *trains;
+    userref_t *userrefs;
 } airport_t;
 
 
@@ -196,9 +211,9 @@ int activate(airport_t *airport);
 void deactivate(airport_t *airport);
 void proberoutes(airport_t *airport);
 void maproutes(airport_t *airport);
+float userrefcallback(XPLMDataRef inRefcon);
 
 int xplog(char *msg);
-void deactivate(airport_t *airport);
 int readconfig(char *pkgpath, airport_t *airport);
 void clearconfig(airport_t *airport);
 

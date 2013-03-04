@@ -117,7 +117,9 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
         route=airport.routes;	/* Leave at the first route for DataRefEditor */
         return 1;
     }
-    last_frame=now;
+#ifndef DEBUG
+    last_frame=now;		/* In DEBUG recalculate positions every frame for easier debugging */
+#endif
         
     /* Update and draw */
     is_night = (int)(XPLMGetDataf(ref_night)+0.67);
@@ -129,6 +131,8 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
 
         if (route_now >= route->next_time && !route->state.frozen)
         {
+            int doset=0;
+
             if (route->state.waiting)
             {
                 /* We don't get notified when time-of-day changes in the sim, so poll once a minute */
@@ -197,8 +201,10 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                         route->state.paused = 1;
                     if ((route->state.collision = iscollision(route)))
                         route->deadlocked = COLLISION_TIMEOUT;
+                    if (route->path[route->last_node].flags.set1 || route->path[route->last_node].flags.set2)
+                        doset = 1;
                 }
-                if (route->path[route->last_node].reverse)
+                if (route->path[route->last_node].flags.reverse)
                 {
                     route->direction = -1;
                     route->next_node = route->pathlen-2;
@@ -231,6 +237,21 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                 route->next_time = route->last_time + COLLISION_INTERVAL;
             else
                 route->next_time = route->last_time + route->next_distance / route->speed;
+
+            /* Set DataRefs. Need to do this after calculating last_time so use hacky flag */
+            if (doset)
+            {
+                if (route->path[route->last_node].flags.set2)
+                {
+                    route->path[route->last_node].userref->start1 = route->last_time;
+                    route->path[route->last_node].userref->start2 = route->last_time + route->path[route->last_node].pausetime - route->path[route->last_node].userref->duration;
+                }
+                else if (route->path[route->last_node].flags.set1)
+                {
+                    route->path[route->last_node].userref->start1 = route->last_time;
+                    route->path[route->last_node].userref->start2 = 0;
+                }
+            }
 
             /* Force re-probe since we've changed direction */
             route->next_probe = route_now;

@@ -28,8 +28,8 @@ const char datarefs[dataref_count][60] = { REF_DISTANCE, REF_SPEED, REF_NODE_LAS
 
 /* In this file */
 static float flightcallback(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop, int inCounter, void *inRefcon);
-static float floatrefcallback(XPLMDataRef inDataRef);
-static int intrefcallback(XPLMDataRef inDataRef);
+static float floatrefcallback(XPLMDataRef inRefcon);
+static int intrefcallback(XPLMDataRef inRefcon);
 
 
 PLUGIN_API int XPluginStart(char *outName, char *outSignature, char *outDescription)
@@ -153,18 +153,18 @@ static float flightcallback(float inElapsedSinceLastCall, float inElapsedTimeSin
 
 
 /* dataref accesor callback */
-static float floatrefcallback(XPLMDataRef inDataRef)
+static float floatrefcallback(XPLMDataRef inRefcon)
 {
     if (!route) return 0;
 
-    switch ((dataref_t) ((intptr_t) inDataRef))
+    switch ((dataref_t) ((intptr_t) inRefcon))
     {
     case distance:
         return route->distance;
     case speed:
         if (route->state.frozen||route->state.paused||route->state.waiting||route->state.collision)
             return 0;
-        else if (route->state.backup)
+        else if (route->state.backingup)
             return -route->speed;
         else
             return route->speed;
@@ -179,11 +179,11 @@ static float floatrefcallback(XPLMDataRef inDataRef)
 
 
 /* dataref accesor callback */
-static int intrefcallback(XPLMDataRef inDataRef)
+static int intrefcallback(XPLMDataRef inRefcon)
 {
     if (!route) return 0;
 
-    switch ((dataref_t) ((intptr_t) inDataRef))
+    switch ((dataref_t) ((intptr_t) inRefcon))
     {
     case node_last:
         return route->last_node;
@@ -192,6 +192,44 @@ static int intrefcallback(XPLMDataRef inDataRef)
     default:
         return 0;
     }
+}
+
+
+/* user-defined dataref accesor callback */
+float userrefcallback(XPLMDataRef inRefcon)
+{
+    userref_t *userref = inRefcon;
+    float now;
+
+    assert (inRefcon);
+    assert (airport.state==active);
+    if (!userref || !userref->start1 || airport.state!=active) return 0;
+
+    now = XPLMGetDataf(ref_monotonic);
+    /* userref->duration may be zero so use equality tests to avoid divide by zero */
+    if (now <= userref->start1 || now >= userref->start1 + userref->duration)
+    {
+        /* First out of range. Try second. */
+        if (!userref->start2)
+        {
+            if (now <= userref->start1)
+                return userref->slope==rising ? 0 : 1;
+            else
+                return userref->slope==rising ? 1 : 0;
+        }
+        else if (now <= userref->start2)
+            return userref->slope==rising ? 1 : 0;
+        else if (now >= userref->start2 + userref->duration)
+            return userref->slope==rising ? 0 : 1;
+        else if (userref->curve == linear)
+            return userref->slope==rising ? 1 - (now - userref->start2)/userref->duration : (now - userref->start2)/userref->duration;
+        else
+            return userref->slope==rising ? (1 + cosf(M_PI * (now - userref->start2) / userref->duration))/2 : (1 - cosf(M_PI * (now - userref->start2) / userref->duration))/2;
+    }
+    else if (userref->curve == linear)
+        return userref->slope==rising ? (now - userref->start1)/userref->duration : 1 - (now - userref->start1)/userref->duration;
+    else
+        return userref->slope==rising ? (1 - cosf(M_PI * (now - userref->start1) / userref->duration))/2 : (1 + cosf(M_PI * (now - userref->start1) / userref->duration))/2;
 }
 
 
@@ -215,6 +253,7 @@ int activate(airport_t *airport)
 {
     route_t *route, *other;
     char path[PATH_MAX];
+    XPLMPluginID PluginID;
 
     assert (airport->state==inactive);
 
@@ -315,6 +354,18 @@ int activate(airport_t *airport)
             }
         }
 
+    /*  Register user DataRefs with DRE. We don't do this at load to avoid cluttering up the place with unused DataRefs. */
+    if ((PluginID = XPLMFindPluginBySignature("xplanesdk.examples.DataRefEditor")) != XPLM_NO_PLUGIN_ID)
+    {
+        userref_t *userref = airport->userrefs;
+        while (userref)
+        {
+            if (userref->ref)
+                XPLMSendMessageToPlugin(PluginID, 0x01000000, (void*) userref->name);
+            userref = userref->next;
+        }
+    }
+
     airport->state=active;
     return 2;
 }
@@ -401,7 +452,7 @@ void maproutes(airport_t *airport)
         {
             /* doesn't make sense to do bezier turns at start and end waypoints of a reversible route */
             int i;
-            int reversible = route->path[route->pathlen-1].reverse ? 1 : 0;
+            int reversible = route->path[route->pathlen-1].flags.reverse ? 1 : 0;
 
             for (i=0; i<route->pathlen; i++)
             {
