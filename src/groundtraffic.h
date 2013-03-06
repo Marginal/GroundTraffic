@@ -62,8 +62,10 @@
 #define COLLISION_INTERVAL 4	/* How long to poll for crossing route path to become free */
 #define COLLISION_TIMEOUT (60/COLLISION_INTERVAL)	/* How many times to poll before giving up to break deadlock */
 #define RESET_TIME 15		/* If we're deactivated for longer than this then reset route timings */
+#define MAX_VAR 10		/* How many var datarefs */
 
 /* Published DataRefs */
+#define REF_VAR			"marginal/groundtraffic/var"
 #define REF_DISTANCE		"marginal/groundtraffic/distance"
 #define REF_SPEED		"marginal/groundtraffic/speed"
 #define REF_NODE_LAST		"marginal/groundtraffic/waypoint/last"
@@ -101,9 +103,22 @@ typedef struct
 #define MAX_ATTIMES 24		/* Number of times allowed in an At command */
 #define INVALID_AT -1
 
+
+/* User-defined DataRef */
+typedef struct userref_t
+{
+    char *name;		/* NULL for standard var[n] datarefs */
+    XPLMDataRef ref;
+    float duration;
+    float start1, start2;
+    enum { rising, falling } slope;
+    enum { linear, sine } curve;
+    struct userref_t *next;
+} userref_t;
+
+
 /* Route path - locations or commands */
 struct collision_t;
-struct userref_t;
 typedef struct
 {
     loc_t waypoint;		/* World */
@@ -158,6 +173,7 @@ typedef struct route_t
     float next_probe;		/* Time we should probe altitude again */
     float last_y, next_y;	/* OpenGL co-ordinates at last probe point */
     int deadlocked;		/* Counter used to break collision deadlock */
+    struct userref_t varrefs[MAX_VAR];	/* Per-route var dataref */
     struct route_t *parent;	/* Points to head of a train */
     struct route_t *next;
 } route_t;
@@ -180,19 +196,6 @@ typedef struct collision_t
     int node;		/* Other node (assuming forwards direction) */
     struct collision_t *next;
 } collision_t;
-
-
-/* User-defined DataRef */
-typedef struct userref_t
-{
-    char name[MAX_NAME];
-    XPLMDataRef ref;
-    float duration;
-    float start1, start2;
-    enum { rising, falling } slope;
-    enum { linear, sine } curve;
-    struct userref_t *next;
-} userref_t;
 
 
 /* airport info from routes.txt */

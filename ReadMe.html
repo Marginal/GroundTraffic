@@ -110,7 +110,7 @@ route	20	2.5	0	opensceneryx/objects/airport/vehicles/loaders/6.obj
 <p>Objects will try to avoid crashing into each other by waiting at a waypoint if an object on another route is crossing ahead. So where routes cross don't leave a large distance between the waypoints on either side of the crossing point.</p>
 
 <h4>Pause command</h4>
-<p>The Pause command instructs the animated object to wait at the preceding waypoint for a while before moving on. Optionally, you can cause the value of a custom DataRef to change while the animated object is waiting, and change back before it proceeds.</p>
+<p>The Pause command instructs the animated object to wait at the preceding waypoint for a while before moving on. Optionally, you can cause the value of a DataRef to change while the animated object is waiting, and change back before it proceeds.</p>
 <p>The Pause command should be of the form &ldquo;<code>pause</code>&nbsp;time&nbsp;<code>set</code>&nbsp;name&nbsp;slope&nbsp;curve&nbsp;duration&rdquo;, where:</p>
 <dl>
   <dt>time</dt>
@@ -123,10 +123,10 @@ route	20	2.5	0	opensceneryx/objects/airport/vehicles/loaders/6.obj
 47.4629025 -122.3020905
 pause 1800
 ...</pre>
-<p>Waiting at a waypoint for one minute while setting the value of a custom DataRef such that it rises from 0 to 1 over five seconds, stays at 1, then starts going back to 0 five seconds before the object proceeds:</p>
+<p>Waiting at a waypoint for one minute while setting the value of the DataRef <code>marginal/groundtraffic/var[0]</code> such that it rises from 0 to 1 over five seconds, stays at 1, then starts going back to 0 five seconds before the object proceeds:</p>
 <pre>...
 47.4380074 -122.3040742
-pause 60 set marginal/KSEA_Demo/catering_lift rise linear 5
+pause 60 set var[0] rise linear 5
 ...
 </pre>
 
@@ -166,19 +166,20 @@ reverse
 </pre>
 
 <h4><a name="Set">Set</a> command</h4>
-<p>The Set command causes the value of a custom DataRef to change when the animated object arrives at the preceding waypoint. It should be of the form &ldquo;<code>set</code>&nbsp;name&nbsp;slope&nbsp;curve&nbsp;duration&rdquo;, where:</p>
+<p>The Set command causes the value of a DataRef to change when the animated object arrives at the preceding waypoint. It should be of the form &ldquo;<code>set</code>&nbsp;name&nbsp;slope&nbsp;curve&nbsp;duration&rdquo;, where:</p>
 <dl>
   <dt>name</dt>
-  <dd>The name of your custom DataRef.</dd>
+  <dd><code>var[0]</code> ... <code>var[9]</code> or the name of a custom DataRef.</dd>
   <dt>slope</dt>
-  <dd><code>rise</code> or <code>fall</code> - whether the value of your custom DataRef rises from 0.0 to 1.0, or falls from 1.0 to 0.0.</dd>
+  <dd><code>rise</code> or <code>fall</code> - whether the value the DataRef rises from 0.0 to 1.0, or falls from 1.0 to 0.0.</dd>
   <dt>curve</dt>
-  <dd><code>linear</code> or <code>sine</code> - whether the value of your custom DataRef changes linearly or in the shape of half a sine wave.</dd>
+  <dd><code>linear</code> or <code>sine</code> - whether the value the DataRef changes linearly or in the shape of half a sine wave.</dd>
   <dt>duration</dt>
   <dd>The time in seconds that the DataRef takes to change value. This can be <code>0</code> if you want the DataRef to change value instantly.</dd>
 </dl>
-<p>The custom DataRef defined by this command can be used to drive animations in a 3D modelling application to produce objects that are used in a Route or that are placed conventionally within an X-Plane scenery package. Don't use the Set command to set the same DataRef in more than one Route, and don't attempt to override one of X-Plane's built-in DataRefs.</p>
-<p>The Pause command also supports changing the value of a custom DataRef when the animated object arrives at a waypoint. The Pause command restores the DataRef to its previous value before the object moves on from the waypoint; this command does not.<p>
+<p>If you specify a name of the form <code>var[<i>n</i>]</code> then this command controls the DataRef <code>marginal/groundtraffic/var[<i>n</i>]</code>, which can be used to drive animations in a 3D modelling application that supports X-Plane animations. Each object will see values for these DataRefs that are specific to the route that the object is following; so it is safe to re-use these DataRefs across different objects and routes. (However this means that you can't usefully use the <code>marginal/groundtraffic/var[<i>n</i>]</code> DataRefs in a static object that is placed conventionally within an X-Plane scenery package). For example, within one <samp>GroundTraffic.txt</samp> file, you could use the DataRef <code>marginal/groundtraffic/var[0]</code> to control an animated belt in one or more beltloader objects, and also use <code>marginal/groundtraffic/var[0]</code> to control a refueling animation in one or more fuel truck objects.</p>
+<p>Alternatively you can specify the name of a custom DataRef of your choice, but which should be unique to this scenery package. This DataRef can be used to animate objects that are used in a route and/or static objects that are placed conventionally within an X-Plane scenery package. Because all objects (either static or animated by this plugin) will see the same value for your custom DataRef it doesn't make sense to use the same custom DataRef in more than one route.</p>
+<p>The &ldquo;Pause ... set&rdquo; command also supports changing the value of a custom DataRef when the animated object arrives at a waypoint. The &ldquo;Pause ... set&rdquo; command restores the DataRef to its previous value before the object moves on from the waypoint; this command does not.<p>
 
 <h4>Comment</h4>
 <p>Lines starting with &ldquo;<code>#</code>&rdquo; are treated as comments and are ignored. For example:</p>
@@ -210,7 +211,7 @@ train	marginal/luggage_train_4
   <dt>object</dt>
   <dd>The name of the animated object. This can be the name of a library object from X-Plane's built-in library or from an add-on library, or the name of an object in your scenery package. It should not be the name of this or another Train.</dd>
 </dl>
-<p>To determine how far an object should lag behind the the lead object you can open/import the objects in your 3D modelling application and measure how far (in metres) you have to move the object behind the lead object for it to appear to &ldquo;link up&rdquo; correctly. If the object needs an <a href="#Route">offset</a> to be centered on its axes then adjust for this before measuring. Repeat the process for further objects.</p>
+<p>To determine how far an object should lag behind the the lead object you can open/import the objects in your 3D modelling application and measure how far (in metres) you have to move the object behind the lead object for it to appear to &ldquo;link up&rdquo; correctly. If either object needs an <a href="#Route">offset</a> to be centered on its axes then adjust for this before measuring. Repeat the process for further objects.</p>
 <p>For example two objects, the first of which needs to be rotated 180&deg;, the second of which is 3.36m behind the first:</p>
 <pre>...
 0	0	180	lib/airport/Ramp_Equipment/Luggage_Truck.obj
@@ -222,10 +223,13 @@ train	marginal/luggage_train_4
 <p>The plugin publishes the following DataRefs that you can use to create animated objects in a 3D modelling application that supports X-Plane animations:</p>
 <dl>
   <dt><code>marginal/groundtraffic/distance</code></dt>
-  <dd>Distance travelled from the first waypoint, in metres. Resets to zero every time the object passes the first waypoint.</dd>
+  <dd>Distance travelled from the first waypoint, in metres. Resets to zero every time the object passes the first waypoint. See below for how to use this to animate rotating wheels.</dd>
   <br>
   <dt><code>marginal/groundtraffic/speed</code></dt>
-  <dd>Speed of the object, in metres/second. This returns zero if the object is stationary, or up to the speed that you specified in the Route statement (converted to [m/s]) if it is moving.</dd>
+  <dd>Speed of the object, in metres/second. This returns zero if the object is stationary for any reason, up to the speed that you specified in the Route statement (converted to [m/s]) if it is moving, or negative if it is backing-up (which is useful for displaying reversing lights).</dd>
+  <br>
+  <dt><code>marginal/groundtraffic/var[0]</code> ... <code>var[9]</code></dt>
+  <dd>DateRef whose value is controlled by the &ldquo;<a href="#Set">Set</a>&rdquo; and &ldquo;Pause ... set&rdquo; commands.</dd>
   <br>
   <dt><code>marginal/groundtraffic/waypoint/last</code></dt>
   <dd>The last waypoint in the Route (counting from zero) visited by the object.</dd>
@@ -239,10 +243,10 @@ train	marginal/luggage_train_4
   <dt><code>marginal/groundtraffic/waypoint/next/distance</code></dt>
   <dd>The distance to the next waypoint, in metres.</dd>
 </dl>
-<p>These DataRefs return values specific to the route that the object is following. You can examine these values using <a target="_blank" href="http://developer.x-plane.com/tools/datarefeditor/">DataRefEditor</a>, but it will only display the values for the first route listed in <samp>GroundTraffic.txt</samp>.</p>
+<p>These DataRefs return values specific to the route that the object is following; so they are only useful in animating objects on routes controlled by this plugin, not in static objects that are placed conventionally within an X-Plane scenery package. (You can use the &ldquo;<a href="#Set">Set</a>&rdquo; and/or &ldquo;Pause ... set&rdquo; commands with a custom DataRef name to publish DataRefs for use in static objects). You can examine the values of these DataRefs using <a target="_blank" href="http://developer.x-plane.com/tools/datarefeditor/">DataRefEditor</a>, but it will only display the values for the first route listed in <samp>GroundTraffic.txt</samp>.</p>
 
 <h4>Animating rotating wheels</h4>
-<p>The speed of rotation of a wheel depends on its size; a smaller wheel needs to rotate more quickly to cover a given distance than a larger wheel. In your 3D modelling application measure the diameter of the wheel (in metres) and multiple this value by &pi; to obtain the wheel's circumference.</p>
+<p>The speed of rotation of a wheel depends on its size; a smaller wheel needs to rotate more quickly to cover a given distance than a larger wheel. So in your 3D modelling application measure the diameter of the wheel (in metres) and multiple this value by &pi; to obtain the wheel's circumference.</p>
 <p>Set up an animation for the wheel containing two keyframes. Rotate the wheel 90&deg; forwards around its axle between the two keyframes. Specify the X-Plane animation values as follows:</p>
 <ul>
   <li>DataRef: <code>marginal/groundtraffic/distance</code></li>
@@ -265,7 +269,7 @@ train	marginal/luggage_train_4
 Loaded: Custom Scenery/<i>my scenery package</i>/plugins/GroundTraffic/mac.xpl.</blockquote>
 <p>If the plugin is operating correctly it produces no other output in the log. However if the plugin has a problem reading your <samp>GroundTraffic.txt</samp> file you will see one or more entries starting with &ldquo;GroundTraffic:&rdquo; in the log and the plugin will not perform any animation. For example:</p>
 <blockquote>GroundTraffic: Empty route at line 15</blockquote>
-<p>The plugin examines your <samp>GroundTraffic.txt</samp> file when you make a selection from the <samp>Location&nbsp;&rarr; Select&nbsp;Global&nbsp;Airport</samp> dialog; if you have edited the file then the plugin will re-read it and re-start the animations. Or you can force the plugin to re-read the file and to re-start the animations by disabling and re-enabling it in the <samp>Plugin&nbsp;&rarr; Plugin&nbsp;Admin&nbsp;&rarr; Enable/Disable</samp> dialog.</p>
+<p>The plugin examines your <samp>GroundTraffic.txt</samp> file when you make a selection from the <samp>Location&nbsp;&rarr; Select&nbsp;Global&nbsp;Airport</samp> dialog; if you have edited the file then the plugin will re-read it and re-start the animations. Or you can force the plugin to re-read the file, re-load the objects, and re-start the animations by disabling and re-enabling it in the <samp>Plugin&nbsp;&rarr; Plugin&nbsp;Admin&nbsp;&rarr; Enable/Disable</samp> dialog.</p>
 
 <h3>Acknowledgements</h3>
 

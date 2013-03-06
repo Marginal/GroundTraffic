@@ -14,7 +14,7 @@ static time_t mtime=-1;	/* control file modification time  */
 static const char sep[]=" \t\r\n";
 
 /* In this file */
-static userref_t *readuserref(airport_t *airport, char *buffer, int lineno);
+static userref_t *readuserref(airport_t *airport, route_t *currentroute, char *buffer, int lineno);
 static route_t *expandtrain(airport_t *airport, route_t *currentroute);
 
 
@@ -69,6 +69,7 @@ void clearconfig(airport_t *airport)
         userref_t *next = userref->next;
         if (userref->ref)
             XPLMUnregisterDataAccessor(userref->ref);
+        free(userref->name);
         free(userref);
         userref = next;
     }
@@ -82,12 +83,12 @@ static int failconfig(FILE *h, airport_t *airport, char *buffer, const char *for
 {
     va_list ap;
 
-    fclose(h);
-    clearconfig(airport);
     va_start(ap, format);
     vsprintf(buffer, format, ap);
     va_end(ap);
     xplog(buffer);
+    clearconfig(airport);
+    fclose(h);
     return 1;
 }
 
@@ -211,7 +212,7 @@ int readconfig(char *pkgpath, airport_t *airport)
             {
                 int pausetime;
                 if (!currentroute->pathlen)
-                    return failconfig(h, airport, buffer, "Route can't start with a pause command, at line %d", lineno);
+                    return failconfig(h, airport, buffer, "Route can't start with a pause command at line %d", lineno);
 
                 c1=strtok(NULL, sep);
                 if (!c1 || !sscanf(c1, "%d%n", &pausetime, &eol1) || c1[eol1])
@@ -224,7 +225,7 @@ int readconfig(char *pkgpath, airport_t *airport)
                 {
                     if (strcasecmp(c1, "set"))
                         return failconfig(h, airport, buffer, "Expecting \"set\" or nothing, found \"%s\" at line %d", c1, lineno);
-                    else if ((path[currentroute->pathlen-1].userref = readuserref(airport, buffer, lineno)))
+                    else if ((path[currentroute->pathlen-1].userref = readuserref(airport, currentroute, buffer, lineno)))
                     {
                         path[currentroute->pathlen-1].flags.set2=1;
                     }
@@ -244,7 +245,7 @@ int readconfig(char *pkgpath, airport_t *airport)
                 int dayvals[7] = { DAY_SUN, DAY_MON, DAY_TUE, DAY_WED, DAY_THU, DAY_FRI, DAY_SAT };
 
                 if (!currentroute->pathlen)
-                    return failconfig(h, airport, buffer, "Route can't start with an \"at\", at line %d", lineno);
+                    return failconfig(h, airport, buffer, "Route can't start with an \"at\" command at line %d", lineno);
 
                 while ((c1=strtok(NULL, sep)))
                 {
@@ -274,7 +275,7 @@ int readconfig(char *pkgpath, airport_t *airport)
             else if (!strcasecmp(c1, "backup"))
             {
                 if (!currentroute->pathlen)
-                    return failconfig(h, airport, buffer, "Route can't start with a backup command, at line %d", lineno);
+                    return failconfig(h, airport, buffer, "Route can't start with a backup command at line %d", lineno);
 
                 path[currentroute->pathlen-1].flags.backup=1;
             }
@@ -288,7 +289,7 @@ int readconfig(char *pkgpath, airport_t *airport)
             }
             else if (!strcasecmp(c1, "set"))
             {
-                if ((path[currentroute->pathlen-1].userref = readuserref(airport, buffer, lineno)))
+                if ((path[currentroute->pathlen-1].userref = readuserref(airport, currentroute, buffer, lineno)))
                 {
                     path[currentroute->pathlen-1].flags.set1=1;
                 }
@@ -327,7 +328,7 @@ int readconfig(char *pkgpath, airport_t *airport)
             if (!c1 || !sscanf(c1, "%f%n", &currenttrain->objects[n].lag, &eol1) || c1[eol1] ||
                 !c2 || !sscanf(c2, "%f%n", &currenttrain->objects[n].offset, &eol2) || c2[eol2] ||
                 !c3 || !sscanf(c3, "%f%n", &currenttrain->objects[n].heading, &eol3) || c3[eol3])
-                return failconfig(h, airport, buffer, "Expecting a car \"lag offset heading\" found \"%s %s %s\" at line %d", N(c1), N(c2), N(c3), lineno);
+                return failconfig(h, airport, buffer, "Expecting a car \"lag offset heading\", found \"%s %s %s\" at line %d", N(c1), N(c2), N(c3), lineno);
 
             for (c1 = c3+strlen(c3)+1; isspace(*c1); c1++);		/* ltrim */
             for (c2 = c1+strlen(c1)-1; isspace(*c2); *(c2--) = '\0');	/* rtrim */
@@ -401,36 +402,32 @@ int readconfig(char *pkgpath, airport_t *airport)
     }
     if (currentroute && !expandtrain(airport, currentroute))	/* Handle missing blank line at eof */
         return failconfig(h, airport, buffer, "Out of memory!");
-    fclose(h);
-    if (airport->state==noconfig)
-    {
-        xplog("Can't read groundtraffic.txt");
-        return 1;
-    }
-    else if (!airport->routes)
-    {
-        clearconfig(airport);
-        xplog("No routes defined!");
-        return 1;
-    }
 
     /* Register user's DataRefs.
      * Have to do this early rather than during activate() because objects in DSF are loaded while we're still inactive */
     userref = airport->userrefs;
     while (userref)
     {
+        if (XPLMFindDataRef(userref->name))
+            return failconfig(h, airport, buffer, "Another plugin has already registered custom DataRef \"%s\"", userref->name);
         userref->ref = XPLMRegisterDataAccessor(userref->name, xplmType_Float, 0,
                                                 NULL, NULL, userrefcallback, NULL, NULL, NULL,
                                                 NULL, NULL, NULL, NULL, NULL, NULL, userref, NULL);
         userref = userref->next;
     }
 
+    if (airport->state==noconfig)
+        return failconfig(h, airport, buffer, "Can't read groundtraffic.txt");
+    else if (!airport->routes)
+        return failconfig(h, airport, buffer, "No routes defined!");
+
+    fclose(h);
     mtime=info.st_mtime;
     return 2;
 }
 
 /* Read standalone or pause "set" command. Returns NULL on failure, and leaves error message in buffer. */
-static userref_t *readuserref(airport_t *airport, char *buffer, int lineno)
+static userref_t *readuserref(airport_t *airport, route_t *currentroute, char *buffer, int lineno)
 {
     userref_t *userref;
     char *c1;
@@ -438,7 +435,7 @@ static userref_t *readuserref(airport_t *airport, char *buffer, int lineno)
 
     if (!(c1=strtok(NULL, sep)))
     {
-        sprintf(buffer, "Expecting a custom DataRef name at line %d", lineno);
+        sprintf(buffer, "Expecting a DataRef name at line %d", lineno);
         return 0;
     }
     else if (strlen(c1) >= MAX_NAME)
@@ -447,19 +444,45 @@ static userref_t *readuserref(airport_t *airport, char *buffer, int lineno)
         return 0;
     }
 
-    userref = airport->userrefs;
-    while (userref && strcmp(c1, userref->name)) userref=userref->next;
-    if (!userref)
+    if ((!strncasecmp(c1, "var[", 4) || !strncasecmp(c1, REF_VAR "[", sizeof(REF_VAR "["))) && c1[strlen(c1)-1]==']')
     {
-        /* new */
-        if (!(userref=calloc(1, sizeof(userref_t))))
+        /* Standard DataRef = route-specific */
+        int i;
+        c1 = strchr(c1, '[') + 1;
+        if (!sscanf(c1, "%d%n", &i, &eol1) || eol1!=strlen(c1)-1)
         {
-            strcpy(buffer, "Out of memory!");
+            sprintf(buffer, "Expecting DataRef name \"var[n]\", found \"%s\" at line %d", N(c1), lineno);
             return 0;
         }
-        strcpy(userref->name, c1);
-        userref->next = airport->userrefs;
-        airport->userrefs = userref;
+        else if (i<0 || i>=MAX_VAR)
+        {
+            sprintf(buffer, "var DataRef index outside the range 0 to %d at line %d", MAX_VAR-1, lineno);
+            return 0;
+        }
+        userref = currentroute->varrefs + i;
+    }
+    else
+    {
+        /* User DataRef = global */
+        userref = airport->userrefs;
+        while (userref && strcmp(c1, userref->name)) userref=userref->next;
+        if (!userref)
+        {
+            /* new */
+            if (!strncasecmp(c1, "sim/", 4))
+            {
+                sprintf(buffer, "Custom DataRef name can't start with \"sim/\" at line %d", lineno);
+                return 0;
+            }
+            else if (!(userref = calloc(1, sizeof(userref_t))) || !(userref->name = malloc(strlen(c1)+1)))
+            {
+                strcpy(buffer, "Out of memory!");
+                return 0;
+            }
+            strcpy(userref->name, c1);
+            userref->next = airport->userrefs;
+            airport->userrefs = userref;
+        }
     }
 
     c1=strtok(NULL, sep);
@@ -469,7 +492,7 @@ static userref_t *readuserref(airport_t *airport, char *buffer, int lineno)
         userref->slope = falling;
     else
     {
-        sprintf(buffer, "Expecting a slope \"rise\" or \"fall\" found \"%s\" at line %d", N(c1), lineno);
+        sprintf(buffer, "Expecting a slope \"rise\" or \"fall\", found \"%s\" at line %d", N(c1), lineno);
         return 0;
     }
 
@@ -480,14 +503,14 @@ static userref_t *readuserref(airport_t *airport, char *buffer, int lineno)
         userref->curve = sine;
     else
     {
-        sprintf(buffer, "Expecting a curve \"linear\" or \"sine\" found \"%s\" at line %d", N(c1), lineno);
+        sprintf(buffer, "Expecting a curve \"linear\" or \"sine\", found \"%s\" at line %d", N(c1), lineno);
         return 0;
     }
 
     c1=strtok(NULL, sep);
     if (!c1 || !sscanf(c1, "%f%n", &userref->duration, &eol1) || c1[eol1])
     {
-        sprintf(buffer, "Expecting a duration found \"%s\" at line %d", N(c1), lineno);
+        sprintf(buffer, "Expecting a duration, found \"%s\" at line %d", N(c1), lineno);
         return 0;
     }
 

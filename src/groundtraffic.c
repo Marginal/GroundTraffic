@@ -28,8 +28,9 @@ const char datarefs[dataref_count][60] = { REF_DISTANCE, REF_SPEED, REF_NODE_LAS
 
 /* In this file */
 static float flightcallback(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop, int inCounter, void *inRefcon);
-static float floatrefcallback(XPLMDataRef inRefcon);
-static int intrefcallback(XPLMDataRef inRefcon);
+static float floatrefcallback(XPLMDataRef inRefCon);
+static int intrefcallback(XPLMDataRef inRefCon);
+static int varrefcallback(XPLMDataRef inRefCon, float *outValues, int inOffset, int inMax);
 
 
 PLUGIN_API int XPluginStart(char *outName, char *outSignature, char *outDescription)
@@ -88,6 +89,9 @@ PLUGIN_API int XPluginStart(char *outName, char *outSignature, char *outDescript
         XPLMRegisterDataAccessor(datarefs[i], (i==node_last || i==node_next) ? xplmType_Int : xplmType_Float, 0,
                                  intrefcallback, NULL, floatrefcallback, NULL, NULL, NULL,
                                  NULL, NULL, NULL, NULL, NULL, NULL, (void*) ((intptr_t) i), NULL);
+    XPLMRegisterDataAccessor(REF_VAR, xplmType_FloatArray, 0,
+                             NULL, NULL, NULL, NULL, NULL, NULL,
+                             NULL, NULL, varrefcallback, NULL, NULL, NULL, (void*) ((intptr_t) i), NULL);
     XPLMRegisterFlightLoopCallback(flightcallback, -1, NULL);			/* Just for registering datarefs with DRE */
     XPLMRegisterDrawCallback(drawcallback, xplm_Phase_Objects, 0, NULL);	/* After other 3D objects */
 
@@ -146,18 +150,21 @@ static float flightcallback(float inElapsedSinceLastCall, float inElapsedTimeSin
     int i;
     XPLMPluginID PluginID = XPLMFindPluginBySignature("xplanesdk.examples.DataRefEditor");
     if (PluginID != XPLM_NO_PLUGIN_ID)
+    {
         for(i=0; i<dataref_count; i++)
             XPLMSendMessageToPlugin(PluginID, 0x01000000, (void*) datarefs[i]);
+        XPLMSendMessageToPlugin(PluginID, 0x01000000, REF_VAR);
+    }
     return 0;	/* Don't call again */
 }
 
 
 /* dataref accesor callback */
-static float floatrefcallback(XPLMDataRef inRefcon)
+static float floatrefcallback(XPLMDataRef inDataRef)
 {
     if (!route) return 0;
 
-    switch ((dataref_t) ((intptr_t) inRefcon))
+    switch ((dataref_t) ((intptr_t) inDataRef))
     {
     case distance:
         return route->distance;
@@ -192,6 +199,26 @@ static int intrefcallback(XPLMDataRef inRefcon)
     default:
         return 0;
     }
+}
+
+
+/* dataref accesor callback */
+static int varrefcallback(XPLMDataRef inRefCon, float *outValues, int inOffset, int inMax)
+{
+    int i;
+
+    if (outValues==NULL)
+        return MAX_VAR;
+    else if (!route || inMax<=0 || inOffset<0 || inOffset>=MAX_VAR)
+        return 0;
+
+    if (inMax+inOffset > MAX_VAR)
+        inMax=MAX_VAR-inOffset;
+
+    for (i=0; i<inMax; i++)
+        outValues[i]=userrefcallback(route->varrefs + i);
+
+    return inMax;
 }
 
 
