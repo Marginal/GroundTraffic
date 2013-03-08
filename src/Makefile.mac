@@ -11,26 +11,23 @@ BUILD=-O3 -DNDEBUG
 LDFLAGS=-Wl,-x
 DEFINES=-DAPL=1 -DIBM=0 -DLIN=0 -DVERSION=$(VERSION)
 INC=-F$(XPSDK)/Libraries/Mac -I$(XPSDK)/CHeaders/XPLM
-CFLAGS=-arch i586 -arch x86_64 -pipe -Wall -bundle -fvisibility=hidden -mmacosx-version-min=10.5 $(BUILD) $(DEFINES) $(INC)
+CFLAGS=-arch i386 -arch x86_64 -march=core2 -ffast-math -pipe -Wall -bundle -fvisibility=hidden -mmacosx-version-min=10.5 $(BUILD) $(DEFINES) $(INC)
 
+VPATH=
 SRC=groundtraffic.c draw.c routes.c
 LIBS=-framework XPLM
+TARGETDIR=../$(PROJECT)
+INSTALLDIR=~/Desktop/X-Plane\ 10/Custom\ Scenery/KSEA\ Demo\ GroundTraffic/plugins/$(PROJECT)
 
-RM=rm -f
-CP=cp -p
-MD=mkdir -p
+############################################################################
 
 BUILDDIR=$(shell uname)
 OBJS=$(addprefix $(BUILDDIR)/, $(addsuffix .o, $(basename $(notdir $(SRC)))))
-TARGET=../$(PROJECT)/mac.xpl
-INSTALLDIR=~/Desktop/X-Plane\ 10/Custom\ Scenery/KSEA\ Demo\ GroundTraffic/plugins/$(PROJECT)
+TARGET=$(TARGETDIR)/mac.xpl
 
 RM=rm -f
 CP=cp -p
 MD=mkdir -p
-
-# pull in dependency info
--include $(OBJS:.o=.d)
 
 .PHONY: all clean install
 
@@ -39,7 +36,7 @@ all:	$(TARGET)
 install:	$(TARGET) | $(INSTALLDIR)
 	$(CP) $(TARGET) $(INSTALLDIR)/
 
-$(TARGET):	$(OBJS)
+$(TARGET):	$(OBJS) | $(TARGETDIR)
 	$(CC) $(CFLAGS) $(LDFLAGS) $(LIBS) -o $@ $+
 
 $(OBJS): | $(BUILDDIR)
@@ -51,8 +48,14 @@ $(BUILDDIR)/%.o:	%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 	@$(CC) $(BUILD) $(DEFINES) $(INC) -MM $< | sed -e 's|$*.o|$@|' > $(@:.o=.d)
 
+$(TARGETDIR):
+	$(MD) $(TARGETDIR)
+
 $(INSTALLDIR):
 	$(MD) $(INSTALLDIR)
 
 clean:
 	$(RM) *~ *.bak $(OBJS) $(OBJS:.o=.d) $(TARGET)
+
+# pull in dependency info
+-include $(OBJS:.o=.d)

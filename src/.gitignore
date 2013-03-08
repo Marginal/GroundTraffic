@@ -1,6 +1,7 @@
 *.bak
 *.d
 *.o
+*.dep
 *.obj
-*.ncb
+*.pdb
 *.xpl
