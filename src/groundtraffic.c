@@ -16,7 +16,7 @@ BOOL APIENTRY DllMain(HANDLE hModule, DWORD ul_reason, LPVOID lpReserved)
 
 /* Globals */
 char *pkgpath;
-XPLMDataRef ref_plane_lat, ref_plane_lon, ref_view_x, ref_view_y, ref_view_z, ref_night, ref_monotonic, ref_doy, ref_tod, ref_LOD;
+XPLMDataRef ref_plane_lat, ref_plane_lon, ref_view_x, ref_view_y, ref_view_z, ref_rentype, ref_night, ref_monotonic, ref_doy, ref_tod, ref_LOD;
 XPLMProbeRef ref_probe;
 float draw_distance = DRAW_DISTANCE/DEFAULT_LOD;
 airport_t airport = { 0 };
@@ -49,6 +49,7 @@ PLUGIN_API int XPluginStart(char *outName, char *outSignature, char *outDescript
     ref_view_x   =XPLMFindDataRef("sim/graphics/view/view_x");
     ref_view_y   =XPLMFindDataRef("sim/graphics/view/view_y");
     ref_view_z   =XPLMFindDataRef("sim/graphics/view/view_z");
+    ref_rentype  =XPLMFindDataRef("sim/graphics/view/world_render_type");
     ref_night    =XPLMFindDataRef("sim/graphics/scenery/percent_lights_on");
     ref_monotonic=XPLMFindDataRef("sim/time/total_running_time_sec");
     ref_doy      =XPLMFindDataRef("sim/time/local_date_days");
@@ -498,7 +499,8 @@ void maproutes(airport_t *airport)
                 path_t *last = route->path + (i-1+route->pathlen) % route->pathlen;	/* mod of negative is undefined */
                 double dist, ratio;
 
-                if (this->flags.backup) continue;	/* Want to be straight aligned at backing-up waypoint */
+                if ((this->flags.backup && this->pausetime) || (last->flags.backup && !last->pausetime))
+                    continue;	/* Want to be straight aligned at backing-up waypoint */
 
                 /* back */
                 dist = sqrtf((last->p.x - this->p.x) * (last->p.x - this->p.x) +

@@ -158,8 +158,9 @@ typedef struct route_t
         int paused : 1;
         int waiting : 1;
         int collision : 1;
+        int forwardsb : 1;	/* Waypoint before backing up */
         int backingup : 1;
-        int forwards : 1;	/* Waypoint after backing up */
+        int forwardsa : 1;	/* Waypoint after backing up */
     } state;
     int direction;		/* Traversing path 1=forwards, -1=reverse */
     int last_node, next_node;	/* The last and next waypoints visited on the path */
@@ -227,7 +228,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon);
 
 /* Globals */
 extern char *pkgpath;
-extern XPLMDataRef ref_plane_lat, ref_plane_lon, ref_view_x, ref_view_y, ref_view_z, ref_night, ref_monotonic, ref_doy, ref_tod, ref_LOD;
+extern XPLMDataRef ref_plane_lat, ref_plane_lon, ref_view_x, ref_view_y, ref_view_z, ref_rentype, ref_night, ref_monotonic, ref_doy, ref_tod, ref_LOD;
 extern XPLMProbeRef ref_probe;
 extern float draw_distance;
 extern airport_t airport;

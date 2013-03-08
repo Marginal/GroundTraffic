@@ -115,11 +115,12 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
             if (indrawrange(route->drawinfo.x-view_x, route->drawinfo.y-view_y, route->drawinfo.z-view_z, draw_distance))
                 XPLMDrawObjects(route->objref, 1, &(route->drawinfo), is_night, 1);
         route=airport.routes;	/* Leave at the first route for DataRefEditor */
+#ifdef DEBUG
+        if (!XPLMGetDatai(ref_rentype)) last_frame = 0;	/* In DEBUG recalculate positions once per frame for easier debugging */
+#endif
         return 1;
     }
-#ifndef DEBUG
-    last_frame=now;		/* In DEBUG recalculate positions every frame for easier debugging */
-#endif
+    last_frame = now;
         
     /* Update and draw */
     is_night = (int)(XPLMGetDataf(ref_night)+0.67);
@@ -207,18 +208,29 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                         doset = 1;
                     if (route->path[route->last_node].flags.backup)
                     {
-                        route->state.backingup = 1;
-                        route->state.forwards = 0;
-                    }
-                    else if (route->state.backingup)
-                    {
-                        route->state.backingup = 1;
-                        route->state.forwards = 1;
+                        if (route->path[route->last_node].pausetime)	/* A */
+                        {
+                            /* Backing up after pause */
+                            route->state.backingup = 1;
+                            route->state.forwardsa = 1;
+                        }
+                        else						/* Y */
+                        {
+                            /* Backing up before pause */
+                            route->state.forwardsb = 1;
+                        }
                     }
                     else
                     {
-                        route->state.backingup = 0;
-                        route->state.forwards = 0;
+                        if (!route->state.forwardsa)			/* !Q */
+                        {
+                            route->state.backingup = 0;
+                            route->state.forwardsb = 0;
+                        }
+                        if (!route->state.backingup && !route->state.forwardsb)	/* !B */
+                        {
+                            route->state.forwardsa = 0;
+                        }
                     }
                 }
                 if (route->path[route->last_node].flags.reverse)
@@ -252,9 +264,14 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                 route->next_time = route->last_time + route->path[route->last_node].pausetime;
             else if (route->state.collision)
                 route->next_time = route->last_time + COLLISION_INTERVAL;
-            else if (route->state.forwards)
+            else if (route->state.forwardsa && !last_node->flags.backup)			/* B */
             {
                 route->next_distance += route->speed * TURN_TIME;	/* Allow for extra turning distance */
+                route->next_time = route->last_time + route->next_distance / route->speed;
+            }
+            else if (route->state.forwardsb && route->path[route->last_node].flags.backup)	/* Y */
+            {
+                route->last_time += TURN_TIME;	/* Allow for extra turning distance */
                 route->next_time = route->last_time + route->next_distance / route->speed;
             }
             else
@@ -339,14 +356,19 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
         next_node = route->path + route->next_node;
         if (!(route->state.frozen||route->state.paused||route->state.waiting||route->state.collision))
         {
-            if (route->state.backingup && route->state.forwards && route_now-route->last_time >= TURN_TIME/2)
+            if (route->state.backingup && route->state.forwardsa && !last_node->flags.backup && route_now-route->last_time >= TURN_TIME/2)	/* C */
             {
                 /* Reached mirror of p3. Fixup things so we're backwards in time on otherwise normal path */
                 route->state.backingup = 0;
                 route->last_time += TURN_TIME;
                 route->next_distance -= route->speed * TURN_TIME;
             }
-            else if (!route->state.forwards && now < route->last_time)
+            if (route->state.forwardsb && !route->state.backingup && route->last_time - route_now <= TURN_TIME/2)	/* Z */
+            {
+                /* Reached mirror of p1. */
+                route->state.backingup = 1;
+            }
+            else if (!(route->state.forwardsb || route->state.forwardsa) && now < route->last_time)
             {
                 /* We must be in replay, and we've gone back in time beyond the last decision. Just show at the last node. */
                 route_now = route->last_time - route->object.lag;	/* Train objects are drawn in the past */
@@ -403,19 +425,40 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
         /* Finally do the drawing */
         if (route->state.backingup)
         {
-            point_t pr;	/* Mirror of p3 */
+            point_t pr;	/* Mirror of p1/p3 */
 
-            if (progress>=0.5 && (route->next_time - route_now < TURN_TIME/2) && (next_node->p1.x || next_node->p1.z))
+            if (progress>=0.5)
             {
                 /* Approaching a waypoint while backing up */
-                pr.x = next_node->p.x + next_node->p.x - next_node->p3.x;
-                pr.z = next_node->p.z + next_node->p.z - next_node->p3.z;
-                if (route->speed * 2 <= route->next_distance)
-                    bez(&route->drawinfo, &next_node->p1, &next_node->p, &pr, 0.5+(route_now - route->next_time)/TURN_TIME);
-                else	/* Short edge */
-                    bez(&route->drawinfo, &next_node->p1, &next_node->p, &pr, progress - 0.5);
+                if (next_node->flags.backup || route->next_time - route_now >= TURN_TIME/2 || !(next_node->p1.x || next_node->p1.z))
+                {
+                    /* No bezier points, or not in range, or approaching backup node */
+                    route->drawinfo.x = last_node->p.x + progress * (next_node->p.x - last_node->p.x);
+                    route->drawinfo.z = last_node->p.z + progress * (next_node->p.z - last_node->p.z);
+                    route->drawinfo.heading = route->next_heading;
+                }
+                else
+                {
+                    assert(route->state.forwardsa);
+                    pr.x = next_node->p.x + next_node->p.x - next_node->p3.x;
+                    pr.z = next_node->p.z + next_node->p.z - next_node->p3.z;
+                    if (route->speed * 2 <= route->next_distance)
+                        bez(&route->drawinfo, &next_node->p1, &next_node->p, &pr, 0.5+(route_now - route->next_time)/TURN_TIME);
+                    else	/* Short edge */
+                        bez(&route->drawinfo, &next_node->p1, &next_node->p, &pr, progress - 0.5);
+                }
             }
-            else if ((route_now - route->last_time < TURN_TIME/2) && (last_node->p3.x || last_node->p3.z))
+            else if (route->state.forwardsb && (route_now - route->last_time < TURN_TIME/2) && (last_node->p1.x || last_node->p1.z))
+            {
+                /* Leaving mirrored p1 waypoint while backing up */
+                pr.x = last_node->p.x + last_node->p.x - last_node->p1.x;
+                pr.z = last_node->p.z + last_node->p.z - last_node->p1.z;
+                if (progress <0 || route->speed * 2 <= route->next_distance)
+                    bez(&route->drawinfo, &pr, &last_node->p, &last_node->p3, 0.5+(route_now - route->last_time)/TURN_TIME);
+                else	/* Short edge */
+                    bez(&route->drawinfo, &pr, &last_node->p, &last_node->p3, progress + 0.5);
+            }
+            else if (route->state.forwardsa && (route_now - route->last_time < TURN_TIME/2) && (last_node->p3.x || last_node->p3.z))
             {
                 /* Leaving a waypoint while backing up */
                 pr.x = last_node->p.x + last_node->p.x - last_node->p3.x;
@@ -433,21 +476,64 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
             }
             route->drawinfo.heading += route->object.heading - 180;
         }
-        else if (progress>=0.5 && (route->next_time - route_now < TURN_TIME/2) && (next_node->p1.x || next_node->p1.z))
+        else if (route->state.forwardsb && (last_node->p1.x || last_node->p1.z))
+        {
+            /* Backing up to pause, keep going to mirror of p1 */
+            progress = 2 - (route->last_time - route_now) / (TURN_TIME/2);
+            route->drawinfo.x = last_node->p.x + progress * (last_node->p.x - last_node->p1.x);
+            route->drawinfo.z = last_node->p.z + progress * (last_node->p.z - last_node->p1.z);
+            /* Keep last heading */
+        }
+        else if (progress>=0.5)
         {
             /* Approaching a waypoint */
-            if (route->speed * 2 <= route->next_distance)
-                bez(&route->drawinfo, &next_node->p1, &next_node->p, &next_node->p3, 0.5+(route_now - route->next_time)/TURN_TIME);
-            else	/* Short edge */
-                bez(&route->drawinfo, &next_node->p1, &next_node->p, &next_node->p3, progress - 0.5);
+            if (next_node->flags.backup || (route->next_time - route_now >= TURN_TIME/2) || !(next_node->p1.x || next_node->p1.z))
+            {
+                /* No bezier points, or not in range, or approaching backup node */
+                route->drawinfo.x = last_node->p.x + progress * (next_node->p.x - last_node->p.x);
+                route->drawinfo.z = last_node->p.z + progress * (next_node->p.z - last_node->p.z);
+                route->drawinfo.heading = route->next_heading;
+            }
+            else if (route->direction > 0)
+            {
+                if (route->speed * 2 <= route->next_distance)
+                    bez(&route->drawinfo, &next_node->p1, &next_node->p, &next_node->p3, 0.5+(route_now - route->next_time)/TURN_TIME);
+                else	/* Short edge */
+                    bez(&route->drawinfo, &next_node->p1, &next_node->p, &next_node->p3, progress - 0.5);
+            }
+            else
+            {
+                if (route->speed * 2 <= route->next_distance)
+                    bez(&route->drawinfo, &next_node->p3, &next_node->p, &next_node->p1, 0.5+(route_now - route->next_time)/TURN_TIME);
+                else	/* Short edge */
+                    bez(&route->drawinfo, &next_node->p3, &next_node->p, &next_node->p1, progress - 0.5);
+            }
         }
-        else if (!route->state.forwards && (route_now - route->last_time < TURN_TIME/2) && (last_node->p3.x || last_node->p3.z))
+        else if (route->state.forwardsa && progress<0 && (last_node->p3.x || last_node->p3.z))
+        {
+            /* Leaving mirror of p3. Special handling to deal with short paths. */
+            progress = (route->last_time - route_now) / (TURN_TIME/2);
+            route->drawinfo.x = last_node->p.x + progress * (last_node->p.x - last_node->p3.x);
+            route->drawinfo.z = last_node->p.z + progress * (last_node->p.z - last_node->p3.z);
+            route->drawinfo.heading = route->next_heading;
+        }
+        else if (!route->state.forwardsa && (route_now - route->last_time < TURN_TIME/2) && (last_node->p3.x || last_node->p3.z))
         {
             /* Leaving a waypoint (may be from a negative direction if a paused child) */
-            if (route->speed * 2 <= route->next_distance)
-                bez(&route->drawinfo, &last_node->p1, &last_node->p, &last_node->p3, 0.5+(route_now - route->last_time)/TURN_TIME);
-            else	/* Short edge */
-                bez(&route->drawinfo, &last_node->p1, &last_node->p, &last_node->p3, progress + 0.5);
+            if (route->direction > 0)
+            {
+                if (route->speed * 2 <= route->next_distance)
+                    bez(&route->drawinfo, &last_node->p1, &last_node->p, &last_node->p3, 0.5+(route_now - route->last_time)/TURN_TIME);
+                else	/* Short edge */
+                    bez(&route->drawinfo, &last_node->p1, &last_node->p, &last_node->p3, progress + 0.5);
+            }
+            else
+            {
+                if (route->speed * 2 <= route->next_distance)
+                    bez(&route->drawinfo, &last_node->p3, &last_node->p, &last_node->p1, 0.5+(route_now - route->last_time)/TURN_TIME);
+                else	/* Short edge */
+                    bez(&route->drawinfo, &last_node->p3, &last_node->p, &last_node->p1, progress + 0.5);
+            }
         }
         else
         {

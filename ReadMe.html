@@ -18,6 +18,7 @@ ul { margin: 0; }
 kbd {font-family: sans-serif; color: black; background-color: white; border: 1px solid black; -webkit-border-radius:5px; -moz-border-radius:5px; border-radius: 5px; padding: 1px 1px 0px; }
 pre { border: 1px solid; padding: 8px; width: 75%; }
 blockquote { font-family: monospace; }
+em { font-style:normal; color:FireBrick; }
   </style>
 </head>
 <body>
@@ -150,12 +151,27 @@ at 08:00 20:00 on Mon Tue Wed Thu Fri
 ...</pre>
 
 <h4>Backup command</h4>
-<p>The Backup command instructs the animated object to reverse from the preceding waypoint as far as the next waypoint, and thereafter move forward as normal. For best results the waypoints before and after the &ldquo;backup&rdquo; command should be at the same location, or at least in a straight line.</p>
-<p> The Backup command just consists of the word &ldquo;<code>backup</code>&rdquo;. For example:</p>
+<p>The Backup command instructs the animated object to reverse from the preceding waypoint as far as the next waypoint, and thereafter move forward as normal. If the preceding waypoint also has a Pause command the object points forwards while waiting, and then backs-up <u>after</u> waiting.</p>
+<p>The Backup command just consists of the word &ldquo;<code>backup</code>&rdquo;.</p>
+<p>For example backing-up into a parking spot:</p>
 <pre>...
+<em>47.4348468 -122.3034628</em>
 backup
+47.4349236 -122.3034600
+pause 60
+<em>47.4348468 -122.3034628</em>
 ...
 </pre>
+<p>Backing-up after a pause:</p>
+<pre>...
+<em>47.4379349 -122.3040074</em>
+47.4380074 -122.3040742
+pause 60
+backup
+<em>47.4379349 -122.3040074</em>
+...
+</pre>
+<p>For best results the waypoints before and after backing-up should be at the same location, as in the above <em>examples</em>, or at least in a straight line.
 
 <h4><a name="reverse">Reverse</a> command</h4>
 <p>Normally, when the animated object passes the last waypoint it proceeds towards the first waypoint, forming a circular route. The Reverse command instead instructs the object to change direction at the last waypoint and re-trace its steps.</p>
@@ -164,6 +180,7 @@ backup
 reverse
 
 </pre>
+<p>Note: You can't use the Reverse command in a route that contains Backup commands.</p>
 
 <h4><a name="Set">Set</a> command</h4>
 <p>The Set command causes the value of a DataRef to change when the animated object arrives at the preceding waypoint. It should be of the form &ldquo;<code>set</code>&nbsp;name&nbsp;slope&nbsp;curve&nbsp;duration&rdquo;, where:</p>
@@ -173,12 +190,24 @@ reverse
   <dt>slope</dt>
   <dd><code>rise</code> or <code>fall</code> - whether the value the DataRef rises from 0.0 to 1.0, or falls from 1.0 to 0.0.</dd>
   <dt>curve</dt>
-  <dd><code>linear</code> or <code>sine</code> - whether the value the DataRef changes linearly or in the shape of half a sine wave.</dd>
+  <dd><code>linear</code> or <code>sine</code> - whether the value the DataRef changes linearly or like <span style="font-family: sans-serif;">&nbsp;&int;</span>.</dd>
   <dt>duration</dt>
   <dd>The time in seconds that the DataRef takes to change value. This can be <code>0</code> if you want the DataRef to change value instantly.</dd>
 </dl>
 <p>If you specify a name of the form <code>var[<i>n</i>]</code> then this command controls the DataRef <code>marginal/groundtraffic/var[<i>n</i>]</code>, which can be used to drive animations in a 3D modelling application that supports X-Plane animations. Each object will see values for these DataRefs that are specific to the route that the object is following; so it is safe to re-use these DataRefs across different objects and routes. (However this means that you can't usefully use the <code>marginal/groundtraffic/var[<i>n</i>]</code> DataRefs in a static object that is placed conventionally within an X-Plane scenery package). For example, within one <samp>GroundTraffic.txt</samp> file, you could use the DataRef <code>marginal/groundtraffic/var[0]</code> to control an animated belt in one or more beltloader objects, and also use <code>marginal/groundtraffic/var[0]</code> to control a refueling animation in one or more fuel truck objects.</p>
 <p>Alternatively you can specify the name of a custom DataRef of your choice, but which should be unique to this scenery package. This DataRef can be used to animate objects that are used in a route and/or static objects that are placed conventionally within an X-Plane scenery package. Because all objects (either static or animated by this plugin) will see the same value for your custom DataRef it doesn't make sense to use the same custom DataRef in more than one route.</p>
+<p>For example, setting the value of the DataRef <code>marginal/groundtraffic/var[1]</code> such that it rises from 0 to 1 over five seconds on hitting a waypoint:</p>
+<pre>...
+47.4380074 -122.3040742
+set var[1] rise sine 5
+...
+</pre>
+<p>Setting the value of a custom DataRef such that it falls from 1 to 0 over two seconds on hitting a waypoint:</p>
+<pre>...
+47.4348578 -122.3034624
+set my/custom/dataref fall sine 2
+...
+</pre>
 <p>The &ldquo;Pause ... set&rdquo; command also supports changing the value of a custom DataRef when the animated object arrives at a waypoint. The &ldquo;Pause ... set&rdquo; command restores the DataRef to its previous value before the object moves on from the waypoint; this command does not.<p>
 
 <h4>Comment</h4>

@@ -276,14 +276,19 @@ int readconfig(char *pkgpath, airport_t *airport)
             {
                 if (!currentroute->pathlen)
                     return failconfig(h, airport, buffer, "Route can't start with a backup command at line %d", lineno);
+                else if (currentroute->pathlen>1 && path[currentroute->pathlen-2].flags.backup)
+                    return failconfig(h, airport, buffer, "Can't backup from two waypoints in sequence at line %d", lineno);
 
                 path[currentroute->pathlen-1].flags.backup=1;
             }
             else if (!strcasecmp(c1, "reverse"))
             {
+                int i;
                 if (!currentroute->pathlen)
                     return failconfig(h, airport, buffer, "Empty route at line %d", lineno);
-
+                for (i=0; i<currentroute->pathlen; i++)
+                    if (path[i].flags.backup)
+                        return failconfig(h, airport, buffer, "Can't use \"backup\" and \"reverse\" in the same route at line %d", lineno);
                 path[currentroute->pathlen-1].flags.reverse=1;
                 currentroute=NULL;		/* reverse terminates */
             }
