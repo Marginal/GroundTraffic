@@ -170,7 +170,7 @@ typedef struct route_t
     float next_distance;	/* Distance from last_node to next_node [m] */
     float distance;		/* Cumulative distance travelled from first node [m] */
     float next_heading;		/* Heading from last_node to next_node [m] */
-    XPLMDrawInfo_t drawinfo;	/* Where to draw - current OpenGL co-ordinates */
+    XPLMDrawInfo_t *drawinfo;	/* Where to draw - current OpenGL co-ordinates */
     float next_probe;		/* Time we should probe altitude again */
     float last_y, next_y;	/* OpenGL co-ordinates at last probe point */
     int deadlocked;		/* Counter used to break collision deadlock */
@@ -207,8 +207,10 @@ typedef struct
     loc_t tower;
     point_t p;
     route_t *routes;
+    route_t *firstroute;
     train_t *trains;
     userref_t *userrefs;
+    XPLMDrawInfo_t *drawinfo;	/* consolidated XPLMDrawInfo_t array for all routes/objects so they can be batched */
 } airport_t;
 
 

@@ -52,7 +52,7 @@ void clearconfig(airport_t *airport)
         free(route);
         route = next;
     }
-    airport->routes = NULL;
+    airport->routes = airport->firstroute = NULL;
 
     train = airport->trains;
     while (train)
@@ -74,6 +74,9 @@ void clearconfig(airport_t *airport)
         userref = next;
     }
     airport->userrefs = NULL;
+
+    free(airport->drawinfo);
+    airport->drawinfo = NULL;
 
     mtime=-1;		/* Don't cache */
 }   
@@ -101,7 +104,7 @@ int readconfig(char *pkgpath, airport_t *airport)
     struct stat info;
     char buffer[MAX_NAME+128], line[MAX_NAME+64];
     FILE *h;
-    int lineno=0;
+    int lineno=0, count;
     route_t *lastroute=NULL, *currentroute=NULL;
     train_t *lasttrain=NULL, *currenttrain=NULL;
     userref_t *userref;
@@ -352,12 +355,10 @@ int readconfig(char *pkgpath, airport_t *airport)
             else if (lastroute)
                 lastroute->next=newroute;
             else
-                airport->routes=newroute;
+                airport->routes = airport->firstroute = newroute;	/* Save for DRE */
 
             /* Initialise the route */
             newroute->direction = 1;
-            newroute->drawinfo.structSize = sizeof(XPLMDrawInfo_t);
-            newroute->drawinfo.pitch = newroute->drawinfo.roll = 0;
 
             c1=strtok(NULL, sep);
             c2=strtok(NULL, sep);
@@ -408,6 +409,13 @@ int readconfig(char *pkgpath, airport_t *airport)
     if (currentroute && !expandtrain(airport, currentroute))	/* Handle missing blank line at eof */
         return failconfig(h, airport, buffer, "Out of memory!");
 
+    /* Allocate XPLMDrawInfo_t array. We don't assign into this 'til XPLMObjectRefs are known during activate() */
+    for (count = 0, route = airport->routes; route; count++, route = route->next);
+    if (!(airport->drawinfo = calloc(count, sizeof(XPLMDrawInfo_t))))
+        return failconfig(h, airport, buffer, "Out of memory!");
+    for (count = 0, route = airport->routes; route; count++, route = route->next)
+        airport->drawinfo[count].structSize = sizeof(XPLMDrawInfo_t);
+    
     /* Register user's DataRefs.
      * Have to do this early rather than during activate() because objects in DSF are loaded while we're still inactive */
     userref = airport->userrefs;

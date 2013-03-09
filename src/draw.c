@@ -112,8 +112,8 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
     {
         for(route=airport.routes; route; route=route->next)
             /* Have to check draw range every frame since "now" isn't updated while sim paused */
-            if (indrawrange(route->drawinfo.x-view_x, route->drawinfo.y-view_y, route->drawinfo.z-view_z, draw_distance))
-                XPLMDrawObjects(route->objref, 1, &(route->drawinfo), is_night, 1);
+            if (indrawrange(route->drawinfo->x-view_x, route->drawinfo->y-view_y, route->drawinfo->z-view_z, draw_distance))
+                XPLMDrawObjects(route->objref, 1, route->drawinfo, is_night, 1);
         route=airport.routes;	/* Leave at the first route for DataRefEditor */
 #ifdef DEBUG
         if (!XPLMGetDatai(ref_rentype)) last_frame = 0;	/* In DEBUG recalculate positions once per frame for easier debugging */
@@ -385,11 +385,11 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
             }
 
             progress = (route_now - route->last_time) / (route->next_time - route->last_time);
-            route->drawinfo.y = route->next_y + (route->last_y - route->next_y) * (route->next_probe - route_now) / PROBE_INTERVAL;
+            route->drawinfo->y = route->next_y + (route->last_y - route->next_y) * (route->next_probe - route_now) / PROBE_INTERVAL;
             if (!route->object.heading)
-                route->drawinfo.pitch = sinf((route->next_y - route->last_y) / (PROBE_INTERVAL * route->speed)) * 180.0*M_1_PI;
+                route->drawinfo->pitch = sinf((route->next_y - route->last_y) / (PROBE_INTERVAL * route->speed)) * 180.0*M_1_PI;
             else if (route->object.heading == 180)
-                route->drawinfo.pitch = sinf((route->last_y - route->next_y) / (PROBE_INTERVAL * route->speed)) * 180.0*M_1_PI;
+                route->drawinfo->pitch = sinf((route->last_y - route->next_y) / (PROBE_INTERVAL * route->speed)) * 180.0*M_1_PI;
             if (route->state.backingup)
                 route->distance = route->last_distance - progress * route->next_distance;
             else
@@ -418,8 +418,8 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                 route->last_time = now - route->next_distance / route->speed;
             }
             route_now = now - route->object.lag;
-            route->drawinfo.y = last_node->p.y;
-            route->drawinfo.pitch = 0;	/* Since we're not probing */
+            route->drawinfo->y = last_node->p.y;
+            route->drawinfo->pitch = 0;	/* Since we're not probing */
         }
 
         /* Finally do the drawing */
@@ -433,9 +433,9 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                 if (next_node->flags.backup || route->next_time - route_now >= TURN_TIME/2 || !(next_node->p1.x || next_node->p1.z))
                 {
                     /* No bezier points, or not in range, or approaching backup node */
-                    route->drawinfo.x = last_node->p.x + progress * (next_node->p.x - last_node->p.x);
-                    route->drawinfo.z = last_node->p.z + progress * (next_node->p.z - last_node->p.z);
-                    route->drawinfo.heading = route->next_heading;
+                    route->drawinfo->x = last_node->p.x + progress * (next_node->p.x - last_node->p.x);
+                    route->drawinfo->z = last_node->p.z + progress * (next_node->p.z - last_node->p.z);
+                    route->drawinfo->heading = route->next_heading;
                 }
                 else
                 {
@@ -443,9 +443,9 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                     pr.x = next_node->p.x + next_node->p.x - next_node->p3.x;
                     pr.z = next_node->p.z + next_node->p.z - next_node->p3.z;
                     if (route->speed * 2 <= route->next_distance)
-                        bez(&route->drawinfo, &next_node->p1, &next_node->p, &pr, 0.5+(route_now - route->next_time)/TURN_TIME);
+                        bez(route->drawinfo, &next_node->p1, &next_node->p, &pr, 0.5+(route_now - route->next_time)/TURN_TIME);
                     else	/* Short edge */
-                        bez(&route->drawinfo, &next_node->p1, &next_node->p, &pr, progress - 0.5);
+                        bez(route->drawinfo, &next_node->p1, &next_node->p, &pr, progress - 0.5);
                 }
             }
             else if (route->state.forwardsb && (route_now - route->last_time < TURN_TIME/2) && (last_node->p1.x || last_node->p1.z))
@@ -454,9 +454,9 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                 pr.x = last_node->p.x + last_node->p.x - last_node->p1.x;
                 pr.z = last_node->p.z + last_node->p.z - last_node->p1.z;
                 if (progress <0 || route->speed * 2 <= route->next_distance)
-                    bez(&route->drawinfo, &pr, &last_node->p, &last_node->p3, 0.5+(route_now - route->last_time)/TURN_TIME);
+                    bez(route->drawinfo, &pr, &last_node->p, &last_node->p3, 0.5+(route_now - route->last_time)/TURN_TIME);
                 else	/* Short edge */
-                    bez(&route->drawinfo, &pr, &last_node->p, &last_node->p3, progress + 0.5);
+                    bez(route->drawinfo, &pr, &last_node->p, &last_node->p3, progress + 0.5);
             }
             else if (route->state.forwardsa && (route_now - route->last_time < TURN_TIME/2) && (last_node->p3.x || last_node->p3.z))
             {
@@ -464,24 +464,24 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                 pr.x = last_node->p.x + last_node->p.x - last_node->p3.x;
                 pr.z = last_node->p.z + last_node->p.z - last_node->p3.z;
                 if (route->speed * 2 <= route->next_distance)
-                    bez(&route->drawinfo, &last_node->p1, &last_node->p, &pr, 0.5+(route_now - route->last_time)/TURN_TIME);
+                    bez(route->drawinfo, &last_node->p1, &last_node->p, &pr, 0.5+(route_now - route->last_time)/TURN_TIME);
                 else	/* Short edge */
-                    bez(&route->drawinfo, &last_node->p1, &last_node->p, &pr, progress + 0.5);
+                    bez(route->drawinfo, &last_node->p1, &last_node->p, &pr, progress + 0.5);
             }
             else
             {
-                route->drawinfo.x = last_node->p.x + progress * (next_node->p.x - last_node->p.x);
-                route->drawinfo.z = last_node->p.z + progress * (next_node->p.z - last_node->p.z);
-                route->drawinfo.heading = route->next_heading;
+                route->drawinfo->x = last_node->p.x + progress * (next_node->p.x - last_node->p.x);
+                route->drawinfo->z = last_node->p.z + progress * (next_node->p.z - last_node->p.z);
+                route->drawinfo->heading = route->next_heading;
             }
-            route->drawinfo.heading += route->object.heading - 180;
+            route->drawinfo->heading += route->object.heading - 180;
         }
         else if (route->state.forwardsb && (last_node->p1.x || last_node->p1.z))
         {
             /* Backing up to pause, keep going to mirror of p1 */
             progress = 2 - (route->last_time - route_now) / (TURN_TIME/2);
-            route->drawinfo.x = last_node->p.x + progress * (last_node->p.x - last_node->p1.x);
-            route->drawinfo.z = last_node->p.z + progress * (last_node->p.z - last_node->p1.z);
+            route->drawinfo->x = last_node->p.x + progress * (last_node->p.x - last_node->p1.x);
+            route->drawinfo->z = last_node->p.z + progress * (last_node->p.z - last_node->p1.z);
             /* Keep last heading */
         }
         else if (progress>=0.5)
@@ -490,32 +490,32 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
             if (next_node->flags.backup || (route->next_time - route_now >= TURN_TIME/2) || !(next_node->p1.x || next_node->p1.z))
             {
                 /* No bezier points, or not in range, or approaching backup node */
-                route->drawinfo.x = last_node->p.x + progress * (next_node->p.x - last_node->p.x);
-                route->drawinfo.z = last_node->p.z + progress * (next_node->p.z - last_node->p.z);
-                route->drawinfo.heading = route->next_heading;
+                route->drawinfo->x = last_node->p.x + progress * (next_node->p.x - last_node->p.x);
+                route->drawinfo->z = last_node->p.z + progress * (next_node->p.z - last_node->p.z);
+                route->drawinfo->heading = route->next_heading;
             }
             else if (route->direction > 0)
             {
                 if (route->speed * 2 <= route->next_distance)
-                    bez(&route->drawinfo, &next_node->p1, &next_node->p, &next_node->p3, 0.5+(route_now - route->next_time)/TURN_TIME);
+                    bez(route->drawinfo, &next_node->p1, &next_node->p, &next_node->p3, 0.5+(route_now - route->next_time)/TURN_TIME);
                 else	/* Short edge */
-                    bez(&route->drawinfo, &next_node->p1, &next_node->p, &next_node->p3, progress - 0.5);
+                    bez(route->drawinfo, &next_node->p1, &next_node->p, &next_node->p3, progress - 0.5);
             }
             else
             {
                 if (route->speed * 2 <= route->next_distance)
-                    bez(&route->drawinfo, &next_node->p3, &next_node->p, &next_node->p1, 0.5+(route_now - route->next_time)/TURN_TIME);
+                    bez(route->drawinfo, &next_node->p3, &next_node->p, &next_node->p1, 0.5+(route_now - route->next_time)/TURN_TIME);
                 else	/* Short edge */
-                    bez(&route->drawinfo, &next_node->p3, &next_node->p, &next_node->p1, progress - 0.5);
+                    bez(route->drawinfo, &next_node->p3, &next_node->p, &next_node->p1, progress - 0.5);
             }
         }
         else if (route->state.forwardsa && progress<0 && (last_node->p3.x || last_node->p3.z))
         {
             /* Leaving mirror of p3. Special handling to deal with short paths. */
             progress = (route->last_time - route_now) / (TURN_TIME/2);
-            route->drawinfo.x = last_node->p.x + progress * (last_node->p.x - last_node->p3.x);
-            route->drawinfo.z = last_node->p.z + progress * (last_node->p.z - last_node->p3.z);
-            route->drawinfo.heading = route->next_heading;
+            route->drawinfo->x = last_node->p.x + progress * (last_node->p.x - last_node->p3.x);
+            route->drawinfo->z = last_node->p.z + progress * (last_node->p.z - last_node->p3.z);
+            route->drawinfo->heading = route->next_heading;
         }
         else if (!route->state.forwardsa && (route_now - route->last_time < TURN_TIME/2) && (last_node->p3.x || last_node->p3.z))
         {
@@ -523,37 +523,37 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
             if (route->direction > 0)
             {
                 if (route->speed * 2 <= route->next_distance)
-                    bez(&route->drawinfo, &last_node->p1, &last_node->p, &last_node->p3, 0.5+(route_now - route->last_time)/TURN_TIME);
+                    bez(route->drawinfo, &last_node->p1, &last_node->p, &last_node->p3, 0.5+(route_now - route->last_time)/TURN_TIME);
                 else	/* Short edge */
-                    bez(&route->drawinfo, &last_node->p1, &last_node->p, &last_node->p3, progress + 0.5);
+                    bez(route->drawinfo, &last_node->p1, &last_node->p, &last_node->p3, progress + 0.5);
             }
             else
             {
                 if (route->speed * 2 <= route->next_distance)
-                    bez(&route->drawinfo, &last_node->p3, &last_node->p, &last_node->p1, 0.5+(route_now - route->last_time)/TURN_TIME);
+                    bez(route->drawinfo, &last_node->p3, &last_node->p, &last_node->p1, 0.5+(route_now - route->last_time)/TURN_TIME);
                 else	/* Short edge */
-                    bez(&route->drawinfo, &last_node->p3, &last_node->p, &last_node->p1, progress + 0.5);
+                    bez(route->drawinfo, &last_node->p3, &last_node->p, &last_node->p1, progress + 0.5);
             }
         }
         else
         {
-            route->drawinfo.x = last_node->p.x + progress * (next_node->p.x - last_node->p.x);
-            route->drawinfo.z = last_node->p.z + progress * (next_node->p.z - last_node->p.z);
-            route->drawinfo.heading = route->next_heading;
+            route->drawinfo->x = last_node->p.x + progress * (next_node->p.x - last_node->p.x);
+            route->drawinfo->z = last_node->p.z + progress * (next_node->p.z - last_node->p.z);
+            route->drawinfo->heading = route->next_heading;
         }
         if (route->object.offset)
         {
-            double h = route->drawinfo.heading*M_PI/180;
-            route->drawinfo.x += sin(h) * route->object.offset;
-            route->drawinfo.z -= cos(h) * route->object.offset;
+            double h = route->drawinfo->heading*M_PI/180;
+            route->drawinfo->x += sin(h) * route->object.offset;
+            route->drawinfo->z -= cos(h) * route->object.offset;
         }
-        route->drawinfo.heading += route->object.heading;
+        route->drawinfo->heading += route->object.heading;
 
         /* All the preceeding mucking about is pretty inexpensive. But drawing is expensive so test for range */
-        if (indrawrange(route->drawinfo.x-view_x, route->drawinfo.y-view_y, route->drawinfo.z-view_z, draw_distance))
-            XPLMDrawObjects(route->objref, 1, &(route->drawinfo), is_night, 1);
+        if (indrawrange(route->drawinfo->x-view_x, route->drawinfo->y-view_y, route->drawinfo->z-view_z, draw_distance))
+            XPLMDrawObjects(route->objref, 1, route->drawinfo, is_night, 1);
     }
-    route=airport.routes;	/* Leave at the first route for DataRefEditor */
+    route=airport.firstroute;	/* Leave at the first route for DataRefEditor */
 
     return 1;
 }

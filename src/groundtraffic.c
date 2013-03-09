@@ -135,7 +135,7 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFrom, long inMessage, void 
 }
 
 
-/* Log to Log.txt */
+/* Log to Log.txt. Returns 0 because that's a failure return code from most XP entry points */
 int xplog(char *msg)
 {
     XPLMDebugString("GroundTraffic: ");
@@ -276,12 +276,28 @@ static void loadlibraryobj(const char *inFilePath, void *inRef)
 }
 
 
+/* Callback for sorting routes by draw order, so that objects are batched together.
+ * Would ideally like to sort by texture since that's the most expensive thing, but we don't know that.
+ * So settle for sorting by XPLMObjectRef.
+ * Drawing code assumes parents come before children so cater to this - which means if the same object is used as
+ * a parent and child it will occur in two separate batches. This isn't disastrous and anyway is unlikely to occur
+ * in practice since it's unlikely that the same object would be used as both parent and child. */
+int sortroute(const void *a, const void *b)
+{
+    const route_t *const *ra = a, *const *rb = b;
+    if ((*ra)->parent && !(*rb)->parent) return 1;
+    if ((*rb)->parent && !(*ra)->parent) return -1;
+    return ((*ra)->objref > (*rb)->objref) - ((*ra)->objref < (*rb)->objref);	/* Simple (ra->objref - rb->objref) risks overflow */
+}
+
+
 /* Going active - load resources. Return non-zero if success */
 int activate(airport_t *airport)
 {
-    route_t *route, *other;
+    route_t *route, *other, **routes;
     char path[PATH_MAX];
     XPLMPluginID PluginID;
+    int count, i;
 
     assert (airport->state==inactive);
 
@@ -289,8 +305,7 @@ int activate(airport_t *airport)
     for(route=airport->routes; route; route=route->next)
     {
         /* First try library object */
-        int count=XPLMLookupObjects(route->object.name, airport->tower.lat, airport->tower.lon, countlibraryobjs, NULL);
-        if (count)
+        if ((count = XPLMLookupObjects(route->object.name, airport->tower.lat, airport->tower.lon, countlibraryobjs, NULL)))
         {
             /* Pick one at random (temporarily abuse deadlock variable as a counter) */
             route->deadlocked = rand() % count;	/* rand() doesn't give an even distribution; I don't care */
@@ -310,11 +325,27 @@ int activate(airport_t *airport)
         if (!(route->objref))
         {
             sprintf(path, "Can't find object or train \"%s\"", route->object.name);
-            xplog(path);
-            return 0;
+            return xplog(path);
         }
-        /* route->next_time=0;	If previously deactivated, just let it continue when are where it left off */
+        /* route->next_time=0;	If previously deactivated, just let it continue when and where it left off */
     }
+
+    /* Sort routes by XPLMObjectRef and assign XPLMDrawInfo_t entries in sequence so objects can be drawn in batches.
+     * Rather than actually shuffling the routes around in memory we just sort an array of pointers and then go back
+     * and fix up the linked list and pointers into the XPLMDrawInfo_t array. */
+    for (count = 0, route = airport->routes; route; count++, route = route->next);
+    if (!(routes = malloc(count * sizeof(route))))
+        return xplog("Out of memory!");
+    for (i = 0, route = airport->routes; route; route = route->next)
+        routes[i++] = route;
+    qsort(routes, count, sizeof(route), sortroute);
+    airport->routes = routes[0];
+    for (i = 0; i < count; i++)
+    {
+        routes[i]->drawinfo = airport->drawinfo + i;
+        routes[i]->next = i < count-1 ? routes[i+1] : NULL;
+    }
+    free(routes);
 
     /* Check for collisions - O(n2) * O(m2) ! */
     for(route=airport->routes; route; route=route->next)
@@ -382,7 +413,7 @@ int activate(airport_t *airport)
             }
         }
 
-    /*  Register user DataRefs with DRE. We don't do this at load to avoid cluttering up the place with unused DataRefs. */
+    /* Register user DataRefs with DRE. We don't do this at load to avoid cluttering up the place with unused DataRefs. */
     if ((PluginID = XPLMFindPluginBySignature("xplanesdk.examples.DataRefEditor")) != XPLM_NO_PLUGIN_ID)
     {
         userref_t *userref = airport->userrefs;
