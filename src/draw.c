@@ -14,18 +14,6 @@ float last_frame=0;	/* last time we recalculated */
 static void bez(XPLMDrawInfo_t *drawinfo, point_t *p1, point_t *p2, point_t *p3, float mu);
 
 
-static inline int intilerange(loc_t tile, loc_t loc)
-{
-    return ((abs(tile.lat - floorf(loc.lat)) <= TILE_RANGE) &&
-            (abs(tile.lon  - floorf(loc.lon)) <= TILE_RANGE));
-}
-
-static inline int indrawrange(float xdist, float ydist, float zdist, float range)
-{
-    float dist2 = xdist*xdist + ydist*ydist + zdist*zdist;
-    return (dist2 <= range*range);
-}
-
 static int iscollision(route_t *route)
 {
     collision_t *c = route->direction>0 ? route->path[route->last_node].collisions : route->path[route->next_node].collisions;
@@ -41,94 +29,35 @@ static int iscollision(route_t *route)
 }
 
 
-/* Check if we've gone out of range. Do this in a separate callback (that only is registered while we're active
- * to save frame rate) so that if we're changing airports via the Location menu the old airport is deactivated and
- * per-route DataRefs unregistered before the new airport is activated and tries to register those same DataRefs. */
-int predrawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
-{
-    loc_t tile;
-
-    assert (airport.state==active);
-
-    tile.lat=floor(XPLMGetDatad(ref_plane_lat));
-    tile.lon=floor(XPLMGetDatad(ref_plane_lon));
-    if (!intilerange(tile, airport.tower))
-    {
-        deactivate(&airport);
-    }
-    else
-    {
-        double x, y, z;
-        float airport_x, airport_y, airport_z;
-        float view_x, view_y, view_z;
-
-        XPLMWorldToLocal(airport.tower.lat, airport.tower.lon, airport.tower.alt, &x, &y, &z);
-        airport_x=x;  airport_y=y;  airport_z=z;
-        view_x=XPLMGetDataf(ref_view_x);
-        view_y=XPLMGetDataf(ref_view_y);
-        view_z=XPLMGetDataf(ref_view_z);
-
-        if (!indrawrange(airport_x-view_x, airport_y-view_y, airport_z-view_z, ACTIVE_DISTANCE+ACTIVE_HYSTERESIS))
-            deactivate(&airport);
-    }
-
-    return 1;	/* Let X-Plane draw */
-}
-
-
 int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
 {
     static int is_night=0;
 
-    double x, y, z;
+    double airport_x, airport_y, airport_z;
     float view_x, view_y, view_z;
     float now;
     int tod=-1;
     unsigned int dow=0;
-    float airport_x, airport_y, airport_z;
-    loc_t tile;
     XPLMProbeInfo_t probeinfo;
     probeinfo.structSize = sizeof(XPLMProbeInfo_t);
 
-    if (airport.state==noconfig) return 1;
+    assert (airport.state == active);
 
-    tile.lat=floor(XPLMGetDatad(ref_plane_lat));
-    tile.lon=floor(XPLMGetDatad(ref_plane_lon));
-    if (!intilerange(tile, airport.tower))
-    {
-        assert (airport.state==inactive);
-        return 1;
-    }
-
-    if (airport.tower.alt==INVALID_ALT)
-    {
-        /* First time we've encountered our airport. Determine elevations. */
-        proberoutes(&airport);
-    }
-
-    XPLMWorldToLocal(airport.tower.lat, airport.tower.lon, airport.tower.alt, &x, &y, &z);
-    airport_x=x;  airport_y=y;  airport_z=z;
-    view_x=XPLMGetDataf(ref_view_x);
-    view_y=XPLMGetDataf(ref_view_y);
-    view_z=XPLMGetDataf(ref_view_z);
-
-    if (airport.state==inactive)
-    {
-        if (!indrawrange(airport_x-view_x, airport_y-view_y, airport_z-view_z, ACTIVE_DISTANCE)) return 1;	/* stay inactive */
-
-        /* Going active */
-        if (!activate(&airport))
-        {
-            clearconfig(&airport);
-            return 1;
-        }
-    }
-
-    if (airport_x!=airport.p.x || airport_y!=airport.p.y || airport_z!=airport.p.z)
+    XPLMWorldToLocal(airport.tower.lat, airport.tower.lon, airport.tower.alt, &airport_x, &airport_y, &airport_z);
+    if (airport.p.x != (float) airport_x || airport.p.y != (float) airport_y || airport.p.z != (float) airport_z)
     {
         /* OpenGL projection has shifted */
         airport.p.x=airport_x;  airport.p.y=airport_y;  airport.p.z=airport_z;
         maproutes(&airport);
+    }
+
+    view_x=XPLMGetDataf(ref_view_x);
+    view_y=XPLMGetDataf(ref_view_y);
+    view_z=XPLMGetDataf(ref_view_z);
+    if (!indrawrange(airport_x-view_x, airport_y-view_y, airport_z-view_z, ACTIVE_DISTANCE+ACTIVE_HYSTERESIS))
+    {
+        deactivate(&airport);
+        return 1;
     }
 
     /* We can be called multiple times per frame depending on shadow settings -

@@ -8,7 +8,8 @@
 #ifdef _MSC_VER
 #  define _USE_MATH_DEFINES
 #  define _CRT_SECURE_NO_DEPRECATE
-#  define inline __inline
+#  define inline __forceinline
+#  define WIN32_LEAN_AND_MEAN
 #endif
 
 #include <assert.h>
@@ -53,6 +54,7 @@
 /* constants */
 #define MAX_NAME 256		/* Arbitrary limit on object name lengths */
 #define TILE_RANGE 1		/* How many tiles away from plane's tile to consider getting out of bed for */
+#define ACTIVE_POLL 16		/* Poll to see if we've come into range every n frames */
 #define ACTIVE_DISTANCE 6000.0	/* Distance [m] from tower location at which to actually get out of bed */
 #define ACTIVE_HYSTERESIS (ACTIVE_DISTANCE*0.05)
 #define DRAW_DISTANCE 3500.0	/* Distance [m] from object to draw it. Divided by LOD value. */
@@ -225,8 +227,18 @@ int xplog(char *msg);
 int readconfig(char *pkgpath, airport_t *airport);
 void clearconfig(airport_t *airport);
 
-int predrawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon);
 int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon);
+
+/* inlines */
+static inline int intilerange(loc_t tile, loc_t loc)
+{
+    return ((abs(tile.lat - floorf(loc.lat)) <= TILE_RANGE) && (abs(tile.lon - floorf(loc.lon)) <= TILE_RANGE));
+}
+
+static inline int indrawrange(float xdist, float ydist, float zdist, float range)
+{
+    return (xdist*xdist + ydist*ydist + zdist*zdist <= range*range);
+}
 
 
 /* Globals */

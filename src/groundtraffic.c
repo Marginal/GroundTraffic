@@ -28,6 +28,7 @@ int year=113;		/* Current year (in GMT tz) since 1900 */
 const char datarefs[dataref_count][60] = { REF_DISTANCE, REF_SPEED, REF_NODE_LAST, REF_NODE_LAST_DISTANCE, REF_NODE_NEXT, REF_NODE_NEXT_DISTANCE };	/* Must be in same order as dataref_t */
 
 /* In this file */
+static float flightcallback(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop, int inCounter, void *inRefcon);
 static float floatrefcallback(XPLMDataRef inRefCon);
 static int intrefcallback(XPLMDataRef inRefCon);
 static int varrefcallback(XPLMDataRef inRefCon, float *outValues, int inOffset, int inMax);
@@ -83,9 +84,9 @@ PLUGIN_API int XPluginStart(char *outName, char *outSignature, char *outDescript
     strcat(outSignature, c);
     
     srand(time(NULL));	/* Seed rng */
-    if (time(&t)!=-1 && (tm = localtime(&t)))	year=tm->tm_year;	/* What year is it? */
+    if (time(&t)!=-1 && (tm = localtime(&t)))	year=tm->tm_year;			/* What year is it? */
 
-    XPLMRegisterDrawCallback(drawcallback, xplm_Phase_Objects, 0, NULL);	/* After other 3D objects */
+    XPLMRegisterFlightLoopCallback(flightcallback, -(rand() % ACTIVE_POLL), NULL);	/* Spread out poll across frames */
 
     return 1;
 }
@@ -93,7 +94,7 @@ PLUGIN_API int XPluginStart(char *outName, char *outSignature, char *outDescript
 
 PLUGIN_API void XPluginStop(void)
 {
-    XPLMUnregisterDrawCallback(drawcallback, xplm_Phase_Objects, 0, NULL);
+    XPLMUnregisterFlightLoopCallback(flightcallback, NULL);
     XPLMDestroyProbe(ref_probe);
 }
 
@@ -113,6 +114,34 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFrom, long inMessage, void 
     if (inMessage==XPLM_MSG_AIRPORT_LOADED)
     {
         readconfig(pkgpath, &airport);
+
+        /* Check if we've gone out of range so that the old airport is deactivated and per-route DataRefs
+           unregistered before the new airport is activated and tries to register those same DataRefs. */
+        if (airport.state == active)
+        {
+            loc_t tile;
+            tile.lat=floor(XPLMGetDatad(ref_plane_lat));
+            tile.lon=floor(XPLMGetDatad(ref_plane_lon));
+            if (!intilerange(tile, airport.tower))
+            {
+                deactivate(&airport);
+            }
+            else
+            {
+                double x, y, z;
+                float airport_x, airport_y, airport_z;
+                float view_x, view_y, view_z;
+
+                XPLMWorldToLocal(airport.tower.lat, airport.tower.lon, airport.tower.alt, &x, &y, &z);
+                airport_x=x;  airport_y=y;  airport_z=z;
+                view_x=XPLMGetDataf(ref_view_x);
+                view_y=XPLMGetDataf(ref_view_y);
+                view_z=XPLMGetDataf(ref_view_z);
+
+                if (!indrawrange(airport_x-view_x, airport_y-view_y, airport_z-view_z, ACTIVE_DISTANCE+ACTIVE_HYSTERESIS))
+                    deactivate(&airport);
+            }
+        }
     }
     else if (inMessage==XPLM_MSG_SCENERY_LOADED)
     {
@@ -122,6 +151,37 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFrom, long inMessage, void 
         if (ref_LOD) lod=XPLMGetDataf(ref_LOD);
         draw_distance = DRAW_DISTANCE / (lod ? lod : DEFAULT_LOD);
     }
+}
+
+
+/* Flight loop callback for checking whether we've come into range */
+static float flightcallback(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop, int inCounter, void *inRefcon)
+{
+    if (airport.state == inactive)
+    {
+        loc_t tile;
+        tile.lat=floor(XPLMGetDatad(ref_plane_lat));
+        tile.lon=floor(XPLMGetDatad(ref_plane_lon));
+        if (intilerange(tile, airport.tower))
+        {
+            double airport_x, airport_y, airport_z;
+            float view_x, view_y, view_z;
+
+            if (airport.tower.alt==INVALID_ALT)
+                proberoutes(&airport);	/* First time we've encountered our airport. Determine elevations. */
+
+            XPLMWorldToLocal(airport.tower.lat, airport.tower.lon, airport.tower.alt, &airport_x, &airport_y, &airport_z);
+            view_x=XPLMGetDataf(ref_view_x);
+            view_y=XPLMGetDataf(ref_view_y);
+            view_z=XPLMGetDataf(ref_view_z);
+
+            if (indrawrange(airport_x-view_x, airport_y-view_y, airport_z-view_z, ACTIVE_DISTANCE))
+                if (!activate(&airport))	/* Going active */
+                    clearconfig(&airport);
+        }
+    }
+
+    return -ACTIVE_POLL;
 }
 
 
@@ -415,7 +475,8 @@ int activate(airport_t *airport)
             }
         }
 
-    XPLMRegisterDrawCallback(predrawcallback, xplm_Phase_Objects, 1, NULL);	/* Before other 3D objects */
+    XPLMRegisterDrawCallback(drawcallback, xplm_Phase_Objects, 0, NULL);	/* After other 3D objects */
+
     airport->state=active;
     return 2;
 }
@@ -444,7 +505,7 @@ void deactivate(airport_t *airport)
     XPLMUnregisterDataAccessor(ref_varref);
     ref_varref = 0;
 
-    XPLMUnregisterDrawCallback(predrawcallback, xplm_Phase_Objects, 1, NULL);
+    XPLMUnregisterDrawCallback(drawcallback, xplm_Phase_Objects, 0, NULL);
 
     airport->state=inactive;
     last_frame = 0;
