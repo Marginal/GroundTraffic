@@ -225,12 +225,14 @@ int xplog(char *msg);
 int readconfig(char *pkgpath, airport_t *airport);
 void clearconfig(airport_t *airport);
 
+int predrawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon);
 int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon);
 
 
 /* Globals */
 extern char *pkgpath;
 extern XPLMDataRef ref_plane_lat, ref_plane_lon, ref_view_x, ref_view_y, ref_view_z, ref_rentype, ref_night, ref_monotonic, ref_doy, ref_tod, ref_LOD;
+extern XPLMDataRef ref_datarefs[dataref_count], ref_varref;
 extern XPLMProbeRef ref_probe;
 extern float draw_distance;
 extern airport_t airport;

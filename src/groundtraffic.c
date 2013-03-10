@@ -17,6 +17,7 @@ BOOL APIENTRY DllMain(HANDLE hModule, DWORD ul_reason, LPVOID lpReserved)
 /* Globals */
 char *pkgpath;
 XPLMDataRef ref_plane_lat, ref_plane_lon, ref_view_x, ref_view_y, ref_view_z, ref_rentype, ref_night, ref_monotonic, ref_doy, ref_tod, ref_LOD;
+XPLMDataRef ref_datarefs[dataref_count] = { 0 }, ref_varref = 0;
 XPLMProbeRef ref_probe;
 float draw_distance = DRAW_DISTANCE/DEFAULT_LOD;
 airport_t airport = { 0 };
@@ -27,7 +28,6 @@ int year=113;		/* Current year (in GMT tz) since 1900 */
 const char datarefs[dataref_count][60] = { REF_DISTANCE, REF_SPEED, REF_NODE_LAST, REF_NODE_LAST_DISTANCE, REF_NODE_NEXT, REF_NODE_NEXT_DISTANCE };	/* Must be in same order as dataref_t */
 
 /* In this file */
-static float flightcallback(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop, int inCounter, void *inRefcon);
 static float floatrefcallback(XPLMDataRef inRefCon);
 static int intrefcallback(XPLMDataRef inRefCon);
 static int varrefcallback(XPLMDataRef inRefCon, float *outValues, int inOffset, int inMax);
@@ -38,7 +38,6 @@ PLUGIN_API int XPluginStart(char *outName, char *outSignature, char *outDescript
     char buffer[PATH_MAX], *c;
     time_t t;
     struct tm *tm;
-    int i;
 
     sprintf(outName, "GroundTraffic v%.2f", VERSION);
     strcpy(outSignature, "Marginal.GroundTraffic");
@@ -56,7 +55,7 @@ PLUGIN_API int XPluginStart(char *outName, char *outSignature, char *outDescript
     ref_tod      =XPLMFindDataRef("sim/time/local_time_sec");
     ref_LOD      =XPLMFindDataRef("sim/private/controls/reno/LOD_bias_rat");
     ref_probe    =XPLMCreateProbe(xplm_ProbeY);
-    if (!(ref_view_x && ref_view_y && ref_view_z && ref_night && ref_monotonic && ref_doy && ref_tod)) return xplog("Can't access X-Plane datarefs!");
+    if (!(ref_view_x && ref_view_y && ref_view_z && ref_night && ref_monotonic && ref_doy && ref_tod)) return xplog("Can't access X-Plane DataRefs!");
 
     XPLMEnableFeature("XPLM_WANTS_REFLECTIONS", 0);	/* Let's assume there aren't a lot of puddles around */
     XPLMEnableFeature("XPLM_USE_NATIVE_PATHS", 1);	/* Get paths in posix format */
@@ -86,14 +85,6 @@ PLUGIN_API int XPluginStart(char *outName, char *outSignature, char *outDescript
     srand(time(NULL));	/* Seed rng */
     if (time(&t)!=-1 && (tm = localtime(&t)))	year=tm->tm_year;	/* What year is it? */
 
-    for(i=0; i<dataref_count; i++)
-        XPLMRegisterDataAccessor(datarefs[i], (i==node_last || i==node_next) ? xplmType_Int : xplmType_Float, 0,
-                                 intrefcallback, NULL, floatrefcallback, NULL, NULL, NULL,
-                                 NULL, NULL, NULL, NULL, NULL, NULL, (void*) ((intptr_t) i), NULL);
-    XPLMRegisterDataAccessor(REF_VAR, xplmType_FloatArray, 0,
-                             NULL, NULL, NULL, NULL, NULL, NULL,
-                             NULL, NULL, varrefcallback, NULL, NULL, NULL, (void*) ((intptr_t) i), NULL);
-    XPLMRegisterFlightLoopCallback(flightcallback, -1, NULL);			/* Just for registering datarefs with DRE */
     XPLMRegisterDrawCallback(drawcallback, xplm_Phase_Objects, 0, NULL);	/* After other 3D objects */
 
     return 1;
@@ -102,7 +93,6 @@ PLUGIN_API int XPluginStart(char *outName, char *outSignature, char *outDescript
 
 PLUGIN_API void XPluginStop(void)
 {
-    XPLMUnregisterFlightLoopCallback(flightcallback, NULL);
     XPLMUnregisterDrawCallback(drawcallback, xplm_Phase_Objects, 0, NULL);
     XPLMDestroyProbe(ref_probe);
 }
@@ -142,21 +132,6 @@ int xplog(char *msg)
     XPLMDebugString(msg);
     XPLMDebugString("\n");
     return 0;
-}
-
-
-/* Flight loop callback for registering DataRefs with DRE */
-static float flightcallback(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop, int inCounter, void *inRefcon)
-{
-    int i;
-    XPLMPluginID PluginID = XPLMFindPluginBySignature("xplanesdk.examples.DataRefEditor");
-    if (PluginID != XPLM_NO_PLUGIN_ID)
-    {
-        for(i=0; i<dataref_count; i++)
-            XPLMSendMessageToPlugin(PluginID, 0x01000000, (void*) datarefs[i]);
-        XPLMSendMessageToPlugin(PluginID, 0x01000000, REF_VAR);
-    }
-    return 0;	/* Don't call again */
 }
 
 
@@ -301,7 +276,34 @@ int activate(airport_t *airport)
 
     assert (airport->state==inactive);
 
-    /* Load resources */
+    /* Register per-route DataRefs with X-Plane. Do this before loading objects do DataRef lookups work. */
+    for(i=0; i<dataref_count; i++)
+        ref_datarefs[i] = XPLMRegisterDataAccessor(datarefs[i], (i==node_last || i==node_next) ? xplmType_Int : xplmType_Float, 0,
+                                                   intrefcallback, NULL, floatrefcallback, NULL, NULL, NULL,
+                                                   NULL, NULL, NULL, NULL, NULL, NULL, (void*) ((intptr_t) i), NULL);
+    ref_varref = XPLMRegisterDataAccessor(REF_VAR, xplmType_FloatArray, 0,
+                                          NULL, NULL, NULL, NULL, NULL, NULL,
+                                          NULL, NULL, varrefcallback, NULL, NULL, NULL, (void*) ((intptr_t) i), NULL);
+
+    /* Register DataRefs with DRE. */
+    if ((PluginID = XPLMFindPluginBySignature("xplanesdk.examples.DataRefEditor")) != XPLM_NO_PLUGIN_ID)
+    {
+        userref_t *userref = airport->userrefs;
+
+        for(i=0; i<dataref_count; i++)
+            XPLMSendMessageToPlugin(PluginID, 0x01000000, (void*) datarefs[i]);
+        XPLMSendMessageToPlugin(PluginID, 0x01000000, REF_VAR);
+
+        /* Register user DataRefs with DRE. We don't do this at load to avoid cluttering up the display with inactive DataRefs. */
+        while (userref)
+        {
+            if (userref->ref)
+                XPLMSendMessageToPlugin(PluginID, 0x01000000, (void*) userref->name);
+            userref = userref->next;
+        }
+    }
+
+    /* Load objects */
     for(route=airport->routes; route; route=route->next)
     {
         /* First try library object */
@@ -413,18 +415,7 @@ int activate(airport_t *airport)
             }
         }
 
-    /* Register user DataRefs with DRE. We don't do this at load to avoid cluttering up the place with unused DataRefs. */
-    if ((PluginID = XPLMFindPluginBySignature("xplanesdk.examples.DataRefEditor")) != XPLM_NO_PLUGIN_ID)
-    {
-        userref_t *userref = airport->userrefs;
-        while (userref)
-        {
-            if (userref->ref)
-                XPLMSendMessageToPlugin(PluginID, 0x01000000, (void*) userref->name);
-            userref = userref->next;
-        }
-    }
-
+    XPLMRegisterDrawCallback(predrawcallback, xplm_Phase_Objects, 1, NULL);	/* Before other 3D objects */
     airport->state=active;
     return 2;
 }
@@ -434,6 +425,7 @@ int activate(airport_t *airport)
 void deactivate(airport_t *airport)
 {
     route_t *route;
+    int i;
 
     if (airport->state!=active) return;
 
@@ -442,6 +434,17 @@ void deactivate(airport_t *airport)
         XPLMUnloadObject(route->objref);
         route->objref=0;
     }
+
+    /* Unregister per-route DataRefs */
+    for(i=0; i<dataref_count; i++)
+    {
+        XPLMUnregisterDataAccessor(ref_datarefs[i]);
+        ref_datarefs[i] = 0;
+    }
+    XPLMUnregisterDataAccessor(ref_varref);
+    ref_varref = 0;
+
+    XPLMUnregisterDrawCallback(predrawcallback, xplm_Phase_Objects, 1, NULL);
 
     airport->state=inactive;
     last_frame = 0;
