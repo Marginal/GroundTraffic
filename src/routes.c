@@ -293,6 +293,8 @@ int readconfig(char *pkgpath, airport_t *airport)
                     if (path[i].flags.backup)
                         return failconfig(h, airport, buffer, "Can't use \"backup\" and \"reverse\" in the same route at line %d", lineno);
                 path[currentroute->pathlen-1].flags.reverse=1;
+                if (!(lastroute=expandtrain(airport, currentroute)))
+                    return failconfig(h, airport, buffer, "Out of memory!");
                 currentroute=NULL;		/* reverse terminates */
             }
             else if (!strcasecmp(c1, "set"))

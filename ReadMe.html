@@ -241,10 +241,10 @@ train	marginal/luggage_train_4
   <dd>The name of the animated object. This can be the name of a library object from X-Plane's built-in library or from an add-on library, or the name of an object in your scenery package. It should not be the name of this or another Train.</dd>
 </dl>
 <p>To determine how far an object should lag behind the the lead object you can open/import the objects in your 3D modelling application and measure how far (in metres) you have to move the object behind the lead object for it to appear to &ldquo;link up&rdquo; correctly. If either object needs an <a href="#Route">offset</a> to be centered on its axes then adjust for this before measuring. Repeat the process for further objects.</p>
-<p>For example two objects, the first of which needs to be rotated 180&deg;, the second of which is 3.36m behind the first:</p>
+<p>For example two objects, both of which need to be rotated 180&deg;, the second of which is 3.36m behind the first:</p>
 <pre>...
 0	0	180	lib/airport/Ramp_Equipment/Luggage_Truck.obj
-3.36	0	0	lib/airport/Ramp_Equipment/Luggage_Cart.obj
+3.36	0	180	lib/airport/Ramp_Equipment/Luggage_Cart.obj
 ...</pre>
 <p>The plugin animates train Car objects as if they are connected to each other so don't leave huge gaps between Cars. In particular, if you want to send two or more separate objects down the same route don't (ab)use the Train statement; just duplicate the route and change the order of the waypoints in the copy/copies to space out the objects.</p>
 
