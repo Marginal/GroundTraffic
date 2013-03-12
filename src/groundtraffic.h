@@ -45,6 +45,16 @@
 #include "XPLMScenery.h"
 #include "XPLMUtilities.h"
 
+#ifdef DEBUG
+#  if APL
+#    include <OpenGL/gl.h>
+#    include <OpenGL/glu.h>
+#  else
+#    include <GL/gl.h>
+#    include <GL/glu.h>
+#  endif
+#endif
+
 /* Version of assert that suppresses "variable ... set but not used" if the variable only exists for the purpose of the asserted expression */
 #ifdef	NDEBUG
 #  undef assert

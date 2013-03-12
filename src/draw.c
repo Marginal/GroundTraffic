@@ -378,6 +378,30 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
             route->drawinfo->pitch = 0;	/* Since we're not probing */
         }
 
+#ifdef DEBUG
+        {
+            /* Show markers - which are only visible if shadows turned off! */
+            path_t *node = progress < 0.5 ? last_node : next_node;
+            XPLMSetGraphicsState(0, 0, 0,   0, 0,   0, 0);
+            glLineWidth(3);
+            glColor3f(1,0,0);
+            glBegin(GL_LINE_STRIP);
+            glVertex3f(node->p1.x, node->p.y,    node->p1.z);
+            glVertex3f(node->p1.x, node->p.y+10, node->p1.z);
+            glEnd();
+            glColor3f(0,1,0);
+            glBegin(GL_LINE_STRIP);
+            glVertex3f(node->p.x,  node->p.y,    node->p.z);
+            glVertex3f(node->p.x,  node->p.y+10, node->p.z);
+            glEnd();
+            glColor3f(0,0,1);
+            glBegin(GL_LINE_STRIP);
+            glVertex3f(node->p3.x, node->p.y,    node->p3.z);
+            glVertex3f(node->p3.x, node->p.y+10, node->p3.z);
+            glEnd();
+        }
+#endif
+
         /* Finally do the drawing */
         if (route->state.backingup)
         {
