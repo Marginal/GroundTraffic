@@ -177,6 +177,7 @@ typedef struct route_t
     int direction;		/* Traversing path 1=forwards, -1=reverse */
     int last_node, next_node;	/* The last and next waypoints visited on the path */
     float last_time, next_time;	/* Time we left last_node, expected time to hit the next node */
+    float freeze_time;		/* For children: Time when parent started pause */
     float speed;		/* [m/s] */
     float last_distance;	/* Cumulative distance travelled from first to last_node [m] */
     float next_distance;	/* Distance from last_node to next_node [m] */
