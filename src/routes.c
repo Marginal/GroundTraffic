@@ -182,13 +182,8 @@ int readconfig(char *pkgpath, airport_t *airport)
 
         if (!c1)				/* Blank line = end of route or train */
         {
-            if (currentroute)
-            {
-                if (!currentroute->pathlen)
-                    return failconfig(h, airport, buffer, "Empty route at line %d", lineno);
-                if (!(lastroute=expandtrain(airport, currentroute)))
-                    return failconfig(h, airport, buffer, "Out of memory!");
-            }
+            if (currentroute && !currentroute->pathlen)
+                return failconfig(h, airport, buffer, "Empty route at line %d", lineno);
             currentroute = NULL;
             if (currenttrain && !currenttrain->objects[0].name[0])
                 return failconfig(h, airport, buffer, "Empty train at line %d", lineno);
@@ -352,8 +347,6 @@ int readconfig(char *pkgpath, airport_t *airport)
                     if (path[i].flags.backup)
                         return failconfig(h, airport, buffer, "Can't use \"backup\" and \"reverse\" in the same route at line %d", lineno);
                 path[currentroute->pathlen-1].flags.reverse=1;
-                if (!(lastroute=expandtrain(airport, currentroute)))
-                    return failconfig(h, airport, buffer, "Out of memory!");
                 currentroute=NULL;		/* reverse terminates */
             }
             else if (!strcasecmp(c1, "set"))
@@ -414,7 +407,7 @@ int readconfig(char *pkgpath, airport_t *airport)
             if (!(newroute=calloc(1, sizeof(route_t))))
                 return failconfig(h, airport, buffer, "Out of memory!");
             else if (lastroute)
-                lastroute->next=newroute;
+                lastroute->next = newroute;
             else
                 airport->routes = airport->firstroute = newroute;	/* Save for DRE */
 
@@ -467,8 +460,15 @@ int readconfig(char *pkgpath, airport_t *airport)
             return failconfig(h, airport, buffer, "Expecting a route or train, found \"%s\" at line %d", c1, lineno);
         }
     }
-    if (currentroute && !expandtrain(airport, currentroute))	/* Handle missing blank line at eof */
-        return failconfig(h, airport, buffer, "Out of memory!");
+
+    /* Turn train routes into multiple individual routes */
+    currentroute = airport->routes;
+    while (currentroute)
+    {
+        if (!(currentroute = expandtrain(airport, currentroute)))
+            return failconfig(h, airport, buffer, "Out of memory!");
+        currentroute = currentroute->next;
+    }
 
     /* Allocate XPLMDrawInfo_t array. We don't assign into this 'til XPLMObjectRefs are known during activate() */
     for (count = 0, route = airport->routes; route; count++, route = route->next);
@@ -623,8 +623,9 @@ static route_t *expandtrain(airport_t *airport, route_t *currentroute)
             route_t *newroute;
             if (!(newroute=malloc(sizeof(route_t)))) return NULL; /* OOM */
             memcpy(newroute, currentroute, sizeof(route_t));
+            newroute->next = route->next;
             route->next = newroute;
-            route = route->next;
+            route = newroute;
             route->parent = currentroute;
         }
         /* Assign carriage to its route */
@@ -634,7 +635,6 @@ static route_t *expandtrain(airport_t *airport, route_t *currentroute)
         route->object.heading = train->objects[i].heading;
         route->next_time = -route->object.lag;				/* Force recalc on first draw */
     }
-    route->next = NULL;
 
     return route;
 }
