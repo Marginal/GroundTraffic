@@ -20,7 +20,7 @@ static int iscollision(route_t *route)
     while (c)
     {
         if ((c->route->direction>0 ? c->route->last_node : c->route->next_node) == c->node &&
-            !(c->route->state.paused||c->route->state.waiting||c->route->state.collision) &&	/* No point waiting for a paused route. He'll re-check on exit from pause */
+            !(c->route->state.paused||c->route->state.waiting||c->route->state.dataref||c->route->state.collision) &&	/* No point waiting for a paused route. He'll re-check on exit from pause */
             c->route->last_node != c->route->next_node)			/* Check we're not just enabled/activated and deadlocked */
             break;	/* Collision */
         c = c->next;
@@ -116,6 +116,46 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                 }
                 /* last and next were calculated when we originally hit this waypoint */
             }
+            else if (route->state.dataref)
+            {
+                extref_t *extref = route->path[route->last_node].whenref;
+                float val;
+
+                if (route->path[route->last_node].whenidx < 0)
+                {
+                    /* Not an array */
+                    if (extref->type & xplmType_Float)
+                        val = XPLMGetDataf(extref->ref);
+                    else if (extref->type & xplmType_Double)
+                        val = XPLMGetDatad(extref->ref);
+                    else if (extref->type & xplmType_Int)
+                        val = XPLMGetDatai(extref->ref);
+                    else
+                        val = 0;	/* Lookup failed or otherwise unusable */
+                }
+                else if (extref->type & xplmType_FloatArray)
+                {
+                    XPLMGetDatavf(extref->ref, &val, route->path[route->last_node].whenidx, 1);
+                }
+                else if (extref->type & xplmType_IntArray)
+                {
+                    int ival;
+                    XPLMGetDatavi(extref->ref, &ival, route->path[route->last_node].whenidx, 1);
+                    val = ival;
+                }
+                else
+                {
+                    val = 0;		/* Lookup failed or otherwise unusable */
+                }
+
+                if ((val >= route->path[route->last_node].whenfrom) && (val <= route->path[route->last_node].whento))
+                {
+                    route->state.dataref = 0;
+                    if ((route->state.collision = iscollision(route)))	/* Re-check for collision */
+                        route->deadlocked = COLLISION_TIMEOUT;
+                    /* last and next were calculated when we originally hit this waypoint */
+                }
+            }
             else if (route->state.paused)
             {
                 route->state.paused = 0;
@@ -154,6 +194,8 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
 
                 if (!route->parent)
                 {
+                    if (route->path[route->last_node].whenref)
+                        route->state.dataref = 1;
                     if (route->path[route->last_node].attime[0] != INVALID_AT)
                         route->state.waiting = 1;
                     if (route->path[route->last_node].pausetime)
@@ -215,7 +257,9 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
             }
 
             if (route->state.waiting)
-                route->next_time = route->last_time + 60;	/* poll every 60 seconds */
+                route->next_time = route->last_time + AT_INTERVAL;
+            else if (route->state.dataref)
+                route->next_time = route->last_time + WHEN_INTERVAL;
             else if (route->state.paused)
                 route->next_time = route->last_time + route->path[route->last_node].pausetime;
             else if (route->state.collision)
@@ -257,7 +301,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
         /* Parent controls state of children */
         if (route->parent)
         {
-            if (route->parent->state.paused||route->parent->state.waiting||route->parent->state.collision)
+            if (route->parent->state.paused||route->parent->state.waiting||route->parent->state.dataref||route->parent->state.collision)
             {
                 /* Parent is paused */
                 route->freeze_time = route->parent->last_time;	/* Save time parent started pause */
@@ -278,7 +322,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                 }
                 route->state.frozen = 1;
             }
-            else if (!(route->parent->state.paused||route->parent->state.waiting||route->parent->state.collision) && route->state.frozen)
+            else if (!(route->parent->state.paused||route->parent->state.waiting||route->parent->state.dataref||route->parent->state.collision) && route->state.frozen)
             {
                 /* Parent has just unpaused - maintain spacing */
                 if (route->parent->last_time != now)
@@ -306,7 +350,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
         /* Calculate drawing position */
         last_node = route->path + route->last_node;
         next_node = route->path + route->next_node;
-        if (!(route->state.paused||route->state.waiting||route->state.collision))
+        if (!(route->state.paused||route->state.waiting||route->state.dataref||route->state.collision))
         {
             if (route->state.backingup && route->state.forwardsa && !last_node->flags.backup && route_now-route->last_time >= TURN_TIME/2)	/* C */
             {

@@ -150,6 +150,20 @@ at 08:00
 at 08:00 20:00 on Mon Tue Wed Thu Fri
 ...</pre>
 
+<h4>When command</h4>
+<p>The When command instructs the animated object to wait at the preceeding waypoint until a DataRef is within a specified range. (This command is similar in concept to <code>ANIM_show</code> in <samp>.obj</samp> files). It should be of the form &ldquo;<code>when</code>&nbsp;name&nbsp;from&nbsp;to&rdquo;, where:</p>
+<dl>
+  <dt>name</dt>
+  <dd>The name of a DataRef <a target="_blank" href="http://www.xsquawkbox.net/xpsdk/docs/DataRefs.html">published</a> by the sim or by another plugin. To access an array DataRef, append the array index within square brackets &ldquo;<code>[<i>n</i>]</code>&rdquo; to the name.</dd>
+  <dt>from to</dt>
+  <dd>Range of values for the DataRef for which the animation proceeds.</dd>
+</dl>
+<p>For example, an animation that only takes place in daylight:</p>
+<pre>...
+47.4559849 -122.3028592
+when sim/graphics/scenery/percent_lights_on 0 0.2
+...</pre>
+
 <h4>Backup command</h4>
 <p>The Backup command instructs the animated object to reverse from the preceding waypoint as far as the next waypoint, and thereafter move forward as normal. If the preceding waypoint also has a Pause command the object points forwards while waiting, and then backs-up <u>after</u> waiting.</p>
 <p>The Backup command just consists of the word &ldquo;<code>backup</code>&rdquo;.</p>

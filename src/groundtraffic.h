@@ -71,7 +71,9 @@
 #define DEFAULT_LOD 2.25	/* Equivalent to "medium" world detail distance */
 #define PROBE_INTERVAL 4	/* How often to probe ahead for altitude [s] */
 #define TURN_TIME 2		/* Time [s] to execute a turn at a waypoint */
-#define COLLISION_INTERVAL 4	/* How long to poll for crossing route path to become free */
+#define AT_INTERVAL 60		/* How often [s] to poll for At times */
+#define WHEN_INTERVAL 1		/* How often [s] to poll for When DataRef values */
+#define COLLISION_INTERVAL 4	/* How long [s] to poll for crossing route path to become free */
 #define COLLISION_TIMEOUT (60/COLLISION_INTERVAL)	/* How many times to poll before giving up to break deadlock */
 #define RESET_TIME 15		/* If we're deactivated for longer than this then reset route timings */
 #define MAX_VAR 10		/* How many var datarefs */
@@ -129,6 +131,16 @@ typedef struct userref_t
 } userref_t;
 
 
+/* Published external DataRef */
+typedef struct extref_t
+{
+    char *name;		/* NULL for standard var[n] datarefs */
+    XPLMDataRef ref;
+    XPLMDataTypeID type;
+    struct extref_t *next;
+} extref_t;
+
+
 /* Route path - locations or commands */
 struct collision_t;
 typedef struct
@@ -145,6 +157,9 @@ typedef struct
         int set2 : 1;
         int backup : 1;		/* Just reverse to next node */
     } flags;
+    struct extref_t *whenref;
+    int whenidx;
+    float whenfrom, whento;
     struct collision_t *collisions;	/* Collisions with other routes */
     struct userref_t *userref;
 } path_t;
@@ -166,10 +181,11 @@ typedef struct route_t
     int pathlen;
     struct
     {
-        int frozen : 1;		/* Child whose parent is paused or waiting */
-        int paused : 1;
-        int waiting : 1;
-        int collision : 1;
+        int frozen : 1;		/* Child whose parent is waiting */
+        int paused : 1;		/* Waiting for pause duration */
+        int waiting : 1;	/* Waiting for At time */
+        int dataref : 1;	/* Waiting for DataRef value */
+        int collision : 1;	/* Waiting for collision to resolve */
         int forwardsb : 1;	/* Waypoint before backing up */
         int backingup : 1;
         int forwardsa : 1;	/* Waypoint after backing up */
@@ -223,6 +239,7 @@ typedef struct
     route_t *firstroute;
     train_t *trains;
     userref_t *userrefs;
+    extref_t *extrefs;
     XPLMDrawInfo_t *drawinfo;	/* consolidated XPLMDrawInfo_t array for all routes/objects so they can be batched */
 } airport_t;
 

@@ -205,7 +205,7 @@ static float floatrefcallback(XPLMDataRef inDataRef)
     case distance:
         return route->distance;
     case speed:
-        if (route->state.frozen||route->state.paused||route->state.waiting||route->state.collision)
+        if (route->state.frozen||route->state.paused||route->state.waiting||route->state.dataref||route->state.collision)
             return 0;
         else if (route->state.backingup)
             return -route->speed;
@@ -330,13 +330,14 @@ int sortroute(const void *a, const void *b)
 int activate(airport_t *airport)
 {
     route_t *route, *other, **routes;
+    extref_t *extref;
     char path[PATH_MAX];
     XPLMPluginID PluginID;
     int count, i;
 
     assert (airport->state==inactive);
 
-    /* Register per-route DataRefs with X-Plane. Do this before loading objects do DataRef lookups work. */
+    /* Register per-route DataRefs with X-Plane. Do this before loading objects so DataRef lookups work. */
     for(i=0; i<dataref_count; i++)
         ref_datarefs[i] = XPLMRegisterDataAccessor(datarefs[i], (i==node_last || i==node_next) ? xplmType_Int : xplmType_Float, 0,
                                                    intrefcallback, NULL, floatrefcallback, NULL, NULL, NULL,
@@ -362,6 +363,12 @@ int activate(airport_t *airport)
             userref = userref->next;
         }
     }
+
+    /* Lookup externally published DataRefs */
+    for (extref = airport->extrefs; extref; extref=extref->next)
+        if ((extref->ref = XPLMFindDataRef(extref->name)))
+            extref->type = XPLMGetDataRefTypes(extref->ref);
+        /* Silently fail on failed lookup - like .obj files do */
 
     /* Load objects */
     for(route=airport->routes; route; route=route->next)
