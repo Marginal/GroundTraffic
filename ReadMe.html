@@ -204,16 +204,16 @@ reverse
   <dt>slope</dt>
   <dd><code>rise</code> or <code>fall</code> - whether the value the DataRef rises from 0.0 to 1.0, or falls from 1.0 to 0.0.</dd>
   <dt>curve</dt>
-  <dd><code>linear</code> or <code>sine</code> - whether the value the DataRef changes linearly or like <span style="font-family: sans-serif;">&nbsp;&int;</span>.</dd>
+  <dd><code>linear</code> or <code>sine</code> - whether the value the DataRef changes linearly or like <span style="font-family: sans-serif;">&nbsp;&int;</span> over the duration.</dd>
   <dt>duration</dt>
   <dd>The time in seconds that the DataRef takes to change value. This can be <code>0</code> if you want the DataRef to change value instantly.</dd>
 </dl>
-<p>If you specify a name of the form <code>var[<i>n</i>]</code> then this command controls the DataRef <code>marginal/groundtraffic/var[<i>n</i>]</code>, which can be used to drive animations in a 3D modelling application that supports X-Plane animations. Each object will see values for these DataRefs that are specific to the route that the object is following; so it is safe to re-use these DataRefs across different objects and routes. (However this means that you can't usefully use the <code>marginal/groundtraffic/var[<i>n</i>]</code> DataRefs in a static object that is placed conventionally within an X-Plane scenery package). For example, within one <samp>GroundTraffic.txt</samp> file, you could use the DataRef <code>marginal/groundtraffic/var[0]</code> to control an animated belt in one or more beltloader objects, and also use <code>marginal/groundtraffic/var[0]</code> to control a refueling animation in one or more fuel truck objects.</p>
+<p>If you specify a name of the form <code>var[<i>n</i>]</code> then this command controls the &ldquo;array&rdquo; DataRef <code>marginal/groundtraffic/var[<i>n</i>]</code>, which can be used to drive animations in a 3D modelling application that supports X-Plane animations. Each object will see values for this DataRef that are specific to the route that the object is following; so it is safe to re-use this DataRef across different objects and routes. For example, within one <samp>GroundTraffic.txt</samp> file, you could use <code>marginal/groundtraffic/var[0]</code> to control an animated belt in one or more beltloader objects, and also use <code>marginal/groundtraffic/var[0]</code> to control a refueling animation in one or more fuel truck objects. However, because the values returned for this DataRef are specific to a route, you can't usefully use it in a static object that is placed conventionally within an X-Plane scenery package.</p>
 <p>Alternatively you can specify the name of a custom DataRef of your choice, but which should be unique to this scenery package. This DataRef can be used to animate objects that are used in a route and/or static objects that are placed conventionally within an X-Plane scenery package. Because all objects (either static or animated by this plugin) will see the same value for your custom DataRef it doesn't make sense to use the same custom DataRef in more than one route.</p>
 <p>For example, setting the value of the DataRef <code>marginal/groundtraffic/var[1]</code> such that it rises from 0 to 1 over five seconds on hitting a waypoint:</p>
 <pre>...
 47.4380074 -122.3040742
-set var[1] rise sine 5
+set var[1] rise linear 5
 ...
 </pre>
 <p>Setting the value of a custom DataRef such that it falls from 1 to 0 over two seconds on hitting a waypoint:</p>
@@ -273,7 +273,7 @@ train	marginal/luggage_train_4
   <dd>Speed of the object, in metres/second. This returns zero if the object is stationary for any reason, up to the speed that you specified in the Route statement (converted to [m/s]) if it is moving, or negative if it is backing-up (which is useful for displaying reversing lights).</dd>
   <br>
   <dt><code>marginal/groundtraffic/var[0]</code> ... <code>var[9]</code></dt>
-  <dd>DateRef whose value is controlled by the &ldquo;<a href="#Set">Set</a>&rdquo; and &ldquo;Pause ... set&rdquo; commands.</dd>
+  <dd>DataRef whose value is controlled by the &ldquo;<a href="#Set">Set</a>&rdquo; and &ldquo;Pause ... set&rdquo; commands.</dd>
   <br>
   <dt><code>marginal/groundtraffic/waypoint/last</code></dt>
   <dd>The last waypoint in the Route (counting from zero) visited by the object.</dd>
