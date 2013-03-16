@@ -8,7 +8,6 @@
 #include "groundtraffic.h"
 
 #if IBM
-#  include <windows.h>
 BOOL APIENTRY DllMain(HANDLE hModule, DWORD ul_reason, LPVOID lpReserved)
 { return TRUE; }
 #endif
@@ -28,6 +27,8 @@ int year=113;		/* Current year (in GMT tz) since 1900 */
 const char datarefs[dataref_count][60] = { REF_DISTANCE, REF_SPEED, REF_NODE_LAST, REF_NODE_LAST_DISTANCE, REF_NODE_NEXT, REF_NODE_NEXT_DISTANCE };	/* Must be in same order as dataref_t */
 
 /* In this file */
+static XPLMWindowID labelwin = 0;
+
 static float flightcallback(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop, int inCounter, void *inRefcon);
 static float floatrefcallback(XPLMDataRef inRefCon);
 static int intrefcallback(XPLMDataRef inRefCon);
@@ -86,7 +87,7 @@ PLUGIN_API int XPluginStart(char *outName, char *outSignature, char *outDescript
     srand(time(NULL));	/* Seed rng */
     if (time(&t)!=-1 && (tm = localtime(&t)))	year=tm->tm_year;			/* What year is it? */
 
-    XPLMRegisterFlightLoopCallback(flightcallback, -(rand() % ACTIVE_POLL), NULL);	/* Spread out poll across frames */
+    XPLMRegisterFlightLoopCallback(flightcallback, -1 - (rand() % ACTIVE_POLL), NULL);	/* Spread out poll across frames */
 
     return 1;
 }
@@ -154,7 +155,7 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFrom, long inMessage, void 
 }
 
 
-/* Flight loop callback for checking whether we've come into range */
+/* Flight loop callback for checking whether we've come into or gone out of range */
 static float flightcallback(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop, int inCounter, void *inRefcon)
 {
     if (airport.state == inactive)
@@ -179,6 +180,20 @@ static float flightcallback(float inElapsedSinceLastCall, float inElapsedTimeSin
                 if (!activate(&airport))	/* Going active */
                     clearconfig(&airport);
         }
+    }
+    else if (airport.state == active)
+    {
+        /* Do this check here rather than in drawcallback() because we can't delete labelwin in the middle of the draw callbacks */
+        double airport_x, airport_y, airport_z;
+        float view_x, view_y, view_z;
+
+        XPLMWorldToLocal(airport.tower.lat, airport.tower.lon, airport.tower.alt, &airport_x, &airport_y, &airport_z);
+        view_x=XPLMGetDataf(ref_view_x);
+        view_y=XPLMGetDataf(ref_view_y);
+        view_z=XPLMGetDataf(ref_view_z);
+
+        if (!indrawrange(airport_x-view_x, airport_y-view_y, airport_z-view_z, ACTIVE_DISTANCE+ACTIVE_HYSTERESIS))
+            deactivate(&airport);
     }
 
     return -ACTIVE_POLL;
@@ -483,6 +498,8 @@ int activate(airport_t *airport)
         }
 
     XPLMRegisterDrawCallback(drawcallback, xplm_Phase_Objects, 0, NULL);	/* After other 3D objects */
+    if (airport->drawroutes)
+        labelwin = XPLMCreateWindow(0, 1, 1, 0, 1, labelcallback, NULL, NULL, NULL);	/* Under the menubar */
 
     airport->state=active;
     return 2;
@@ -513,6 +530,9 @@ void deactivate(airport_t *airport)
     ref_varref = 0;
 
     XPLMUnregisterDrawCallback(drawcallback, xplm_Phase_Objects, 0, NULL);
+    if (labelwin)
+        XPLMDestroyWindow(labelwin);
+    labelwin = 0;
 
     airport->state=inactive;
     last_frame = 0;

@@ -29,6 +29,26 @@ static int iscollision(route_t *route)
 }
 
 
+/* For drawing route nodes. Relies on the fact that the OpenGL view is not clipped to our window */
+void labelcallback(XPLMWindowID inWindowID, void *inRefcon)
+{
+    float color[] = { 1, 1, 1 };
+    int i;
+    route_t *route;
+    char buf[8];
+
+    for(route=airport.routes; route; route=route->next)
+        if (!route->parent)
+            for (i=0; i<route->pathlen; i++)
+            {
+                path_t *node = route->path + i;
+                snprintf(buf, sizeof(buf), "%d", i);
+                XPLMDrawString(color, node->drawX, node->drawY, buf, NULL, xplmFont_Basic);
+            }
+}
+
+
+/* Main update and draw loop */
 int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
 {
     static int is_night=0;
@@ -51,18 +71,47 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
         maproutes(&airport);
     }
 
-    view_x=XPLMGetDataf(ref_view_x);
-    view_y=XPLMGetDataf(ref_view_y);
-    view_z=XPLMGetDataf(ref_view_z);
-    if (!indrawrange(airport_x-view_x, airport_y-view_y, airport_z-view_z, ACTIVE_DISTANCE+ACTIVE_HYSTERESIS))
+    /* draw route paths */
+    if (airport.drawroutes && !XPLMGetDatai(ref_rentype))
     {
-        deactivate(&airport);
-        return 1;
+        int i;
+        route_t *route;
+        GLdouble model[16], proj[16];
+        GLint view[4] = { 0 };
+
+        XPLMSetGraphicsState(0, 0, 0,   0, 0,   0, 0);
+        glLineWidth(1.5);
+
+        /* This is slow! */
+        glGetDoublev(GL_MODELVIEW_MATRIX, model);
+        glGetDoublev(GL_PROJECTION_MATRIX, proj);
+        XPLMGetScreenSize(view+2, view+3);	/* Real viewport reported by GL_VIEWPORT will be larger than physical screen if FSAA enabled */
+
+        for(route=airport.routes; route; route=route->next)
+            if (!route->parent)
+            {
+                glColor3f(route->drawcolor.r, route->drawcolor.g, route->drawcolor.b);
+                glBegin(route->path[route->pathlen-1].flags.reverse ? GL_LINE_STRIP : GL_LINE_LOOP);
+                for (i=0; i<route->pathlen; i++)
+                {
+                    path_t *node = route->path + i;
+                    GLdouble winX, winY, winZ;
+
+                    glVertex3f(node->p.x, node->p.y, node->p.z);
+                    gluProject(node->p.x, node->p.y, node->p.z, model, proj, view, &winX, &winY, &winZ);
+                    node->drawX = winX;
+                    node->drawY = winY;
+                }
+                glEnd();
+            }
     }
 
     /* We can be called multiple times per frame depending on shadow settings -
      * ("sim/graphics/view/world_render_type" = 0 if normal draw, 3 if shadow draw (which precedes normal))
      * So skip calculations and just draw if we've already run the calculations for this frame. */
+    view_x=XPLMGetDataf(ref_view_x);
+    view_y=XPLMGetDataf(ref_view_y);
+    view_z=XPLMGetDataf(ref_view_z);
     now = XPLMGetDataf(ref_monotonic);
     if (now == last_frame)
     {

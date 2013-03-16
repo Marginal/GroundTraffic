@@ -17,6 +17,23 @@ static const char sep[]=" \t\r\n";
 static userref_t *readuserref(airport_t *airport, route_t *currentroute, char *buffer, int lineno);
 static route_t *expandtrain(airport_t *airport, route_t *currentroute);
 
+const glColor3f_t colors[16] = { { 0.0, 1.0, 0.0 }, // lime (match DRE color)
+                                 { 1.0, 0.0, 0.0 }, // red
+                                 { 1.0, 1.0, 0.0 }, // yellow
+                                 { 0.0, 0.0, 1.0 }, // blue
+                                 { 0.0, 1.0, 1.0 }, // aqua
+                                 { 1.0, 0.0, 1.0 }, // fuchsia
+                                 { 1.0,0.65, 1.0 }, // orange
+                                 { 0.5, 0.5, 0.5 }, // gray
+                                 { 0.5, 0.0, 0.0 }, // maroon
+                                 { 0.5, 0.5, 0.0 }, // olive
+                                 { 0.0, 0.5, 0.0 }, // green
+                                 { 0.0, 0.5, 0.5 }, // teal
+                                 { 0.0, 0.0, 0.5 }, // navy
+                                 { 0.5, 0.0, 0.5 }, // purple
+                                 {0.75,0.75,0.75 }, // silver
+                                 { 0.0, 0.0, 0.0 }, // black
+};
 
 void clearconfig(airport_t *airport)
 {
@@ -30,6 +47,7 @@ void clearconfig(airport_t *airport)
     airport->tower.lat=airport->tower.lon=0;
     airport->tower.alt=INVALID_ALT;
     airport->state = noconfig;
+    airport->drawroutes = 0;
 
     route = airport->routes;
     while (route)
@@ -115,7 +133,7 @@ int readconfig(char *pkgpath, airport_t *airport)
     struct stat info;
     char buffer[MAX_NAME+128], line[MAX_NAME+64];
     FILE *h;
-    int lineno=0, count;
+    int lineno=0, count=0;
     route_t *lastroute=NULL, *currentroute=NULL;
     train_t *lasttrain=NULL, *currenttrain=NULL;
     userref_t *userref;
@@ -205,7 +223,8 @@ int readconfig(char *pkgpath, airport_t *airport)
             if (!c1 || !sscanf(c1, "%f%n", &airport->tower.lat, &eol1) || c1[eol1] ||
                 !c2 || !sscanf(c2, "%f%n", &airport->tower.lon, &eol2) || c2[eol2])
                 return failconfig(h, airport, buffer, "Expecting an airport location \"lat lon\", found \"%s %s\" at line %d", N(c1), N(c2), lineno);
-            if ((c1=strtok(NULL, sep))) return failconfig(h, airport, buffer, "Extraneous input \"%s\" at line %d", c1, lineno);
+            if ((c1=strtok(NULL, sep)))
+                return failconfig(h, airport, buffer, "Extraneous input \"%s\" at line %d", c1, lineno);
 
             airport->state=inactive;
         }
@@ -371,7 +390,7 @@ int readconfig(char *pkgpath, airport_t *airport)
                 c2=strtok(NULL, sep);
                 if (!c1 || !sscanf(c1, "%f%n", &path[currentroute->pathlen].waypoint.lat, &eol1) || c1[eol1] ||
                     !c2 || !sscanf(c2, "%f%n", &path[currentroute->pathlen].waypoint.lon, &eol2) || c2[eol2])
-                    return failconfig(h, airport, buffer, "Expecting a waypoint \"lat lon\", found \"%s %s\" at line %d", N(c1), N(c2), lineno);
+                    return failconfig(h, airport, buffer, "Expecting a waypoint \"lat lon\", a command or a blank line, found \"%s %s\" at line %d", N(c1), N(c2), lineno);
 
                 currentroute->pathlen++;
             }
@@ -390,7 +409,7 @@ int readconfig(char *pkgpath, airport_t *airport)
             if (!c1 || !sscanf(c1, "%f%n", &currenttrain->objects[n].lag, &eol1) || c1[eol1] ||
                 !c2 || !sscanf(c2, "%f%n", &currenttrain->objects[n].offset, &eol2) || c2[eol2] ||
                 !c3 || !sscanf(c3, "%f%n", &currenttrain->objects[n].heading, &eol3) || c3[eol3])
-                return failconfig(h, airport, buffer, "Expecting a car \"lag offset heading\", found \"%s %s %s\" at line %d", N(c1), N(c2), N(c3), lineno);
+                return failconfig(h, airport, buffer, "Expecting a car \"lag offset heading\" or a blank line, found \"%s %s %s\" at line %d", N(c1), N(c2), N(c3), lineno);
 
             for (c1 = c3+strlen(c3)+1; isspace(*c1); c1++);		/* ltrim */
             for (c2 = c1+strlen(c1)-1; isspace(*c2); *(c2--) = '\0');	/* rtrim */
@@ -413,6 +432,17 @@ int readconfig(char *pkgpath, airport_t *airport)
 
             /* Initialise the route */
             newroute->direction = 1;
+            if (count<16)
+            {
+                newroute->drawcolor = colors[count];
+            }
+            else
+            {
+                newroute->drawcolor.r = ((float) rand()) / RAND_MAX;
+                newroute->drawcolor.g = ((float) rand()) / RAND_MAX;
+                newroute->drawcolor.b = ((float) rand()) / RAND_MAX;
+            }
+            count++;
 
             c1=strtok(NULL, sep);
             c2=strtok(NULL, sep);
@@ -454,6 +484,11 @@ int readconfig(char *pkgpath, airport_t *airport)
                 strcpy(newtrain->name, c1);
 
             currenttrain=lasttrain=newtrain;
+        }
+        else if (!strcasecmp(c1, "debug"))
+        {
+            airport->drawroutes = -1;
+            if ((c1=strtok(NULL, sep))) return failconfig(h, airport, buffer, "Extraneous input \"%s\" at line %d", c1, lineno);
         }
         else
         {

@@ -99,7 +99,7 @@ route	24	0	180	lib/airport/Ramp_Equipment/Luggage_Truck.obj
 
 route	20	2.5	0	opensceneryx/objects/airport/vehicles/loaders/6.obj
 ...</pre>
-<p>The Route statement should be followed by a sequence of &ldquo;waypoints&rdquo; and &ldquo;commands&rdquo;. The Route ends with a blank line.</p>
+<p>The Route statement should be preceded by a blank line and should be followed by a sequence of &ldquo;waypoints&rdquo; and &ldquo;commands&rdquo;. The Route ends with a blank line.</p>
 
 <h4>Waypoint</h4>
 <p>Animated objects move from one waypoint to the next at the speed specified in the Route statement. When the object passes the last waypoint it proceeds towards the first waypoint, forming a circular route (unless you specify a &ldquo;<a href="#reverse">reverse</a>&rdquo; command).</p>
@@ -228,6 +228,14 @@ set my/custom/dataref fall sine 2
 <p>Lines starting with &ldquo;<code>#</code>&rdquo; are treated as comments and are ignored. For example:</p>
 <pre># This is a comment</pre>
 
+<h4>Debug</h4>
+The Debug statement tells the plugin to plot out and number all waypoints. This is useful for checking that your waypoints are at the locations that you intended. The Debug statement just consists of the word &ldquo;<code>debug</code>&rdquo; and should be preceded by a blank line:
+<pre>
+
+debug
+
+</pre>
+
 <h4><a name="Train">Train</a></h4>
 <p>Instead of animating a single object along a Route, you can animate a number of objects to follow each other in succession like train cars/coaches follow their locomotive.</p>
 <p>A Train statement starts a description of a train of connected objects. It should be of the form &ldquo;<code>train</code>&nbsp;name&rdquo;, where:</p>
@@ -240,7 +248,7 @@ set my/custom/dataref fall sine 2
 
 train	marginal/luggage_train_4
 ...</pre>
-<p>The Train statement should be followed by a list of the &ldquo;Car&rdquo; statements. The Train description ends with a blank line.</p>
+<p>The Train statement should be preceded by a blank line and should be followed by a list of the &ldquo;Car&rdquo; statements. The Train description ends with a blank line.</p>
 
 <h4>Car</h4>
 <p>A train Car statement should be of the form &ldquo;lag&nbsp;offset&nbsp;heading&nbsp;object&rdquo;, where:</p>

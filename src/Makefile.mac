@@ -6,7 +6,7 @@ XPSDK=../../XPSDK212
 
 CC=gcc
 #BUILD=-g -DDEBUG
-#LDFLAGS=-framework OpenGL
+#LDFLAGS=
 BUILD=-O3 -DNDEBUG
 LDFLAGS=-Wl,-x
 DEFINES=-DAPL=1 -DIBM=0 -DLIN=0 -DVERSION=$(VERSION)
@@ -15,7 +15,7 @@ CFLAGS=-arch i386 -arch x86_64 -march=core2 -ffast-math -pipe -Wall -bundle -fvi
 
 VPATH=
 SRC=groundtraffic.c draw.c routes.c
-LIBS=-framework XPLM
+LIBS=-framework XPLM -framework OpenGL
 TARGETDIR=../$(PROJECT)
 INSTALLDIR=~/Desktop/X-Plane\ 10/Custom\ Scenery/KSEA\ Demo\ GroundTraffic/plugins/$(PROJECT)
 

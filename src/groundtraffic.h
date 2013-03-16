@@ -9,7 +9,6 @@
 #  define _USE_MATH_DEFINES
 #  define _CRT_SECURE_NO_DEPRECATE
 #  define inline __forceinline
-#  define WIN32_LEAN_AND_MEAN
 #endif
 
 #include <assert.h>
@@ -26,13 +25,25 @@
 
 #ifdef _MSC_VER
 #  define PATH_MAX MAX_PATH
+#  define snprintf _snprintf
 #  define strcasecmp(s1, s2) _stricmp(s1, s2)
 #  define strncasecmp(s1, s2, n) _strnicmp(s1, s2, n)
 #endif
 
-#if APL || LIN
+#if IBM
+#  define WIN32_LEAN_AND_MEAN
+#  include <windows.h>
+#else
 #  include <dirent.h>
 #  include <libgen.h>
+#endif
+
+#if APL
+#  include <OpenGL/gl.h>
+#  include <OpenGL/glu.h>
+#else
+#  include <GL/gl.h>
+#  include <GL/glu.h>
 #endif
 
 #define XPLM210	/* Requires X-Plane 10.0 or later */
@@ -44,16 +55,6 @@
 #include "XPLMProcessing.h"
 #include "XPLMScenery.h"
 #include "XPLMUtilities.h"
-
-#ifdef DEBUG
-#  if APL
-#    include <OpenGL/gl.h>
-#    include <OpenGL/glu.h>
-#  else
-#    include <GL/gl.h>
-#    include <GL/glu.h>
-#  endif
-#endif
 
 /* Version of assert that suppresses "variable ... set but not used" if the variable only exists for the purpose of the asserted expression */
 #ifdef	NDEBUG
@@ -162,7 +163,13 @@ typedef struct
     float whenfrom, whento;
     struct collision_t *collisions;	/* Collisions with other routes */
     struct userref_t *userref;
+    int drawX, drawY;		/* For labeling nodes */
 } path_t;
+
+typedef struct
+{
+    GLfloat r, g, b;
+} glColor3f_t;
 
 typedef struct
 {
@@ -199,6 +206,7 @@ typedef struct route_t
     float next_distance;	/* Distance from last_node to next_node [m] */
     float distance;		/* Cumulative distance travelled from first node [m] */
     float next_heading;		/* Heading from last_node to next_node [m] */
+    glColor3f_t drawcolor;
     XPLMDrawInfo_t *drawinfo;	/* Where to draw - current OpenGL co-ordinates */
     float next_probe;		/* Time we should probe altitude again */
     float last_y, next_y;	/* OpenGL co-ordinates at last probe point */
@@ -235,6 +243,7 @@ typedef struct
     char ICAO[5];
     loc_t tower;
     point_t p;
+    int drawroutes;
     route_t *routes;
     route_t *firstroute;
     train_t *trains;
@@ -255,6 +264,7 @@ int xplog(char *msg);
 int readconfig(char *pkgpath, airport_t *airport);
 void clearconfig(airport_t *airport);
 
+void labelcallback(XPLMWindowID inWindowID, void *inRefcon);
 int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon);
 
 /* inlines */

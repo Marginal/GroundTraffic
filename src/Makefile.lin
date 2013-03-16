@@ -16,7 +16,7 @@ CFLAGS=-march=core2 -ffast-math -pipe -Wall -static-libgcc -shared -fPIC -fvisib
 
 VPATH=
 SRC=groundtraffic.c draw.c routes.c
-LIBS=
+LIBS=-lGLU -lGL
 TARGETDIR=../$(PROJECT)
 INSTALLDIR=~/Desktop/X-Plane\ 10/Custom\ Scenery/KSEA\ Demo\ GroundTraffic/plugins/$(PROJECT)
 
