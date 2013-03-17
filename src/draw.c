@@ -350,48 +350,36 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
         /* Parent controls state of children */
         if (route->parent)
         {
+            if ((route->parent->last_time == now) || (route->path[route->pathlen-1].flags.reverse && (!route->parent->last_node || route->parent->last_node==route->pathlen-1)))
+            {
+                /* Parent was reset or at end of a reversible route - line up back in time from it */
+                route->direction = route->parent->direction;
+                route->last_node = route->parent->last_node;
+                route->next_node = route->parent->next_node;
+                route->last_distance = route->parent->last_distance;
+                route->next_distance = route->parent->next_distance;
+                route->distance = route->parent->distance - route->object.lag * route->speed;	/* Negative at first node */
+                route->next_heading = route->parent->next_heading;
+                route->last_time = route->parent->last_time;
+                route->next_time = route->last_time + route->next_distance / route->speed;
+                route->state.frozen = 0;
+            }
+
             if (route->parent->state.paused||route->parent->state.waiting||route->parent->state.dataref||route->parent->state.collision)
             {
                 /* Parent is paused */
-                route->freeze_time = route->parent->last_time;	/* Save time parent started pause */
-                route_now = route->freeze_time - route->object.lag;
-
-                if (!route->state.frozen && route->path[route->pathlen-1].flags.reverse && (!route->parent->last_node || route->parent->last_node==route->pathlen-1))
+                if (!route->state.frozen)
                 {
-                    /* Parent is at end of a reversible route - line up back in time from it */
-                    route->direction = route->parent->direction;
-                    route->last_node = route->parent->last_node;
-                    route->next_node = route->parent->next_node;
-                    route->last_distance = route->parent->last_distance;
-                    route->next_distance = route->parent->next_distance;
-                    route->distance = route->parent->distance - route->object.lag * route->speed;	/* Negative at first node */
-                    route->next_heading = route->parent->next_heading;
-                    route->last_time = route->parent->last_time;
-                    route->next_time = route->last_time + route->next_distance / route->speed;
+                    route->freeze_time = route->parent->last_time;	/* Save time parent started pause */
+                    route->state.frozen = 1;
                 }
-                route->state.frozen = 1;
+                route_now = route->freeze_time - route->object.lag;
             }
-            else if (!(route->parent->state.paused||route->parent->state.waiting||route->parent->state.dataref||route->parent->state.collision) && route->state.frozen)
+            else if (route->state.frozen && !(route->parent->state.paused||route->parent->state.waiting||route->parent->state.dataref||route->parent->state.collision))
             {
                 /* Parent has just unpaused - maintain spacing */
-                if (route->parent->last_time != now)
-                {
-                    route->last_time += (route->parent->last_time - route->freeze_time);
-                    route->next_time += (route->parent->last_time - route->freeze_time);
-                }
-                else
-                {
-                    /* Parent was reset - line up back in time from it */
-                    route->direction = route->parent->direction;
-                    route->last_node = route->parent->last_node;
-                    route->next_node = route->parent->next_node;
-                    route->last_distance = route->parent->last_distance;
-                    route->next_distance = route->parent->next_distance;
-                    route->distance = route->parent->distance - route->object.lag * route->speed;	/* Negative at first node */
-                    route->next_heading = route->parent->next_heading;
-                    route->last_time = route->parent->last_time;
-                    route->next_time = route->last_time + route->next_distance / route->speed;
-                }
+                route->last_time += (route->parent->last_time - route->freeze_time);
+                route->next_time += (route->parent->last_time - route->freeze_time);
                 route->state.frozen = 0;
             }
         }
@@ -573,14 +561,14 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
             /* Leaving a waypoint (may be from a negative direction if a paused child) */
             if (route->direction > 0)
             {
-                if (route->speed * 2 <= route->next_distance)
+                if ((progress < 0) || (route->speed * 2 <= route->next_distance))
                     bez(route->drawinfo, &last_node->p1, &last_node->p, &last_node->p3, 0.5+(route_now - route->last_time)/TURN_TIME);
                 else	/* Short edge */
                     bez(route->drawinfo, &last_node->p1, &last_node->p, &last_node->p3, progress + 0.5);
             }
             else
             {
-                if (route->speed * 2 <= route->next_distance)
+                if ((progress < 0) || (route->speed * 2 <= route->next_distance))
                     bez(route->drawinfo, &last_node->p3, &last_node->p, &last_node->p1, 0.5+(route_now - route->last_time)/TURN_TIME);
                 else	/* Short edge */
                     bez(route->drawinfo, &last_node->p3, &last_node->p, &last_node->p1, progress + 0.5);
