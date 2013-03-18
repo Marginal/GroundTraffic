@@ -20,7 +20,6 @@ XPLMDataRef ref_datarefs[dataref_count] = { 0 }, ref_varref = 0;
 XPLMProbeRef ref_probe;
 float draw_distance = DRAW_DISTANCE/DEFAULT_LOD;
 airport_t airport = { 0 };
-route_t *route = NULL;	/* Global so can be accessed in dataref callback */
 int year=113;		/* Current year (in GMT tz) since 1900 */
 
 /* Published DataRefs */
@@ -210,10 +209,28 @@ int xplog(char *msg)
 }
 
 
+/* Identify the route for per-route dataref accessor callbacks */
+static inline route_t *datarefroute()
+{
+    if (drawroute)
+    {
+        /* We're in the middle of XPLMDrawObjects() in drawroutes() */
+        drawroute->state.hasdataref = -1;
+        return drawroute;
+    }
+    else
+    {
+	/* Probably DataRefEditor calling - return data for first route */
+        return (airport.state == active) ? airport.firstroute : NULL;
+    }
+}
+
+
 /* dataref accesor callback */
 static float floatrefcallback(XPLMDataRef inDataRef)
 {
-    if (!route) return 0;
+    route_t *route;
+    if (!(route = datarefroute())) return 0;
 
     switch ((dataref_t) ((intptr_t) inDataRef))
     {
@@ -239,7 +256,8 @@ static float floatrefcallback(XPLMDataRef inDataRef)
 /* dataref accesor callback */
 static int intrefcallback(XPLMDataRef inRefcon)
 {
-    if (!route) return 0;
+    route_t *route;
+    if (!(route = datarefroute())) return 0;
 
     switch ((dataref_t) ((intptr_t) inRefcon))
     {
@@ -257,10 +275,11 @@ static int intrefcallback(XPLMDataRef inRefcon)
 static int varrefcallback(XPLMDataRef inRefCon, float *outValues, int inOffset, int inMax)
 {
     int i;
+    route_t *route;
 
     if (outValues==NULL)
         return MAX_VAR;
-    else if (!route || inMax<=0 || inOffset<0 || inOffset>=MAX_VAR)
+    else if (!(route = datarefroute()) || inMax<=0 || inOffset<0 || inOffset>=MAX_VAR)
         return 0;
 
     if (inMax+inOffset > MAX_VAR)

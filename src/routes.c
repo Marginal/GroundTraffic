@@ -37,6 +37,7 @@ const glColor3f_t colors[16] = { { 0.0, 1.0, 0.0 }, // lime (match DRE color)
 
 void clearconfig(airport_t *airport)
 {
+    route_t *route;
     train_t *train;
     userref_t *userref;
     extref_t *extref;
@@ -506,10 +507,10 @@ int readconfig(char *pkgpath, airport_t *airport)
     }
 
     /* Allocate XPLMDrawInfo_t array. We don't assign into this 'til XPLMObjectRefs are known during activate() */
-    for (count = 0, route = airport->routes; route; count++, route = route->next);
+    for (count = 0, currentroute = airport->routes; currentroute; count++, currentroute = currentroute->next);
     if (!(airport->drawinfo = calloc(count, sizeof(XPLMDrawInfo_t))))
         return failconfig(h, airport, buffer, "Out of memory!");
-    for (count = 0, route = airport->routes; route; count++, route = route->next)
+    for (count = 0, currentroute = airport->routes; currentroute; count++, currentroute = currentroute->next)
         airport->drawinfo[count].structSize = sizeof(XPLMDrawInfo_t);
     
     /* Register user's DataRefs.

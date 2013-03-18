@@ -8,7 +8,9 @@
 #include "groundtraffic.h"
 
 /* Globals */
-float last_frame=0;	/* last time we recalculated */
+route_t *drawroute = NULL;	/* Global so can be accessed in DataRef callback */
+float last_frame=0;		/* last time we recalculated */
+static int is_night=0;		/* was night last time we recalculated? */
 
 /* In this file */
 static void bez(XPLMDrawInfo_t *drawinfo, point_t *p1, point_t *p2, point_t *p3, float mu);
@@ -48,14 +50,64 @@ void labelcallback(XPLMWindowID inWindowID, void *inRefcon)
 }
 
 
+/* Actually do the drawing. Uses global drawroute so DataRef callbacks have access to the route being drawn.
+ * Tries to batch concurrent routes that use the same XPLMObjectRef (note: not textual name since one name
+ * might map to multiple library objects). Route linked list was sorted in XPLMObjectRef order during activate().
+ * We can't batch if the object uses per-route DataRefs since we wouldn't know which route/object the accessor
+ * callback was called for.
+ * Note we don't know that an object uses per-route DataRefs until we draw it for the first time when the
+ * accessor callback will set route->state.hasdataref.
+ * If some objects are in range but others not then we issue one XPLMDrawObjects() call that spans all those
+ * in range, since this seems to be cheaper than multiple calls even if more drawing results. */
+static void drawroutes()
+{
+    float view_x, view_y, view_z;
+
+    view_x=XPLMGetDataf(ref_view_x);
+    view_y=XPLMGetDataf(ref_view_y);
+    view_z=XPLMGetDataf(ref_view_z);
+
+    drawroute=airport.routes;
+    while (drawroute)
+    {
+        if (drawroute->state.hasdataref)
+        {
+            /* Have to check draw range every frame since "now" isn't updated while sim paused */
+            if (indrawrange(drawroute->drawinfo->x-view_x, drawroute->drawinfo->y-view_y, drawroute->drawinfo->z-view_z, draw_distance))
+                XPLMDrawObjects(drawroute->objref, 1, drawroute->drawinfo, is_night, 1);
+
+            if (drawroute->next && drawroute->objref == drawroute->next->objref)
+                drawroute->next->state.hasdataref = -1;	/* propagate flag to all routes using this objref */
+
+            drawroute=drawroute->next;
+        }
+        else
+        {
+            route_t *route, *first = 0, *last = 0;
+
+            for (route=drawroute; route && route->objref==drawroute->objref; route=route->next)
+                /* Have to check draw range every frame since "now" isn't updated while sim paused */
+                if (indrawrange(route->drawinfo->x-view_x, route->drawinfo->y-view_y, route->drawinfo->z-view_z, draw_distance))
+                {
+                    if (!first) first = route;
+                    last = route;
+                }
+
+            if (first)
+                XPLMDrawObjects(drawroute->objref, 1 + last->drawinfo - first->drawinfo, first->drawinfo, is_night, 1);
+
+            drawroute=route;
+        }
+    }
+}
+
+
 /* Main update and draw loop */
 int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
 {
-    static int is_night=0;
-
     double airport_x, airport_y, airport_z;
-    float view_x, view_y, view_z;
     float now;
+    route_t *route;
     int tod=-1;
     unsigned int dow=0;
     XPLMProbeInfo_t probeinfo;
@@ -75,7 +127,6 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
     if (airport.drawroutes && !XPLMGetDatai(ref_rentype))
     {
         int i;
-        route_t *route;
         GLdouble model[16], proj[16];
         GLint view[4] = { 0 };
 
@@ -109,17 +160,9 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
     /* We can be called multiple times per frame depending on shadow settings -
      * ("sim/graphics/view/world_render_type" = 0 if normal draw, 3 if shadow draw (which precedes normal))
      * So skip calculations and just draw if we've already run the calculations for this frame. */
-    view_x=XPLMGetDataf(ref_view_x);
-    view_y=XPLMGetDataf(ref_view_y);
-    view_z=XPLMGetDataf(ref_view_z);
-    now = XPLMGetDataf(ref_monotonic);
-    if (now == last_frame)
+    if ((now = XPLMGetDataf(ref_monotonic)) == last_frame)
     {
-        for(route=airport.routes; route; route=route->next)
-            /* Have to check draw range every frame since "now" isn't updated while sim paused */
-            if (indrawrange(route->drawinfo->x-view_x, route->drawinfo->y-view_y, route->drawinfo->z-view_z, draw_distance))
-                XPLMDrawObjects(route->objref, 1, route->drawinfo, is_night, 1);
-        route=airport.routes;	/* Leave at the first route for DataRefEditor */
+        drawroutes();
 #ifdef DEBUG
         if (!XPLMGetDatai(ref_rentype)) last_frame = 0;	/* In DEBUG recalculate positions once per frame for easier debugging */
 #endif
@@ -587,13 +630,9 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
             route->drawinfo->z -= cos(h) * route->object.offset;
         }
         route->drawinfo->heading += route->object.heading;
-
-        /* All the preceeding mucking about is pretty inexpensive. But drawing is expensive so test for range */
-        if (indrawrange(route->drawinfo->x-view_x, route->drawinfo->y-view_y, route->drawinfo->z-view_z, draw_distance))
-            XPLMDrawObjects(route->objref, 1, route->drawinfo, is_night, 1);
     }
-    route=airport.firstroute;	/* Leave at the first route for DataRefEditor */
 
+    drawroutes();
     return 1;
 }
 

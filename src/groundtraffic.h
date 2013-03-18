@@ -196,6 +196,7 @@ typedef struct route_t
         int forwardsb : 1;	/* Waypoint before backing up */
         int backingup : 1;
         int forwardsa : 1;	/* Waypoint after backing up */
+        int hasdataref: 1;	/* Does the object on this route have DataRef callbacks? */
     } state;
     int direction;		/* Traversing path 1=forwards, -1=reverse */
     int last_node, next_node;	/* The last and next waypoints visited on the path */
@@ -286,7 +287,7 @@ extern XPLMDataRef ref_datarefs[dataref_count], ref_varref;
 extern XPLMProbeRef ref_probe;
 extern float draw_distance;
 extern airport_t airport;
-extern route_t *route;		/* Global so can be accessed in dataref callback */
+extern route_t *drawroute;	/* Global so can be accessed in dataref callback */
 extern int year;		/* Current year (in GMT tz) */
 
 extern float last_frame;	/* Global so can be reset while disabled */
