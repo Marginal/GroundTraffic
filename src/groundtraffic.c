@@ -80,6 +80,7 @@ PLUGIN_API int XPluginStart(char *outName, char *outSignature, char *outDescript
 #    if _LP64
     pkgpath=dirname(pkgpath);		/* Windows and Linux 64bit plugins are another level down */
 #    endif
+    pkgpath=strdup(pkgpath);
 #  endif
     if (!pkgpath || strlen(pkgpath)<=1) return xplog("Can't find my scenery folder");
     for (c=pkgpath+strlen(pkgpath); *(c-1)!='/' && c>pkgpath; c--);		/* basename */
