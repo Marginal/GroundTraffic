@@ -61,19 +61,27 @@ PLUGIN_API int XPluginStart(char *outName, char *outSignature, char *outDescript
     XPLMEnableFeature("XPLM_WANTS_REFLECTIONS", 0);	/* Let's assume there aren't a lot of puddles around */
     XPLMEnableFeature("XPLM_USE_NATIVE_PATHS", 1);	/* Get paths in posix format */
     XPLMGetPluginInfo(XPLMGetMyID(), NULL, buffer, NULL, NULL);
-#if APL
-    strcat(buffer, "/../../../");
-#elif _WIN64 || _LP64
-    strcat(buffer, "/../../../../");	/* Windows and Linux 64bit plugins are another level down */
-#else
-    strcat(buffer, "/../../../");
-#endif
+
 #if IBM
+#  if _WIN64
+    strcat(buffer, "/../../../../");	/* Windows and Linux 64bit plugins are another level down */
+#  else
+    strcat(buffer, "/../../../");
+#  endif
     if (!(pkgpath=_fullpath(NULL, buffer, PATH_MAX))) return xplog("Can't find my scenery folder");
     if (pkgpath[strlen(pkgpath)-1]=='\\') pkgpath[strlen(pkgpath)-1]='\0';	/* trim trailing \ */
     for (c=pkgpath+strlen(pkgpath); *(c-1)!='\\' && c>pkgpath; c--);		/* basename */
 #else
-    if (!(pkgpath=realpath(buffer, NULL))) return xplog("Can't find my scenery folder");
+#  if APL
+    strcat(buffer, "/../../../");
+    pkgpath=realpath(buffer, NULL);
+#  else /* Linux */
+    pkgpath=dirname(dirname(dirname(buffer)));
+#    if _LP64
+    pkgpath=dirname(pkgpath);		/* Windows and Linux 64bit plugins are another level down */
+#    endif
+#  endif
+    if (!pkgpath || strlen(pkgpath)<=1) return xplog("Can't find my scenery folder");
     for (c=pkgpath+strlen(pkgpath); *(c-1)!='/' && c>pkgpath; c--);		/* basename */
 #endif
     if (!strcasecmp(c, "Resources"))
