@@ -292,6 +292,22 @@ static int varrefcallback(XPLMDataRef inRefCon, float *outValues, int inOffset, 
 }
 
 
+/* Fast cos-like function, but expects input in range -1..1 representing -PI..PI, and scales return from 1..-1 to range 1..0
+ * Adapted from http://www.coranac.com/2009/07/sines/ */
+static inline float cosz(float z)
+{
+    if (fabs(z)<=0.5)
+    {
+        z = z+z;
+        return 1 - 0.5 * (z*z * ((2-M_PI_4) - z*z * (1-M_PI_4)));
+    }
+    else
+    {
+        z = 2 - (z+z);
+        return 0.5 * (z*z * ((2-M_PI_4) - z*z * (1-M_PI_4)));
+    }
+}
+
 /* user-defined dataref accesor callback */
 float userrefcallback(XPLMDataRef inRefcon)
 {
@@ -321,12 +337,12 @@ float userrefcallback(XPLMDataRef inRefcon)
         else if (userref->curve == linear)
             return userref->slope==rising ? 1 - (now - userref->start2)/userref->duration : (now - userref->start2)/userref->duration;
         else
-            return userref->slope==rising ? (1 + cosf(M_PI * (now - userref->start2) / userref->duration))/2 : (1 - cosf(M_PI * (now - userref->start2) / userref->duration))/2;
+            return userref->slope==rising ? cosz((now - userref->start2) / userref->duration) : 1 - cosz((now - userref->start2) / userref->duration);
     }
     else if (userref->curve == linear)
         return userref->slope==rising ? (now - userref->start1)/userref->duration : 1 - (now - userref->start1)/userref->duration;
     else
-        return userref->slope==rising ? (1 - cosf(M_PI * (now - userref->start1) / userref->duration))/2 : (1 + cosf(M_PI * (now - userref->start1) / userref->duration))/2;
+        return userref->slope==rising ? 1 - cosz((now - userref->start1)/userref->duration) : cosz((now - userref->start1)/userref->duration);
 }
 
 
