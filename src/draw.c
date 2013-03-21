@@ -224,7 +224,11 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                 extref_t *extref = route->path[route->last_node].whenref;
                 float val;
 
-                if (route->path[route->last_node].whenidx < 0)
+                if (extref->type == xplmType_Mine)
+                {
+                    val = userrefcallback(extref->ref);
+                }
+                else if (route->path[route->last_node].whenidx < 0)
                 {
                     /* Not an array */
                     if (extref->type & xplmType_Float)
@@ -364,7 +368,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
             else if (route->state.dataref)
                 route->next_time = route->last_time + WHEN_INTERVAL;
             else if (route->state.paused)
-                route->next_time = route->last_time + route->path[route->last_node].pausetime;
+                route->next_time = route->last_time + last_node->pausetime;
             else if (route->state.collision)
                 route->next_time = route->last_time + COLLISION_INTERVAL;
             else if (route->state.forwardsa && !last_node->flags.backup)			/* B */
@@ -372,7 +376,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                 route->next_distance += route->speed * TURN_TIME;	/* Allow for extra turning distance */
                 route->next_time = route->last_time + route->next_distance / route->speed;
             }
-            else if (route->state.forwardsb && route->path[route->last_node].flags.backup)	/* Y */
+            else if (route->state.forwardsb && last_node->flags.backup)	/* Y */
             {
                 route->last_time += TURN_TIME;	/* Allow for extra turning distance */
                 route->next_time = route->last_time + route->next_distance / route->speed;
@@ -383,15 +387,20 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
             /* Set DataRefs. Need to do this after calculating last_time so use hacky flag */
             if (doset)
             {
-                if (route->path[route->last_node].flags.set2)
+                userref_t *userref = last_node->userref;
+
+                userref->duration = last_node->userduration;
+                userref->slope = last_node->flags.slope;
+                userref->curve = last_node->flags.curve;
+                if (last_node->flags.set2)
                 {
-                    route->path[route->last_node].userref->start1 = route->last_time;
-                    route->path[route->last_node].userref->start2 = route->last_time + route->path[route->last_node].pausetime - route->path[route->last_node].userref->duration;
+                    userref->start1 = route->last_time;
+                    userref->start2 = route->last_time + last_node->pausetime - userref->duration;
                 }
-                else if (route->path[route->last_node].flags.set1)
+                else if (last_node->flags.set1)
                 {
-                    route->path[route->last_node].userref->start1 = route->last_time;
-                    route->path[route->last_node].userref->start2 = 0;
+                    userref->start1 = route->last_time;
+                    userref->start2 = 0;
                 }
             }
 

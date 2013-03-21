@@ -325,7 +325,6 @@ float userrefcallback(XPLMDataRef inRefcon)
     float now;
 
     assert (inRefcon);
-    assert (airport.state==active);
     if (!userref || !userref->start1 || airport.state!=active) return 0;
 
     now = XPLMGetDataf(ref_monotonic);
@@ -347,7 +346,7 @@ float userrefcallback(XPLMDataRef inRefcon)
         else if (userref->curve == linear)
             return userref->slope==rising ? 1 - (now - userref->start2)/userref->duration : (now - userref->start2)/userref->duration;
         else
-            return userref->slope==rising ? cosz((now - userref->start2) / userref->duration) : 1 - cosz((now - userref->start2) / userref->duration);
+            return userref->slope==rising ? cosz((now - userref->start2)/userref->duration) : 1 - cosz((now - userref->start2)/userref->duration);
     }
     else if (userref->curve == linear)
         return userref->slope==rising ? (now - userref->start1)/userref->duration : 1 - (now - userref->start1)/userref->duration;
@@ -390,6 +389,7 @@ int sortroute(const void *a, const void *b)
 int activate(airport_t *airport)
 {
     route_t *route, *other, **routes;
+    userref_t *userref;
     extref_t *extref;
     char path[PATH_MAX];
     XPLMPluginID PluginID;
@@ -409,29 +409,34 @@ int activate(airport_t *airport)
     /* Register DataRefs with DRE. */
     if ((PluginID = XPLMFindPluginBySignature("xplanesdk.examples.DataRefEditor")) != XPLM_NO_PLUGIN_ID)
     {
-        userref_t *userref = airport->userrefs;
-
         for(i=0; i<dataref_count; i++)
             XPLMSendMessageToPlugin(PluginID, 0x01000000, (void*) datarefs[i]);
         XPLMSendMessageToPlugin(PluginID, 0x01000000, REF_VAR);
 
         /* Register user DataRefs with DRE. We don't do this at load to avoid cluttering up the display with inactive DataRefs. */
-        while (userref)
-        {
+        for (userref = airport->userrefs; userref; userref = userref->next)
             if (userref->ref)
                 XPLMSendMessageToPlugin(PluginID, 0x01000000, (void*) userref->name);
-            userref = userref->next;
-        }
     }
 
     /* Lookup externally published DataRefs */
     for (extref = airport->extrefs; extref; extref=extref->next)
-        if ((extref->ref = XPLMFindDataRef(extref->name)))
+    {
+        for (userref = airport->userrefs; userref; userref = userref->next)
+            if (!strcmp(extref->name, userref->name))
+            {
+                /* Don't bother looking up our own DataRef - just refer directly to it */
+                extref->ref = userref;
+                extref->type = xplmType_Mine;
+                break;
+            }
+        if (!userref && ((extref->ref = XPLMFindDataRef(extref->name))))
             extref->type = XPLMGetDataRefTypes(extref->ref);
         /* Silently fail on failed lookup - like .obj files do */
+    }
 
     /* Load objects */
-    for(route=airport->routes; route; route=route->next)
+    for (route = airport->routes; route; route = route->next)
     {
         /* First try library object */
         if ((count = XPLMLookupObjects(route->object.name, airport->tower.lat, airport->tower.lon, countlibraryobjs, NULL)))

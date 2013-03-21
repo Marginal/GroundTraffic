@@ -121,22 +121,25 @@ typedef struct
 
 
 /* User-defined DataRef */
+typedef enum { rising, falling } slope_t;
+typedef enum { linear, sine } curve_t;
 typedef struct userref_t
 {
-    char *name;		/* NULL for standard var[n] datarefs */
+    char *name;			/* NULL for standard var[n] datarefs */
     XPLMDataRef ref;
     float duration;
     float start1, start2;
-    enum { rising, falling } slope;
-    enum { linear, sine } curve;
+    slope_t slope;
+    curve_t curve;
     struct userref_t *next;
 } userref_t;
 
 
 /* Published external DataRef */
+#define xplmType_Mine -1
 typedef struct extref_t
 {
-    char *name;		/* NULL for standard var[n] datarefs */
+    char *name;
     XPLMDataRef ref;
     XPLMDataTypeID type;
     struct extref_t *next;
@@ -155,15 +158,18 @@ typedef struct
     unsigned char atdays;
     struct {
         int reverse : 1;	/* Reverse whole route */
-        int set1 : 1;
-        int set2 : 1;
         int backup : 1;		/* Just reverse to next node */
+        int set1 : 1;		/* set command */
+        int set2 : 1;		/* pause ... set command */
+        slope_t slope : 1;
+        curve_t curve : 1;
     } flags;
     struct extref_t *whenref;
     int whenidx;
     float whenfrom, whento;
     struct collision_t *collisions;	/* Collisions with other routes */
     struct userref_t *userref;
+    float userduration;
     int drawX, drawY;		/* For labeling nodes */
 } path_t;
 
