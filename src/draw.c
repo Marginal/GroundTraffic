@@ -40,13 +40,16 @@ void labelcallback(XPLMWindowID inWindowID, void *inRefcon)
     route_t *route;
     char buf[8];
 
-    for(route=airport.routes; route; route=route->next)
+    for (route=airport.routes; route; route=route->next)
         if (!route->parent)
             for (i=0; i<route->pathlen; i++)
             {
                 path_t *node = route->path + i;
-                snprintf(buf, sizeof(buf), "%d", i);
-                XPLMDrawString(color, node->drawX, node->drawY, buf, NULL, xplmFont_Basic);
+                if (node->drawX>0 && node->drawY>0)
+                {
+                    snprintf(buf, sizeof(buf), "%d", i);
+                    XPLMDrawString(color, node->drawX, node->drawY, buf, NULL, xplmFont_Basic);
+                }
             }
 }
 
@@ -151,8 +154,15 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
 
                     glVertex3f(node->p.x, node->p.y, node->p.z);
                     gluProject(node->p.x, node->p.y, node->p.z, model, proj, view, &winX, &winY, &winZ);
-                    node->drawX = winX;
-                    node->drawY = winY;
+                    if (winZ <= 1)	/* not behind us */
+                    {
+                        node->drawX = winX;
+                        node->drawY = winY;
+                    }
+                    else
+                    {
+                        node->drawX = node->drawY = -1;
+                    }
                 }
                 glEnd();
             }
