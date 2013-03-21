@@ -160,6 +160,19 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFrom, long inMessage, void 
         /* Changing the world detail distance setting causes a reload */
         if (ref_LOD) lod=XPLMGetDataf(ref_LOD);
         draw_distance = DRAW_DISTANCE / (lod ? lod : DEFAULT_LOD);
+
+        /* Scenery might be being reloaded with different "runways follow terrain" setting.
+         * So (re)run proberoutes(). Do this immediately to prevent indrawrange() failing.  */
+        if (airport.state == active)
+        {
+            loc_t tile;
+            tile.lat=floor(XPLMGetDatad(ref_plane_lat));
+            tile.lon=floor(XPLMGetDatad(ref_plane_lon));
+            if (intilerange(tile, airport.tower))
+                proberoutes(&airport);
+            else
+                deactivate(&airport);
+        }
     }
 }
 

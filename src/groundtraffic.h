@@ -58,9 +58,13 @@
 #include "XPLMUtilities.h"
 
 /* Version of assert that suppresses "variable ... set but not used" if the variable only exists for the purpose of the asserted expression */
-#ifdef	NDEBUG
+#ifdef NDEBUG
 #  undef assert
 #  define assert(expr)	((void)(expr))
+#elif !IBM
+#  include <signal.h>
+#  undef assert
+#  define assert(expr)	{ if (!(expr)) raise(SIGTRAP); };
 #endif
 
 /* constants */
@@ -275,17 +279,6 @@ void clearconfig(airport_t *airport);
 void labelcallback(XPLMWindowID inWindowID, void *inRefcon);
 int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon);
 
-/* inlines */
-static inline int intilerange(loc_t tile, loc_t loc)
-{
-    return ((abs(tile.lat - floorf(loc.lat)) <= TILE_RANGE) && (abs(tile.lon - floorf(loc.lon)) <= TILE_RANGE));
-}
-
-static inline int indrawrange(float xdist, float ydist, float zdist, float range)
-{
-    return (xdist*xdist + ydist*ydist + zdist*zdist <= range*range);
-}
-
 
 /* Globals */
 extern char *pkgpath;
@@ -298,3 +291,16 @@ extern route_t *drawroute;	/* Global so can be accessed in dataref callback */
 extern int year;		/* Current year (in GMT tz) */
 
 extern float last_frame;	/* Global so can be reset while disabled */
+
+
+/* inlines */
+static inline int intilerange(loc_t tile, loc_t loc)
+{
+    return ((abs(tile.lat - floorf(loc.lat)) <= TILE_RANGE) && (abs(tile.lon - floorf(loc.lon)) <= TILE_RANGE));
+}
+
+static inline int indrawrange(float xdist, float ydist, float zdist, float range)
+{
+    assert (airport.tower.alt!=INVALID_ALT);	/* If altitude is invalid then arguments to this function will be too */
+    return (xdist*xdist + ydist*ydist + zdist*zdist <= range*range);
+}
