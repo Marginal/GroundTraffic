@@ -151,20 +151,6 @@ at 08:00
 at 08:00 20:00 on Mon Tue Wed Thu Fri
 ...</pre>
 
-<h4>When command</h4>
-<p>The When command instructs the animated object to wait at the preceeding waypoint until a DataRef is within a specified range. (This command is similar in concept to <code>ANIM_show</code> in <samp>.obj</samp> files). It should be of the form &ldquo;<code>when</code>&nbsp;name&nbsp;from&nbsp;to&rdquo;, where:</p>
-<dl>
-  <dt>name</dt>
-  <dd>The name of a DataRef <a target="_blank" href="http://www.xsquawkbox.net/xpsdk/docs/DataRefs.html">published</a> by the sim or by another plugin. To access an array DataRef, append the array index within square brackets &ldquo;<code>[<i>n</i>]</code>&rdquo; to the name.</dd>
-  <dt>from to</dt>
-  <dd>Range of values for the DataRef for which the animation proceeds.</dd>
-</dl>
-<p>For example, an animation that only takes place in daylight:</p>
-<pre>...
-47.4559849 -122.3028592
-when sim/graphics/scenery/percent_lights_on 0 0.2
-...</pre>
-
 <h4>Backup command</h4>
 <p>The Backup command instructs the animated object to reverse from the preceding waypoint as far as the next waypoint, and thereafter move forward as normal. If the preceding waypoint also has a Pause command the object points forwards while waiting, and then backs-up <u>after</u> waiting.</p>
 <p>The Backup command just consists of the word &ldquo;<code>backup</code>&rdquo;.</p>
@@ -210,7 +196,7 @@ reverse
   <dd>The time in seconds that the DataRef takes to change value. This can be <code>0</code> if you want the DataRef to change value instantly.</dd>
 </dl>
 <p>If you specify a name of the form <code>var[<i>n</i>]</code> then this command controls the &ldquo;array&rdquo; DataRef <code>marginal/groundtraffic/var[<i>n</i>]</code>, which can be used to drive animations in a 3D modelling application that supports X-Plane animations. Each object will see values for this DataRef that are specific to the route that the object is following; so it is safe to re-use this DataRef across different objects and routes. For example, within one <samp>GroundTraffic.txt</samp> file, you could use <code>marginal/groundtraffic/var[0]</code> to control an animated belt in one or more beltloader objects, and also use <code>marginal/groundtraffic/var[0]</code> to control a refueling animation in one or more fuel truck objects. However, because the values returned for this DataRef are specific to a route, you can't usefully use it in a static object that is placed conventionally within an X-Plane scenery package.</p>
-<p>Alternatively you can specify the name of a custom DataRef of your choice, but which should be unique to this scenery package. This DataRef can be used to animate objects that are used in a route and/or static objects that are placed conventionally within an X-Plane scenery package. Because all objects (either static or animated by this plugin) will see the same value for your custom DataRef it doesn't make sense to use the same custom DataRef in more than one route.</p>
+<p>Alternatively you can specify the name of a custom DataRef of your choice, but which should be unique to this scenery package. This DataRef can be used to animate objects that are used in a route and/or static objects that are placed conventionally within an X-Plane scenery package. Because all objects (either static or animated by this plugin) will see the same value for your custom DataRef it doesn't make sense to set the same custom DataRef in more than one route.</p>
 <p>For example, setting the value of the DataRef <code>marginal/groundtraffic/var[1]</code> such that it rises from 0 to 1 over five seconds on hitting a waypoint:</p>
 <pre>...
 47.4380074 -122.3040742
@@ -225,12 +211,46 @@ set my/custom/dataref fall sine 2
 </pre>
 <p>The &ldquo;Pause ... set&rdquo; command also supports changing the value of a custom DataRef when the animated object arrives at a waypoint. The &ldquo;Pause ... set&rdquo; command restores the DataRef to its previous value before the object moves on from the waypoint; this command does not.<p>
 
+<h4>When command</h4>
+<p>The When command instructs the animated object to wait at the preceeding waypoint until a DataRef is within a specified range. It should be of the form &ldquo;<code>when</code>&nbsp;name&nbsp;from&nbsp;to&rdquo;, where:</p>
+<dl>
+  <dt>name</dt>
+  <dd>The name of a DataRef <a target="_blank" href="http://www.xsquawkbox.net/xpsdk/docs/DataRefs.html">published</a> by the sim, the name of a custom DataRef published by the &ldquo;<a href="#Set">Set</a>&rdquo; or &ldquo;Pause ... set&rdquo; commands in this plugin, or the name of a custom DataRef published by another plugin. To access an array DataRef, append the array index within square brackets &ldquo;<code>[<i>n</i>]</code>&rdquo; to the name.</dd>
+  <dt>from to</dt>
+  <dd>Range of values for the DataRef for which the animation proceeds.</dd>
+</dl>
+<p>For example, an animation that only takes place in daylight:</p>
+<pre>...
+47.4559849 -122.3028592
+when sim/graphics/scenery/percent_lights_on 0 0.2
+...</pre>
+<p>The When command can be used in conjunction with the <a href="#Set">Set</a> command to synchronise the motions of objects on different routes. For example, to trigger an object on route B to move when the object on route A reaches a waypoint:</p>
+<pre># route A
+...
+# when we get to this waypoint signal the object on route B
+47.4484450 -122.3001950
+set my/scenerypackage/signalB rise linear 0
+...
+# reset the signal for next time around
+47.4471804 -122.3023423
+set my/scenerypackage/signalB fall linear 0
+...
+
+# route B
+...
+# wait here until object on route A signals to us
+47.4559849 -122.3028592
+when my/scenerypackage/signalB 1 1
+...
+
+</pre>
+
 <h4>Comment</h4>
 <p>Lines starting with &ldquo;<code>#</code>&rdquo; are treated as comments and are ignored. For example:</p>
 <pre># This is a comment</pre>
 
 <h4>Debug</h4>
-The Debug statement tells the plugin to plot out and number all waypoints. This is useful for checking that your waypoints are at the locations that you intended. The Debug statement just consists of the word &ldquo;<code>debug</code>&rdquo; and should be preceded by a blank line:
+The Debug statement tells the plugin to display and number all waypoints. This is useful for checking that your waypoints are at the locations that you intended. The Debug statement just consists of the word &ldquo;<code>debug</code>&rdquo; and should be preceded by a blank line:
 <pre>
 
 debug

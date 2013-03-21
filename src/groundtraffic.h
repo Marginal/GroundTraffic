@@ -85,13 +85,14 @@
 #define MAX_VAR 10		/* How many var datarefs */
 
 /* Published DataRefs */
-#define REF_VAR			"marginal/groundtraffic/var"
-#define REF_DISTANCE		"marginal/groundtraffic/distance"
-#define REF_SPEED		"marginal/groundtraffic/speed"
-#define REF_NODE_LAST		"marginal/groundtraffic/waypoint/last"
-#define REF_NODE_LAST_DISTANCE	"marginal/groundtraffic/waypoint/last/distance"
-#define REF_NODE_NEXT		"marginal/groundtraffic/waypoint/next"
-#define REF_NODE_NEXT_DISTANCE	"marginal/groundtraffic/waypoint/next/distance"
+#define REF_BASE		"marginal/groundtraffic/"
+#define REF_VAR			REF_BASE "var"
+#define REF_DISTANCE		REF_BASE "distance"
+#define REF_SPEED		REF_BASE "speed"
+#define REF_NODE_LAST		REF_BASE "waypoint/last"
+#define REF_NODE_LAST_DISTANCE	REF_BASE "waypoint/last/distance"
+#define REF_NODE_NEXT		REF_BASE "waypoint/next"
+#define REF_NODE_NEXT_DISTANCE	REF_BASE "waypoint/next/distance"
 typedef enum
 {
     distance=0, speed, node_last, node_last_distance, node_next, node_next_distance,

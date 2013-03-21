@@ -326,6 +326,9 @@ int readconfig(char *pkgpath, airport_t *airport)
                 else
                     path[currentroute->pathlen-1].whenidx = -1;
 
+                if (!strncasecmp(c1, REF_BASE, sizeof(REF_BASE)))
+                    return failconfig(h, airport, buffer, "\"When\" command can't use a per-route DataRef at line %d", lineno);
+
                 for (extref = airport->extrefs; extref && strcmp(c1, extref->name); extref=extref->next);
                 if (!extref)
                 {
