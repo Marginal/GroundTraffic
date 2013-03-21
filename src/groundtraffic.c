@@ -64,16 +64,16 @@ PLUGIN_API int XPluginStart(char *outName, char *outSignature, char *outDescript
 
 #if IBM
 #  if _WIN64
-    strcat(buffer, "/../../../../");	/* Windows and Linux 64bit plugins are another level down */
+    strcat(buffer, "\\..\\..\\..\\..");	/* Windows and Linux 64bit plugins are another level down */
 #  else
-    strcat(buffer, "/../../../");
+    strcat(buffer, "\\..\\..\\..");
 #  endif
     if (!(pkgpath=_fullpath(NULL, buffer, PATH_MAX))) return xplog("Can't find my scenery folder");
     if (pkgpath[strlen(pkgpath)-1]=='\\') pkgpath[strlen(pkgpath)-1]='\0';	/* trim trailing \ */
     for (c=pkgpath+strlen(pkgpath); *(c-1)!='\\' && c>pkgpath; c--);		/* basename */
 #else
 #  if APL
-    strcat(buffer, "/../../../");
+    strcat(buffer, "/../../..");
     pkgpath=realpath(buffer, NULL);
 #  else /* Linux */
     pkgpath=dirname(dirname(dirname(buffer)));
@@ -82,7 +82,7 @@ PLUGIN_API int XPluginStart(char *outName, char *outSignature, char *outDescript
 #    endif
     pkgpath=strdup(pkgpath);
 #  endif
-    if (!pkgpath || strlen(pkgpath)<=1) return xplog("Can't find my scenery folder");
+    if (!pkgpath || !strcmp(pkgpath, ".")) return xplog("Can't find my scenery folder");
     for (c=pkgpath+strlen(pkgpath); *(c-1)!='/' && c>pkgpath; c--);		/* basename */
 #endif
     if (!strcasecmp(c, "Resources"))
