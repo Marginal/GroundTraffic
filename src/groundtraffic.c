@@ -3,6 +3,7 @@
  *
  * (c) Jonathan Harris 2013
  *
+ * Licensed under GNU LGPL v2.1.
  */
 
 #include "groundtraffic.h"
@@ -42,7 +43,7 @@ PLUGIN_API int XPluginStart(char *outName, char *outSignature, char *outDescript
 
     sprintf(outName, "GroundTraffic v%.2f", VERSION);
     strcpy(outSignature, "Marginal.GroundTraffic");
-    strcpy(outDescription, "Shows animated airport ground vehicle traffic");
+    strcpy(outDescription, "Shows animated airport ground vehicle traffic. Licensed under LGPL v2.1.");
 
     ref_plane_lat=XPLMFindDataRef("sim/flightmodel/position/latitude");
     ref_plane_lon=XPLMFindDataRef("sim/flightmodel/position/longitude");

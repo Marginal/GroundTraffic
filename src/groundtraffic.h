@@ -3,6 +3,7 @@
  *
  * (c) Jonathan Harris 2013
  *
+ * Licensed under GNU LGPL v2.1.
  */
 
 #ifdef _MSC_VER
