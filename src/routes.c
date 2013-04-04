@@ -69,6 +69,7 @@ void clearconfig(airport_t *airport)
                 }
             }
             free(route->path);
+            free(route->varrefs);
         }
         free(route);
         route = next;
@@ -428,7 +429,7 @@ int readconfig(char *pkgpath, airport_t *airport)
         else if (!strcasecmp(c1, "route"))	/* New route */
         {
             route_t *newroute;
-            if (!(newroute=calloc(1, sizeof(route_t))))
+            if (!(newroute = calloc(1, sizeof(route_t))) || !(newroute->varrefs = calloc(MAX_VAR, sizeof(userref_t))))
                 return failconfig(h, airport, buffer, "Out of memory!");
             else if (lastroute)
                 lastroute->next = newroute;
@@ -573,7 +574,7 @@ static userref_t *readuserref(airport_t *airport, route_t *currentroute, path_t 
             sprintf(buffer, "var DataRef index outside the range 0 to %d at line %d", MAX_VAR-1, lineno);
             return 0;
         }
-        userref = currentroute->varrefs + i;
+        userref = *currentroute->varrefs + i;
     }
     else
     {

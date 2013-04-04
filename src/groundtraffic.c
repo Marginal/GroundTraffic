@@ -309,7 +309,7 @@ static int varrefcallback(XPLMDataRef inRefCon, float *outValues, int inOffset, 
         inMax=MAX_VAR-inOffset;
 
     for (i=0; i<inMax; i++)
-        outValues[i]=userrefcallback(route->varrefs + inOffset + i);
+        outValues[i]=userrefcallback(*route->varrefs + inOffset + i);
 
     return inMax;
 }

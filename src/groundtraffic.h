@@ -224,7 +224,7 @@ typedef struct route_t
     float next_probe;		/* Time we should probe altitude again */
     float last_y, next_y;	/* OpenGL co-ordinates at last probe point */
     int deadlocked;		/* Counter used to break collision deadlock */
-    struct userref_t varrefs[MAX_VAR];	/* Per-route var dataref */
+    userref_t (*varrefs)[MAX_VAR];	/* Per-route var dataref */
     struct route_t *parent;	/* Points to head of a train */
     struct route_t *next;
 } route_t;

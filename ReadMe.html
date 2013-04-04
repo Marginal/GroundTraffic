@@ -317,6 +317,7 @@ train	marginal/luggage_train_4
   <dd>The distance to the next waypoint, in metres.</dd>
 </dl>
 <p>These DataRefs return values specific to the route that the object is following; so they are only useful in animating objects on routes controlled by this plugin, not in static objects that are placed conventionally within an X-Plane scenery package. (You can use the &ldquo;<a href="#Set">Set</a>&rdquo; and/or &ldquo;Pause ... set&rdquo; commands with a custom DataRef name to publish DataRefs for use in static objects). You can examine the values of these DataRefs using <a target="_blank" href="http://developer.x-plane.com/tools/datarefeditor/">DataRefEditor</a>, but it will only display the values for the first route listed in <samp>GroundTraffic.txt</samp>.</p>
+<p>The objects in a <a href="#Train">Train</a> may receive different values for some of these DataRefs (<i>e.g.</i> the value returned by <code>marginal/groundtraffic/distance</code> takes into account the &ldquo;lag&rdquo; specified in the object's Car statement). But all objects in the train share the same <code>marginal/groundtraffic/var[<i>n</i>]</code> values.</p>
 
 <h4>Animating rotating wheels</h4>
 <p>The speed of rotation of a wheel depends on its size; a smaller wheel needs to rotate more quickly to cover a given distance than a larger wheel. So in your 3D modelling application measure the diameter of the wheel (in metres) and multiple this value by &pi; to obtain the wheel's circumference.</p>
