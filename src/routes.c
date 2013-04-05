@@ -15,7 +15,7 @@ static time_t mtime=-1;	/* control file modification time  */
 static const char sep[]=" \t\r\n";
 
 /* In this file */
-static userref_t *readuserref(airport_t *airport, route_t *currentroute, path_t *currentpath, char *buffer, int lineno);
+static userref_t *readuserref(airport_t *airport, route_t *currentroute, path_t *node, char *buffer, int lineno);
 static route_t *expandtrain(airport_t *airport, route_t *currentroute);
 
 const glColor3f_t colors[16] = { { 0.0, 1.0, 0.0 }, // lime (match DRE color)
@@ -54,25 +54,34 @@ void clearconfig(airport_t *airport)
     route = airport->routes;
     while (route)
     {
-        route_t *next = route->next;
+        route_t *nextroute = route->next;
+
         if (!route->parent)	/* Paths are shared with parent */
         {
             int i;
             for (i=0; i<route->pathlen; i++)
             {
-                collision_t *nextc, *collision = route->path[i].collisions;
+                collision_t *collision = route->path[i].collisions;
+                whenref_t *whenref = route->path[i].whenrefs;
+
                 while (collision)
                 {
-                    nextc = collision->next;
+                    collision_t *next = collision->next;
                     free (collision);
-                    collision = nextc;
+                    collision = next;
+                }
+                while (whenref)
+                {
+                    whenref_t *next = whenref->next;
+                    free (whenref);
+                    whenref = next;
                 }
             }
             free(route->path);
             free(route->varrefs);
         }
         free(route);
-        route = next;
+        route = nextroute;
     }
     airport->routes = airport->firstroute = NULL;
 
@@ -233,32 +242,28 @@ int readconfig(char *pkgpath, airport_t *airport)
         }
         else if (currentroute)			/* Existing route */
         {
-            path_t *path;
-            if (!(path=realloc(currentroute->path, (1+currentroute->pathlen) * sizeof(path_t))))
-                return failconfig(h, airport, buffer, "Out of memory!");
-            currentroute->path=path;
+            path_t *node = currentroute->pathlen ? currentroute->path + (currentroute->pathlen - 1) : NULL;
 
-            /* Note: currentroute->pathlen hasn't been updated yet so points to the newly allocated path */
             if (!strcasecmp(c1, "pause"))
             {
                 int pausetime;
-                if (!currentroute->pathlen)
-                    return failconfig(h, airport, buffer, "Route can't start with a pause command at line %d", lineno);
+                if (!node)
+                    return failconfig(h, airport, buffer, "Route can't start with a \"pause\" command at line %d", lineno);
 
                 c1=strtok(NULL, sep);
                 if (!c1 || !sscanf(c1, "%d%n", &pausetime, &eol1) || c1[eol1])
                     return failconfig(h, airport, buffer, "Expecting a pause time, found \"%s\" at line %d", N(c1), lineno);
                 else if (pausetime <= 0 || pausetime >= 86400)
                     return failconfig(h, airport, buffer, "Pause time should be between 1 and 86399 seconds at line %d", lineno);
-                path[currentroute->pathlen-1].pausetime += pausetime;	/* Multiple pauses stack */
+                node->pausetime += pausetime;	/* Multiple pauses stack */
 
                 if ((c1=strtok(NULL, sep)))
                 {
                     if (strcasecmp(c1, "set"))
                         return failconfig(h, airport, buffer, "Expecting \"set\" or nothing, found \"%s\" at line %d", c1, lineno);
-                    else if (readuserref(airport, currentroute, path+currentroute->pathlen-1, buffer, lineno))
+                    else if (readuserref(airport, currentroute, node, buffer, lineno))
                     {
-                        path[currentroute->pathlen-1].flags.set2=1;
+                        node->flags.set2=1;
                     }
                     else
                     {
@@ -275,9 +280,9 @@ int readconfig(char *pkgpath, airport_t *airport)
                 char daynames[7][10] = { "sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday" };
                 int dayvals[7] = { DAY_SUN, DAY_MON, DAY_TUE, DAY_WED, DAY_THU, DAY_FRI, DAY_SAT };
 
-                if (!currentroute->pathlen)
+                if (!node)
                     return failconfig(h, airport, buffer, "Route can't start with an \"at\" command at line %d", lineno);
-                else if (path[currentroute->pathlen-1].attime[0] != INVALID_AT)
+                else if (node->attime[0] != INVALID_AT)
                     return failconfig(h, airport, buffer, "Waypoint can't have more than one \"at\" command at line %d", lineno);
                 while ((c1=strtok(NULL, sep)))
                 {
@@ -287,99 +292,119 @@ int readconfig(char *pkgpath, airport_t *airport)
                         return failconfig(h, airport, buffer, "Exceeded %d times-of-day at line %d", MAX_ATTIMES, lineno);
                     else if (sscanf(c1, "%d:%d%n", &hour, &minute, &eol1)!=2 || c1[eol1] || hour<0 || hour>23 || minute<0 || minute>59)
                         return failconfig(h, airport, buffer, "Expecting a time-of-day \"HH:MM\" or \"on\", found \"%s\" at line %d", c1, lineno);
-                    path[currentroute->pathlen-1].attime[i++] = hour*60+minute;
+                    node->attime[i++] = hour*60+minute;
                 }
-                if (i<MAX_ATTIMES) path[currentroute->pathlen-1].attime[i] = INVALID_AT;	/* Terminate */
+                if (i<MAX_ATTIMES) node->attime[i] = INVALID_AT;	/* Terminate */
 
                 while ((c1=strtok(NULL, sep)))
                 {
                     for (i=0; i<7; i++)
                         if (!strncasecmp(c1, daynames[i], strlen(c1)))
                         {
-                            path[currentroute->pathlen-1].atdays |= dayvals[i];
+                            node->atdays |= dayvals[i];
                             break;
                         }
                     if (i>=7)
                         return failconfig(h, airport, buffer, "Expecting a day name, found \"%s\" at line %d", c1, lineno);
                 }
-                if (!path[currentroute->pathlen-1].atdays) path[currentroute->pathlen-1].atdays = DAY_ALL;
+                if (!node->atdays) node->atdays = DAY_ALL;
             }
-            else if (!strcasecmp(c1, "when"))
+            else if (!strcasecmp(c1, "when") || !strcasecmp(c1, "and"))
             {
+                whenref_t *whenref;
                 extref_t *extref;
 
-                if (!currentroute->pathlen)
-                    return failconfig(h, airport, buffer, "Route can't start with a \"when\" command at line %d", lineno);
-                else if (path[currentroute->pathlen-1].whenref)
-                    return failconfig(h, airport, buffer, "Waypoint can't have more than one \"when\" command at line %d", lineno);
-
-                if (!(c1=strtok(NULL, sep)))
-                    return failconfig(h, airport, buffer, "Expecting a DataRef name at line %d", c1, lineno);
-
-                if ((c2 = strchr(c1, '[')))
+                if (!strcasecmp(c1, "when"))
                 {
-                    *(c2++) = '\0';	/* Strip index for lookup */
-                    if (!sscanf(c2, "%d%n", &path[currentroute->pathlen-1].whenidx, &eol2) || eol2!=strlen(c2)-1 || c2[eol2]!=']')
-                        return failconfig(h, airport, buffer, "Expecting a DataRef index \"[n]\", found \"[%s\" at line %d", N(c2), lineno);
-                    else if (path[currentroute->pathlen-1].whenidx < 0)
+                    if (!node)
+                        return failconfig(h, airport, buffer, "Route can't start with a \"when\" command at line %d", lineno);
+                    else if (node->whenrefs)
+                        return failconfig(h, airport, buffer, "Waypoint can't have more than one \"when\" command, consider using an \"and\" command at line %d", lineno);
+                }
+                else	// "and"
+                {
+                    if (!node)
+                        return failconfig(h, airport, buffer, "Route can't start with an \"and\" command at line %d", lineno);
+                    else if (!node->whenrefs)
+                        return failconfig(h, airport, buffer, "Waypoint can't have an \"and\" command without a preceding \"when\" command at line %d", lineno);
+                }
+
+                if (!(whenref = calloc(1, sizeof(whenref_t))))
+                    return failconfig(h, airport, buffer, "Out of memory!");
+                whenref->next = node->whenrefs;
+                node->whenrefs = whenref;
+
+                if (!(c2=strtok(NULL, sep)))
+                    return failconfig(h, airport, buffer, "Expecting a DataRef name at line %d", lineno);
+
+                if ((c3 = strchr(c2, '[')))
+                {
+                    *(c3++) = '\0';	/* Strip index for lookup */
+                    if (!sscanf(c3, "%d%n", &whenref->idx, &eol3) || eol3!=strlen(c3)-1 || c3[eol3]!=']')
+                        return failconfig(h, airport, buffer, "Expecting a DataRef index \"[n]\", found \"[%s\" at line %d", N(c3), lineno);
+                    else if (whenref->idx < 0)
                         return failconfig(h, airport, buffer, "DataRef index cannot be negative at line %d", lineno);
                 }
                 else
-                    path[currentroute->pathlen-1].whenidx = -1;
+                    whenref->idx = -1;
 
-                if (!strncasecmp(c1, REF_BASE, sizeof(REF_BASE)))
-                    return failconfig(h, airport, buffer, "\"When\" command can't use a per-route DataRef at line %d", lineno);
+                if (!strncasecmp(c2, REF_BASE, sizeof(REF_BASE)))
+                {
+                    c3 = c1;
+                    while ((*c3++ = tolower(*c3)));
+                    return failconfig(h, airport, buffer, "\"%s\" command can't use a per-route DataRef at line %d", c1, lineno);
+                }
 
-                for (extref = airport->extrefs; extref && strcmp(c1, extref->name); extref=extref->next);
+                for (extref = airport->extrefs; extref && strcmp(c2, extref->name); extref=extref->next);
                 if (!extref)
                 {
                     /* new */
-                    if (!(extref = calloc(1, sizeof(extref_t))) || !(extref->name = malloc(strlen(c1)+1)))
+                    if (!(extref = calloc(1, sizeof(extref_t))) || !(extref->name = strdup(c2)))
                         return failconfig(h, airport, buffer, "Out of memory!");
-                    strcpy(extref->name, c1);	/* Defer lookup to activation, after other plugins have Enabled */
+                    /* Defer lookup to activation, after other plugins have Enabled */
                     extref->next = airport->extrefs;
                     airport->extrefs = extref;
                 }
-                path[currentroute->pathlen-1].whenref = extref;
+                node->whenrefs->extref = extref;
 
                 c1=strtok(NULL, sep);
                 c2=strtok(NULL, sep);
-                if (!c1 || !sscanf(c1, "%f%n", &path[currentroute->pathlen-1].whenfrom, &eol1) || c1[eol1] ||
-                    !c2 || !sscanf(c2, "%f%n", &path[currentroute->pathlen-1].whento,   &eol2) || c2[eol2])
+                if (!c1 || !sscanf(c1, "%f%n", &whenref->from, &eol1) || c1[eol1] ||
+                    !c2 || !sscanf(c2, "%f%n", &whenref->to,   &eol2) || c2[eol2])
                     return failconfig(h, airport, buffer, "Expecting a range \"from to\", found \"%s %s\" at line %d", N(c1), N(c2), lineno);
-                if (path[currentroute->pathlen-1].whenfrom > path[currentroute->pathlen-1].whento)
+                if (whenref->from > whenref->to)
                 {
-                    float foo = path[currentroute->pathlen-1].whenfrom;
-                    path[currentroute->pathlen-1].whenfrom = path[currentroute->pathlen-1].whento;
-                    path[currentroute->pathlen-1].whento = foo;
+                    float foo = whenref->from;
+                    whenref->from = whenref->to;
+                    whenref->to = foo;
                 }
             }
             else if (!strcasecmp(c1, "backup"))
             {
-                if (!currentroute->pathlen)
-                    return failconfig(h, airport, buffer, "Route can't start with a backup command at line %d", lineno);
-                else if (currentroute->pathlen>1 && path[currentroute->pathlen-2].flags.backup)
+                if (!node)
+                    return failconfig(h, airport, buffer, "Route can't start with a \"backup\" command at line %d", lineno);
+                else if (currentroute->pathlen>1 && currentroute->path[currentroute->pathlen-2].flags.backup)
                     return failconfig(h, airport, buffer, "Can't backup from two waypoints in sequence at line %d", lineno);
 
-                path[currentroute->pathlen-1].flags.backup=1;
+                node->flags.backup=1;
             }
             else if (!strcasecmp(c1, "reverse"))
             {
                 int i;
-                if (!currentroute->pathlen)
+                if (!node)
                     return failconfig(h, airport, buffer, "Empty route at line %d", lineno);
                 for (i=0; i<currentroute->pathlen; i++)
-                    if (path[i].flags.backup)
+                    if (currentroute->path[i].flags.backup)
                         return failconfig(h, airport, buffer, "Can't use \"backup\" and \"reverse\" in the same route at line %d", lineno);
-                path[currentroute->pathlen-1].flags.reverse=1;
+                node->flags.reverse=1;
                 currentroute=NULL;		/* reverse terminates */
             }
             else if (!strcasecmp(c1, "set"))
             {
-                if (readuserref(airport, currentroute, path+currentroute->pathlen-1, buffer, lineno))
-                {
-                    path[currentroute->pathlen-1].flags.set1=1;
-                }
+                if (!node)
+                    return failconfig(h, airport, buffer, "Route can't start with a \"set\" command at line %d", lineno);
+                else if (readuserref(airport, currentroute, node, buffer, lineno))
+                    node->flags.set1=1;
                 else
                 {
                     fclose(h);
@@ -390,17 +415,23 @@ int readconfig(char *pkgpath, airport_t *airport)
             }
             else				/* waypoint */
             {
-                memset(path + currentroute->pathlen, 0, sizeof(path_t));
-                path[currentroute->pathlen].waypoint.alt = INVALID_ALT;
-                path[currentroute->pathlen].attime[0] = INVALID_AT;
-                c2=strtok(NULL, sep);
-                if (!c1 || !sscanf(c1, "%f%n", &path[currentroute->pathlen].waypoint.lat, &eol1) || c1[eol1] ||
-                    !c2 || !sscanf(c2, "%f%n", &path[currentroute->pathlen].waypoint.lon, &eol2) || c2[eol2])
-                    return failconfig(h, airport, buffer, "Expecting a waypoint \"lat lon\", a command or a blank line, found \"%s %s\" at line %d", N(c1), N(c2), lineno);
+                path_t *path;
 
-                currentroute->pathlen++;
+                if (!(path = realloc(currentroute->path, (1+currentroute->pathlen) * sizeof(path_t))))
+                    return failconfig(h, airport, buffer, "Out of memory!");
+                currentroute->path = path;
+
+                node = path + currentroute->pathlen++;
+                memset(node, 0, sizeof(path_t));
+                node->waypoint.alt = INVALID_ALT;
+                node->attime[0] = INVALID_AT;
+                c2=strtok(NULL, sep);
+                if (!c1 || !sscanf(c1, "%f%n", &node->waypoint.lat, &eol1) || c1[eol1] ||
+                    !c2 || !sscanf(c2, "%f%n", &node->waypoint.lon, &eol2) || c2[eol2])
+                    return failconfig(h, airport, buffer, "Expecting a waypoint \"lat lon\", a command or a blank line, found \"%s %s\" at line %d", N(c1), N(c2), lineno);
             }
-            if ((c1=strtok(NULL, sep))) return failconfig(h, airport, buffer, "Extraneous input \"%s\" at line %d", c1, lineno);
+            if ((c1=strtok(NULL, sep)))
+                return failconfig(h, airport, buffer, "Extraneous input \"%s\" at line %d", c1, lineno);
         }
         else if (currenttrain)			/* Existing train */
         {
@@ -542,7 +573,7 @@ int readconfig(char *pkgpath, airport_t *airport)
 }
 
 /* Read standalone or pause "set" command. Returns NULL on failure, and leaves error message in buffer. */
-static userref_t *readuserref(airport_t *airport, route_t *currentroute, path_t *currentpath, char *buffer, int lineno)
+static userref_t *readuserref(airport_t *airport, route_t *currentroute, path_t *node, char *buffer, int lineno)
 {
     userref_t *userref;
     char *c1;
@@ -603,13 +634,13 @@ static userref_t *readuserref(airport_t *airport, route_t *currentroute, path_t 
             airport->userrefs = userref;
         }
     }
-    currentpath->userref = userref;
+    node->userref = userref;
 
     c1=strtok(NULL, sep);
     if (c1 && !strcasecmp(c1, "rise"))
-        currentpath->flags.slope = rising;
+        node->flags.slope = rising;
     else if (c1 && !strcasecmp(c1, "fall"))
-        currentpath->flags.slope = falling;
+        node->flags.slope = falling;
     else
     {
         sprintf(buffer, "Expecting a slope \"rise\" or \"fall\", found \"%s\" at line %d", N(c1), lineno);
@@ -618,9 +649,9 @@ static userref_t *readuserref(airport_t *airport, route_t *currentroute, path_t 
 
     c1=strtok(NULL, sep);
     if (c1 && !strcasecmp(c1, "linear"))
-        currentpath->flags.curve = linear;
+        node->flags.curve = linear;
     else if (c1 && !strcasecmp(c1, "sine"))
-        currentpath->flags.curve = sine;
+        node->flags.curve = sine;
     else
     {
         sprintf(buffer, "Expecting a curve \"linear\" or \"sine\", found \"%s\" at line %d", N(c1), lineno);
@@ -628,7 +659,7 @@ static userref_t *readuserref(airport_t *airport, route_t *currentroute, path_t 
     }
 
     c1=strtok(NULL, sep);
-    if (!c1 || !sscanf(c1, "%f%n", &currentpath->userduration, &eol1) || c1[eol1])
+    if (!c1 || !sscanf(c1, "%f%n", &node->userduration, &eol1) || c1[eol1])
     {
         sprintf(buffer, "Expecting a duration, found \"%s\" at line %d", N(c1), lineno);
         return 0;

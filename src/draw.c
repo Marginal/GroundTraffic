@@ -221,42 +221,53 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
             }
             else if (route->state.dataref)
             {
-                extref_t *extref = route->path[route->last_node].whenref;
-                float val;
+                whenref_t *whenref = route->path[route->last_node].whenrefs;
 
-                if (extref->type == xplmType_Mine)
+                while (whenref)
                 {
-                    val = userrefcallback(extref->ref);
-                }
-                else if (route->path[route->last_node].whenidx < 0)
-                {
-                    /* Not an array */
-                    if (extref->type & xplmType_Float)
-                        val = XPLMGetDataf(extref->ref);
-                    else if (extref->type & xplmType_Double)
-                        val = XPLMGetDatad(extref->ref);
-                    else if (extref->type & xplmType_Int)
-                        val = XPLMGetDatai(extref->ref);
+                    float val;
+                    extref_t *extref = whenref->extref;
+
+                    if (extref->type == xplmType_Mine)
+                    {
+                        val = userrefcallback(extref->ref);
+                    }
+                    else if (whenref->idx < 0)
+                    {
+                        /* Not an array */
+                        if (extref->type & xplmType_Float)
+                            val = XPLMGetDataf(extref->ref);
+                        else if (extref->type & xplmType_Double)
+                            val = XPLMGetDatad(extref->ref);
+                        else if (extref->type & xplmType_Int)
+                            val = XPLMGetDatai(extref->ref);
+                        else
+                            val = 0;	/* Lookup failed or otherwise unusable */
+                    }
+                    else if (extref->type & xplmType_FloatArray)
+                    {
+                        XPLMGetDatavf(extref->ref, &val, whenref->idx, 1);
+                    }
+                    else if (extref->type & xplmType_IntArray)
+                    {
+                        int ival;
+                        XPLMGetDatavi(extref->ref, &ival, whenref->idx, 1);
+                        val = ival;
+                    }
                     else
+                    {
                         val = 0;	/* Lookup failed or otherwise unusable */
-                }
-                else if (extref->type & xplmType_FloatArray)
-                {
-                    XPLMGetDatavf(extref->ref, &val, route->path[route->last_node].whenidx, 1);
-                }
-                else if (extref->type & xplmType_IntArray)
-                {
-                    int ival;
-                    XPLMGetDatavi(extref->ref, &ival, route->path[route->last_node].whenidx, 1);
-                    val = ival;
-                }
-                else
-                {
-                    val = 0;		/* Lookup failed or otherwise unusable */
+                    }
+
+                    if ((val >= whenref->from) && (val <= whenref->to))
+                        whenref = whenref->next;
+                    else
+                        break;		/* fail */
                 }
 
-                if ((val >= route->path[route->last_node].whenfrom) && (val <= route->path[route->last_node].whento))
+                if (!whenref)
                 {
+                    /* All passed */
                     route->state.dataref = 0;
                     if ((route->state.collision = iscollision(route)))	/* Re-check for collision */
                         route->deadlocked = COLLISION_TIMEOUT;
@@ -301,7 +312,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
 
                 if (!route->parent)
                 {
-                    if (route->path[route->last_node].whenref)
+                    if (route->path[route->last_node].whenrefs)
                         route->state.dataref = 1;
                     if (route->path[route->last_node].attime[0] != INVALID_AT)
                         route->state.waiting = 1;

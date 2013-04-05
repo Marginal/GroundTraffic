@@ -211,7 +211,7 @@ set my/custom/dataref fall sine 2
 </pre>
 <p>The &ldquo;Pause ... set&rdquo; command also supports changing the value of a custom DataRef when the animated object arrives at a waypoint. The &ldquo;Pause ... set&rdquo; command restores the DataRef to its previous value before the object moves on from the waypoint; this command does not.<p>
 
-<h4>When command</h4>
+<h4><a name="When">When</a> command</h4>
 <p>The When command instructs the animated object to wait at the preceeding waypoint until a DataRef is within a specified range. It should be of the form &ldquo;<code>when</code>&nbsp;name&nbsp;from&nbsp;to&rdquo;, where:</p>
 <dl>
   <dt>name</dt>
@@ -244,6 +244,20 @@ when my/scenerypackage/signalB 1 1
 ...
 
 </pre>
+
+<h4>And command</h4>
+<p>The And command can be used to add additional conditions to a When command. It should be of the form &ldquo;<code>and</code>&nbsp;name&nbsp;from&nbsp;to&rdquo;, where:</p>
+<dl>
+  <dt>name from to</dt>
+  <dd>As for the &ldquo;<a href="#When">When</a>&rdquo; command.</dd>
+</dl>
+<p>For example, an animation that only takes place at night and in the rain:</p>
+<pre>...
+47.4559849 -122.3028592
+when sim/graphics/scenery/percent_lights_on 0.5 1.0
+and  sim/weather/rain_percent 0.1 1.0
+...</pre>
+<p>You can have as many And commands at a waypoint as you like.</p>
 
 <h4>Comment</h4>
 <p>Lines starting with &ldquo;<code>#</code>&rdquo; are treated as comments and are ignored. For example:</p>

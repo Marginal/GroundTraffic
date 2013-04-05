@@ -140,15 +140,26 @@ typedef struct userref_t
 } userref_t;
 
 
-/* Published external DataRef */
+/* DataRef referenced in When or And command */
 #define xplmType_Mine -1
 typedef struct extref_t
 {
     char *name;
-    XPLMDataRef ref;
+    XPLMDataRef ref;		/* ID, or pointer if type == xplmType_Mine */
     XPLMDataTypeID type;
     struct extref_t *next;
 } extref_t;
+
+
+/* When & And command */
+#define xplmType_Mine -1
+typedef struct whenref_t
+{
+    extref_t *extref;
+    int idx;
+    float from, to;
+    struct whenref_t *next;	/* Next whenref at a waypoint */
+} whenref_t;
 
 
 /* Route path - locations or commands */
@@ -169,12 +180,10 @@ typedef struct
         slope_t slope : 1;
         curve_t curve : 1;
     } flags;
-    struct extref_t *whenref;
-    int whenidx;
-    float whenfrom, whento;
     struct collision_t *collisions;	/* Collisions with other routes */
-    struct userref_t *userref;
+    userref_t *userref;
     float userduration;
+    whenref_t *whenrefs;
     int drawX, drawY;		/* For labeling nodes */
 } path_t;
 
