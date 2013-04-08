@@ -512,6 +512,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                 route->distance = route->last_distance - progress * route->next_distance;
             else
                 route->distance = route->last_distance + progress * route->next_distance;
+            route->steer = 0;
         }
         else
         {
@@ -570,6 +571,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                         bez(route->drawinfo, &next_node->p1, &next_node->p, &pr, 0.5f + (route_now - route->next_time)/TURN_TIME);
                     else	/* Short edge */
                         bez(route->drawinfo, &next_node->p1, &next_node->p, &pr, progress - 0.5f);
+                    route->steer = route->next_heading - route->drawinfo->heading;
                 }
             }
             else if (route->state.forwardsb && (route_now - route->last_time < TURN_TIME/2) && (last_node->p1.x || last_node->p1.z))
@@ -581,6 +583,10 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                     bez(route->drawinfo, &pr, &last_node->p, &last_node->p3, 0.5f + (route_now - route->last_time)/TURN_TIME);
                 else	/* Short edge */
                     bez(route->drawinfo, &pr, &last_node->p, &last_node->p3, progress + 0.5f);
+                if (progress < 0)
+                    route->steer = 180 - route->drawinfo->heading + R2D(atan2f(pr.x - last_node->p.x, last_node->p.z - pr.z));	/* Don't have a route->last_heading */
+                else
+                    route->steer = route->drawinfo->heading - route->next_heading;
             }
             else if (route->state.forwardsa && (route_now - route->last_time < TURN_TIME/2) && (last_node->p3.x || last_node->p3.z))
             {
@@ -591,6 +597,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                     bez(route->drawinfo, &last_node->p1, &last_node->p, &pr, 0.5f + (route_now - route->last_time)/TURN_TIME);
                 else	/* Short edge */
                     bez(route->drawinfo, &last_node->p1, &last_node->p, &pr, progress + 0.5f);
+                route->steer = 180 - route->next_heading + route->drawinfo->heading;
             }
             else
             {
@@ -624,6 +631,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                     bez(route->drawinfo, &next_node->p1, &next_node->p, &next_node->p3, 0.5f + (route_now - route->next_time)/TURN_TIME);
                 else	/* Short edge */
                     bez(route->drawinfo, &next_node->p1, &next_node->p, &next_node->p3, progress - 0.5f);
+                route->steer = route->drawinfo->heading - route->next_heading;
             }
             else
             {
@@ -631,6 +639,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                     bez(route->drawinfo, &next_node->p3, &next_node->p, &next_node->p1, 0.5f + (route_now - route->next_time)/TURN_TIME);
                 else	/* Short edge */
                     bez(route->drawinfo, &next_node->p3, &next_node->p, &next_node->p1, progress - 0.5f);
+                route->steer = route->drawinfo->heading - route->next_heading;
             }
         }
         else if (route->state.forwardsa && progress<0 && (last_node->p3.x || last_node->p3.z))
@@ -658,6 +667,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                 else	/* Short edge */
                     bez(route->drawinfo, &last_node->p3, &last_node->p, &last_node->p1, progress + 0.5f);
             }
+            route->steer = route->next_heading - route->drawinfo->heading;
         }
         else
         {
@@ -671,6 +681,8 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
             route->drawinfo->x += sinf(h) * route->object.offset;
             route->drawinfo->z -= cosf(h) * route->object.offset;
         }
+        if (route->steer)
+            route->steer = fmodf(route->steer + 540, 360) - 180;	/* to range -180..180 */
         route->drawinfo->heading += route->object.heading;
     }
 

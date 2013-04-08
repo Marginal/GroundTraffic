@@ -315,6 +315,9 @@ train	marginal/luggage_train_4
   <dt><code>marginal/groundtraffic/speed</code></dt>
   <dd>Speed of the object, in metres/second. This returns zero if the object is stationary for any reason, up to the speed that you specified in the Route statement (converted to [m/s]) if it is moving, or negative if it is backing-up (which is useful for displaying reversing lights).</dd>
   <br>
+  <dt><code>marginal/groundtraffic/steer</code></dt>
+  <dd>Turn rate of the object, in degrees. This returns zero if the object is moving in a straight line, and between zero and half the turn angle if the object is negotiating a turn; <i>e.g.</i> if the object is negotiating a right-angled turn, this will return up to &plusmn;45. This is useful for animating articulated vehicles / semi-trailer trucks.</dd>
+  <br>
   <dt><code>marginal/groundtraffic/var[0]</code> ... <code>var[9]</code></dt>
   <dd>DataRef whose value is controlled by the &ldquo;<a href="#Set">Set</a>&rdquo; and &ldquo;Pause ... set&rdquo; commands.</dd>
   <br>

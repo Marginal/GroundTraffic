@@ -24,7 +24,7 @@ airport_t airport = { 0 };
 int year=113;		/* Current year (in GMT tz) since 1900 */
 
 /* Published DataRefs */
-const char datarefs[dataref_count][60] = { REF_DISTANCE, REF_SPEED, REF_NODE_LAST, REF_NODE_LAST_DISTANCE, REF_NODE_NEXT, REF_NODE_NEXT_DISTANCE };	/* Must be in same order as dataref_t */
+const char datarefs[dataref_count][60] = { REF_DISTANCE, REF_SPEED, REF_STEER, REF_NODE_LAST, REF_NODE_LAST_DISTANCE, REF_NODE_NEXT, REF_NODE_NEXT_DISTANCE };	/* Must be in same order as dataref_t */
 
 /* In this file */
 static XPLMWindowID labelwin = 0;
@@ -264,6 +264,8 @@ static float floatrefcallback(XPLMDataRef inDataRef)
             return -route->speed;
         else
             return route->speed;
+    case steer:
+        return route->steer;
     case node_last_distance:
         return route->distance - route->last_distance;
     case node_next_distance:

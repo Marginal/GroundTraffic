@@ -89,13 +89,14 @@
 #define REF_VAR			REF_BASE "var"
 #define REF_DISTANCE		REF_BASE "distance"
 #define REF_SPEED		REF_BASE "speed"
+#define REF_STEER		REF_BASE "steer"
 #define REF_NODE_LAST		REF_BASE "waypoint/last"
 #define REF_NODE_LAST_DISTANCE	REF_BASE "waypoint/last/distance"
 #define REF_NODE_NEXT		REF_BASE "waypoint/next"
 #define REF_NODE_NEXT_DISTANCE	REF_BASE "waypoint/next/distance"
 typedef enum
 {
-    distance=0, speed, node_last, node_last_distance, node_next, node_next_distance,
+    distance=0, speed, steer, node_last, node_last_distance, node_next, node_next_distance,
     dataref_count
 } dataref_t;
 
@@ -238,6 +239,7 @@ typedef struct route_t
     float next_distance;	/* Distance from last_node to next_node [m] */
     float distance;		/* Cumulative distance travelled from first node [m] */
     float next_heading;		/* Heading from last_node to next_node [m] */
+    float steer;		/* Approximate steer angle (degrees) while turning */
     glColor3f_t drawcolor;
     XPLMDrawInfo_t *drawinfo;	/* Where to draw - current OpenGL co-ordinates */
     float next_probe;		/* Time we should probe altitude again */
