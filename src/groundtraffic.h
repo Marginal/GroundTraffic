@@ -71,17 +71,17 @@
 #define MAX_NAME 256		/* Arbitrary limit on object name lengths */
 #define TILE_RANGE 1		/* How many tiles away from plane's tile to consider getting out of bed for */
 #define ACTIVE_POLL 16		/* Poll to see if we've come into range every n frames */
-#define ACTIVE_DISTANCE 6000.0	/* Distance [m] from tower location at which to actually get out of bed */
-#define ACTIVE_HYSTERESIS (ACTIVE_DISTANCE*0.05)
-#define DRAW_DISTANCE 3500.0	/* Distance [m] from object to draw it. Divided by LOD value. */
-#define DEFAULT_LOD 2.25	/* Equivalent to "medium" world detail distance */
-#define PROBE_INTERVAL 4	/* How often to probe ahead for altitude [s] */
-#define TURN_TIME 2		/* Time [s] to execute a turn at a waypoint */
-#define AT_INTERVAL 60		/* How often [s] to poll for At times */
-#define WHEN_INTERVAL 1		/* How often [s] to poll for When DataRef values */
-#define COLLISION_INTERVAL 4	/* How long [s] to poll for crossing route path to become free */
-#define COLLISION_TIMEOUT (60/COLLISION_INTERVAL)	/* How many times to poll before giving up to break deadlock */
-#define RESET_TIME 15		/* If we're deactivated for longer than this then reset route timings */
+#define ACTIVE_DISTANCE 6000.f	/* Distance [m] from tower location at which to actually get out of bed */
+#define ACTIVE_HYSTERESIS (ACTIVE_DISTANCE*0.05f)
+#define DRAW_DISTANCE 3500.f	/* Distance [m] from object to draw it. Divided by LOD value. */
+#define DEFAULT_LOD 2.25f	/* Equivalent to "medium" world detail distance */
+#define PROBE_INTERVAL 4.f	/* How often to probe ahead for altitude [s] */
+#define TURN_TIME 2.f		/* Time [s] to execute a turn at a waypoint */
+#define AT_INTERVAL 60.f	/* How often [s] to poll for At times */
+#define WHEN_INTERVAL 1.f	/* How often [s] to poll for When DataRef values */
+#define COLLISION_INTERVAL 4.f	/* How long [s] to poll for crossing route path to become free */
+#define COLLISION_TIMEOUT ((int) 60/COLLISION_INTERVAL)	/* How many times to poll before giving up to break deadlock */
+#define RESET_TIME 15.f		/* If we're deactivated for longer than this then reset route timings */
 #define MAX_VAR 10		/* How many var datarefs */
 
 /* Published DataRefs */
@@ -100,17 +100,27 @@ typedef enum
 } dataref_t;
 
 /* Geolocation */
-#define INVALID_ALT FLT_MAX
 typedef struct
 {
     float lat, lon, alt;	/* drawing routines use float, so no point storing higher precision */
 } loc_t;
+
+#define INVALID_ALT DBL_MAX
+typedef struct
+{
+    double lat, lon, alt;	/* but XPLMWorldToLocal uses double, so prevent type conversions */
+} dloc_t;
 
 /* OpenGL coordinate */
 typedef struct
 {
     float x, y,z;
 } point_t;
+
+typedef struct
+{
+    double x, y,z;
+} dpoint_t;
 
 /* Days in same order as tm_wday in struct tm, such that 2**tm_wday==DAY_X */
 #define DAY_SUN 1
@@ -263,8 +273,8 @@ typedef struct
 {
     enum { noconfig=0, inactive, active } state;
     char ICAO[5];
-    loc_t tower;
-    point_t p;
+    dloc_t tower;
+    dpoint_t p;			/* Remember OpenGL location of tower to detect scenery shift */
     int drawroutes;
     route_t *routes;
     route_t *firstroute;
@@ -304,11 +314,6 @@ extern float last_frame;	/* Global so can be reset while disabled */
 
 
 /* inlines */
-static inline int intilerange(loc_t tile, loc_t loc)
-{
-    return ((abs(tile.lat - floorf(loc.lat)) <= TILE_RANGE) && (abs(tile.lon - floorf(loc.lon)) <= TILE_RANGE));
-}
-
 static inline int indrawrange(float xdist, float ydist, float zdist, float range)
 {
     assert (airport.tower.alt!=INVALID_ALT);	/* If altitude is invalid then arguments to this function will be too */

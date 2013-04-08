@@ -34,6 +34,15 @@ static float floatrefcallback(XPLMDataRef inRefCon);
 static int intrefcallback(XPLMDataRef inRefCon);
 static int varrefcallback(XPLMDataRef inRefCon, float *outValues, int inOffset, int inMax);
 
+/* inlines */
+static inline int intilerange(dloc_t loc)
+{
+    double tile_lat, tile_lon;
+    tile_lat = floor(XPLMGetDatad(ref_plane_lat));
+    tile_lon = floor(XPLMGetDatad(ref_plane_lon));
+    return ((abs(tile_lat - floor(loc.lat)) <= TILE_RANGE) && (abs(tile_lon - floor(loc.lon)) <= TILE_RANGE));
+}
+
 
 PLUGIN_API int XPluginStart(char *outName, char *outSignature, char *outDescription)
 {
@@ -129,26 +138,21 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFrom, long inMessage, void 
            unregistered before the new airport is activated and tries to register those same DataRefs. */
         if (airport.state == active)
         {
-            loc_t tile;
-            tile.lat=floor(XPLMGetDatad(ref_plane_lat));
-            tile.lon=floor(XPLMGetDatad(ref_plane_lon));
-            if (!intilerange(tile, airport.tower))
+            if (!intilerange(airport.tower))
             {
                 deactivate(&airport);
             }
             else
             {
-                double x, y, z;
-                float airport_x, airport_y, airport_z;
+                double airport_x, airport_y, airport_z;
                 float view_x, view_y, view_z;
 
-                XPLMWorldToLocal(airport.tower.lat, airport.tower.lon, airport.tower.alt, &x, &y, &z);
-                airport_x=x;  airport_y=y;  airport_z=z;
+                XPLMWorldToLocal(airport.tower.lat, airport.tower.lon, airport.tower.alt, &airport_x, &airport_y, &airport_z);
                 view_x=XPLMGetDataf(ref_view_x);
                 view_y=XPLMGetDataf(ref_view_y);
                 view_z=XPLMGetDataf(ref_view_z);
 
-                if (!indrawrange(airport_x-view_x, airport_y-view_y, airport_z-view_z, ACTIVE_DISTANCE+ACTIVE_HYSTERESIS))
+                if (!indrawrange(((float)airport_x)-view_x, ((float)airport_y)-view_y, ((float)airport_z)-view_z, ACTIVE_DISTANCE+ACTIVE_HYSTERESIS))
                     deactivate(&airport);
             }
         }
@@ -165,10 +169,7 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFrom, long inMessage, void 
          * So (re)run proberoutes(). Do this immediately to prevent indrawrange() failing.  */
         if (airport.state == active)
         {
-            loc_t tile;
-            tile.lat=floor(XPLMGetDatad(ref_plane_lat));
-            tile.lon=floor(XPLMGetDatad(ref_plane_lon));
-            if (intilerange(tile, airport.tower))
+            if (intilerange(airport.tower))
                 proberoutes(&airport);
             else
                 deactivate(&airport);
@@ -182,10 +183,7 @@ static float flightcallback(float inElapsedSinceLastCall, float inElapsedTimeSin
 {
     if (airport.state == inactive)
     {
-        loc_t tile;
-        tile.lat=floor(XPLMGetDatad(ref_plane_lat));
-        tile.lon=floor(XPLMGetDatad(ref_plane_lon));
-        if (intilerange(tile, airport.tower))
+        if (intilerange(airport.tower))
         {
             double airport_x, airport_y, airport_z;
             float view_x, view_y, view_z;
@@ -198,7 +196,7 @@ static float flightcallback(float inElapsedSinceLastCall, float inElapsedTimeSin
             view_y=XPLMGetDataf(ref_view_y);
             view_z=XPLMGetDataf(ref_view_z);
 
-            if (indrawrange(airport_x-view_x, airport_y-view_y, airport_z-view_z, ACTIVE_DISTANCE))
+            if (indrawrange(((float)airport_x)-view_x, ((float)airport_y)-view_y, ((float)airport_z)-view_z, ACTIVE_DISTANCE))
                 if (!activate(&airport))	/* Going active */
                     clearconfig(&airport);
         }
@@ -214,7 +212,7 @@ static float flightcallback(float inElapsedSinceLastCall, float inElapsedTimeSin
         view_y=XPLMGetDataf(ref_view_y);
         view_z=XPLMGetDataf(ref_view_z);
 
-        if (!indrawrange(airport_x-view_x, airport_y-view_y, airport_z-view_z, ACTIVE_DISTANCE+ACTIVE_HYSTERESIS))
+        if (!indrawrange(((float)airport_x)-view_x, ((float)airport_y)-view_y, ((float)airport_z)-view_z, ACTIVE_DISTANCE+ACTIVE_HYSTERESIS))
             deactivate(&airport);
     }
 
@@ -319,15 +317,15 @@ static int varrefcallback(XPLMDataRef inRefCon, float *outValues, int inOffset, 
  * Adapted from http://www.coranac.com/2009/07/sines/ */
 static inline float cosz(float z)
 {
-    if (fabs(z)<=0.5)
+    if (fabsf(z) <= 0.5f)
     {
         z = z+z;
-        return 1 - 0.5 * (z*z * ((2-M_PI_4) - z*z * (1-M_PI_4)));
+        return 1 - 0.5f * (z*z * ((2.f-((float) M_PI_4)) - z*z * (1.f-((float) M_PI_4))));
     }
     else
     {
         z = 2 - (z+z);
-        return 0.5 * (z*z * ((2-M_PI_4) - z*z * (1-M_PI_4)));
+        return 0.5f * (z*z * ((2.f-((float) M_PI_4)) - z*z * (1.f-(((float) M_PI_4)))));
     }
 }
 
@@ -541,8 +539,8 @@ int activate(airport_t *airport)
                         s1_x = p1->lon - p0->lon;  s1_y = p1->lat - p0->lat;
                         s2_x = p3->lon - p2->lon;  s2_y = p3->lat - p2->lat;
                         d = (-s2_x * s1_y + s1_x * s2_y);
-                        s = (-s1_y * (p0->lon - p2->lon) + s1_x * (p0->lat - p2->lat)) / d;
-                        t = ( s2_x * (p0->lat - p2->lat) - s2_y * (p0->lon - p2->lon)) / d;
+                        s = (-s1_y * (double) (p0->lon - p2->lon) + s1_x * (double) (p0->lat - p2->lat)) / d;
+                        t = ( s2_x * (double) (p0->lat - p2->lat) - s2_y * (double) (p0->lon - p2->lon)) / d;
 
                         if (s >= 0 && s <= 1 && t >= 0 && t <= 1)
                         {
@@ -682,7 +680,7 @@ void maproutes(airport_t *airport)
                 path_t *this = route->path + i;
                 path_t *next = route->path + (i+1) % route->pathlen;
                 path_t *last = route->path + (i-1+route->pathlen) % route->pathlen;	/* mod of negative is undefined */
-                double dist, ratio;
+                float dist, ratio;
 
                 if ((this->flags.backup && this->pausetime) || (last->flags.backup && !last->pausetime))
                     continue;	/* Want to be straight aligned at backing-up waypoint */
@@ -691,7 +689,7 @@ void maproutes(airport_t *airport)
                 dist = sqrtf((last->p.x - this->p.x) * (last->p.x - this->p.x) +
                              (last->p.z - this->p.z) * (last->p.z - this->p.z));
                 if (dist < route->speed * TURN_TIME)
-                    ratio = 0.5;	/* Node is too close - put control point halfway */
+                    ratio = 0.5f;	/* Node is too close - put control point halfway */
                 else
                     ratio = route->speed * (TURN_TIME/2) / dist;
                 this->p1.x = this->p.x + ratio * (last->p.x - this->p.x);

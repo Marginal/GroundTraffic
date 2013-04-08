@@ -1,5 +1,7 @@
 # -*-Makefile-*-
-# Setup for building on Ubuntu x86_64 with multilib support
+# Setup for building on Ubuntu x86_64 with multilib support, plus:
+# sudo ln -s mesa/libGL.so.1 /usr/lib/i386-linux-gnu/libGL.so
+# sudo ln -s libGLU.so.1 /usr/lib/i386-linux-gnu/libGLU.so
 
 include ../version.mak
 
@@ -12,7 +14,7 @@ BUILD=-O3 -s -DNDEBUG
 LDFLAGS=-Wl,-x
 DEFINES=-DAPL=0 -DIBM=0 -DLIN=1 -DVERSION=$(VERSION)
 INC=-I$(XPSDK)/CHeaders/XPLM -I$(XPSDK)/CHeaders/Widgets
-CFLAGS=-march=core2 -ffast-math -pipe -Wall -static-libgcc -shared -fPIC -fvisibility=hidden $(BUILD) $(DEFINES) $(INC)
+CFLAGS=-march=core2 -ffast-math -pipe -Wall -Wdouble-promotion -Winline -static-libgcc -shared -fPIC -fvisibility=hidden $(BUILD) $(DEFINES) $(INC)
 
 VPATH=
 SRC=groundtraffic.c draw.c routes.c

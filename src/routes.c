@@ -232,8 +232,8 @@ int readconfig(char *pkgpath, airport_t *airport)
                 return failconfig(h, airport, buffer, "Expecting a 4 character airport ICAO code, found \"%s\" at line %d", c1, lineno);
             c1=strtok(NULL, sep);
             c2=strtok(NULL, sep);
-            if (!c1 || !sscanf(c1, "%f%n", &airport->tower.lat, &eol1) || c1[eol1] ||
-                !c2 || !sscanf(c2, "%f%n", &airport->tower.lon, &eol2) || c2[eol2])
+            if (!c1 || !sscanf(c1, "%lf%n", &airport->tower.lat, &eol1) || c1[eol1] ||
+                !c2 || !sscanf(c2, "%lf%n", &airport->tower.lon, &eol2) || c2[eol2])
                 return failconfig(h, airport, buffer, "Expecting an airport location \"lat lon\", found \"%s %s\" at line %d", N(c1), N(c2), lineno);
             if ((c1=strtok(NULL, sep)))
                 return failconfig(h, airport, buffer, "Extraneous input \"%s\" at line %d", c1, lineno);
@@ -351,7 +351,7 @@ int readconfig(char *pkgpath, airport_t *airport)
                 if (!strncasecmp(c2, REF_BASE, sizeof(REF_BASE)))
                 {
                     c3 = c1;
-                    while ((*c3++ = tolower(*c3)));
+                    while ((*c3 = tolower(*c3))) c3++;
                     return failconfig(h, airport, buffer, "\"%s\" command can't use a per-route DataRef at line %d", c1, lineno);
                 }
 
@@ -423,7 +423,6 @@ int readconfig(char *pkgpath, airport_t *airport)
 
                 node = path + currentroute->pathlen++;
                 memset(node, 0, sizeof(path_t));
-                node->waypoint.alt = INVALID_ALT;
                 node->attime[0] = INVALID_AT;
                 c2=strtok(NULL, sep);
                 if (!c1 || !sscanf(c1, "%f%n", &node->waypoint.lat, &eol1) || c1[eol1] ||
@@ -498,7 +497,7 @@ int readconfig(char *pkgpath, airport_t *airport)
             else
                 strcpy(newroute->object.name, c1);
 
-            newroute->speed *= (1000.0 / (60*60));	/* convert km/h to m/s */
+            newroute->speed *= (float) (1000.0 / (60*60));	/* convert km/h to m/s */
             currentroute=lastroute=newroute;
         }
         else if (!strcasecmp(c1, "train"))	/* New train */
