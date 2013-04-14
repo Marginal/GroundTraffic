@@ -198,12 +198,11 @@ int readconfig(char *pkgpath, airport_t *airport)
         xplog(buffer);
         return 1;
     }
-    while (fgets(line, sizeof(line)-1, h))
+    while (fgets(line, sizeof(line), h))
     {
         char *c1, *c2, *c3;
         int eol1, eol2, eol3;
 
-        line[strlen(line)+1]='\0';	/* Prevent potential overrun if missing eol on last line */
         if (!lineno && !strncmp(line, "\xef\xbb\xbf", 3))	/* skip UTF-8 BOM */
             c1=strtok(line+3, sep);
         else
@@ -589,7 +588,7 @@ static userref_t *readuserref(airport_t *airport, route_t *currentroute, path_t 
         return 0;
     }
 
-    if ((!strncasecmp(c1, "var[", 4) || !strncasecmp(c1, REF_VAR "[", sizeof(REF_VAR "["))) && c1[strlen(c1)-1]==']')
+    if ((!strncasecmp(c1, "var[", 4) || !strncasecmp(c1, REF_VAR "[", sizeof(REF_VAR "[")-1)) && c1[strlen(c1)-1]==']')
     {
         /* Standard DataRef = route-specific */
         int i;

@@ -14,10 +14,10 @@ BUILD=-O3 -s -DNDEBUG
 LDFLAGS=-Wl,-x
 DEFINES=-DAPL=0 -DIBM=0 -DLIN=1 -DVERSION=$(VERSION)
 INC=-I$(XPSDK)/CHeaders/XPLM -I$(XPSDK)/CHeaders/Widgets
-CFLAGS=-march=core2 -ffast-math -pipe -Wall -Wdouble-promotion -Winline -static-libgcc -shared -fPIC -fvisibility=hidden $(BUILD) $(DEFINES) $(INC)
+CFLAGS=-march=core2 -ffast-math -pipe -Wall -Wdouble-promotion -Winline -Wno-missing-braces -static-libgcc -shared -fPIC -fvisibility=hidden $(BUILD) $(DEFINES) $(INC)
 
 VPATH=
-SRC=groundtraffic.c draw.c routes.c
+SRC=groundtraffic.c draw.c routes.c planes.c
 LIBS=-lGLU -lGL
 TARGETDIR=../$(PROJECT)
 INSTALLDIR=~/Desktop/X-Plane\ 10/Custom\ Scenery/KSEA\ Demo\ GroundTraffic/plugins/$(PROJECT)

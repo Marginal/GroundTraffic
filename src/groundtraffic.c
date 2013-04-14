@@ -7,6 +7,7 @@
  */
 
 #include "groundtraffic.h"
+#include "planes.h"
 
 #if IBM
 BOOL APIENTRY DllMain(HANDLE hModule, DWORD ul_reason, LPVOID lpReserved)
@@ -66,7 +67,7 @@ PLUGIN_API int XPluginStart(char *outName, char *outSignature, char *outDescript
     ref_tod      =XPLMFindDataRef("sim/time/local_time_sec");
     ref_LOD      =XPLMFindDataRef("sim/private/controls/reno/LOD_bias_rat");
     ref_probe    =XPLMCreateProbe(xplm_ProbeY);
-    if (!(ref_view_x && ref_view_y && ref_view_z && ref_night && ref_monotonic && ref_doy && ref_tod)) return xplog("Can't access X-Plane DataRefs!");
+    if (!(ref_view_x && ref_view_y && ref_view_z && ref_night && ref_monotonic && ref_doy && ref_tod && setup_plane_refs())) return xplog("Can't access X-Plane DataRefs!");
 
     XPLMEnableFeature("XPLM_WANTS_REFLECTIONS", 0);	/* Let's assume there aren't a lot of puddles around */
     XPLMEnableFeature("XPLM_USE_NATIVE_PATHS", 1);	/* Get paths in posix format */
@@ -174,6 +175,10 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFrom, long inMessage, void 
             else
                 deactivate(&airport);
         }
+    }
+    else if (inMessage==XPLM_MSG_PLANE_LOADED)
+    {
+        reset_planes();
     }
 }
 

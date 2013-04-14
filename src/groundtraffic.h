@@ -6,6 +6,9 @@
  * Licensed under GNU LGPL v2.1.
  */
 
+#ifndef	_GROUNDTRAFFIC_H_
+#define	_GROUNDTRAFFIC_H_
+
 #ifdef _MSC_VER
 #  define _USE_MATH_DEFINES
 #  define _CRT_SECURE_NO_DEPRECATE
@@ -52,6 +55,7 @@
 #include "XPLMDataAccess.h"
 #include "XPLMDisplay.h"
 #include "XPLMGraphics.h"
+#include "XPLMPlanes.h"
 #include "XPLMPlugin.h"
 #include "XPLMProcessing.h"
 #include "XPLMScenery.h"
@@ -115,12 +119,12 @@ typedef struct
 /* OpenGL coordinate */
 typedef struct
 {
-    float x, y,z;
+    float x, y, z;
 } point_t;
 
 typedef struct
 {
-    double x, y,z;
+    double x, y, z;
 } dpoint_t;
 
 /* Days in same order as tm_wday in struct tm, such that 2**tm_wday==DAY_X */
@@ -321,3 +325,49 @@ static inline int indrawrange(float xdist, float ydist, float zdist, float range
     assert (airport.tower.alt!=INVALID_ALT);	/* If altitude is invalid then arguments to this function will be too */
     return (xdist*xdist + ydist*ydist + zdist*zdist <= range*range);
 }
+
+static inline float R2D(float r)
+{
+    return r * ((float) (180*M_1_PI));
+}
+
+static inline float D2R(float d)
+{
+    return d * ((float) (M_PI/180));
+}
+
+/* Operations on point_t */
+
+static inline float angleto(point_t *from, point_t *to)
+{
+    return atan2f(to->x-from->x, to->z-from->z);
+}
+
+/* 2D is point inside polygon? */
+static inline int inside(point_t *p, point_t *poly, int npoints)
+{
+    /* http://paulbourke.net/geometry/polygonmesh/ "Determining if a point lies on the interior of a polygon" */
+    int i, j, c=0;
+    for (i=0, j=npoints-1; i<npoints; j=i++)
+        if ((((poly[i].z <= p->z) && (p->z < poly[j].z)) || ((poly[j].z <= p->z) && (p->z < poly[i].z))) &&
+            (p->x < (poly[j].x - poly[i].x) * (p->z - poly[i].z) / (poly[j].z - poly[i].z) + poly[i].x))
+            c = !c;
+    return c;
+}
+
+/* 2D does line p0->p1 intersect p2->p3 */
+static inline int intersect(point_t *p0, point_t *p1, point_t *p2, point_t *p3)
+{
+    /* http://stackoverflow.com/a/1968345 */
+    float s, t, d, s1_x, s1_z, s2_x, s2_z;
+
+    s1_x = p1->x - p0->x;  s1_z = p1->z - p0->z;
+    s2_x = p3->x - p2->x;  s2_z = p3->z - p2->z;
+    d = -s2_x * s1_z + s1_x * s2_z;
+    s = (-s1_z * (p0->x - p2->x) + s1_x * (p0->z - p2->z)) / d;
+    t = ( s2_x * (p0->z - p2->z) - s2_z * (p0->x - p2->x)) / d;
+
+    return s >= 0 && s <= 1 && t >= 0 && t <= 1;
+}
+
+#endif /* _GROUNDTRAFFIC_H_ */

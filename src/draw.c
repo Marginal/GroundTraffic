@@ -7,6 +7,7 @@
  */
 
 #include "groundtraffic.h"
+#include "planes.h"
 
 /* Globals */
 route_t *drawroute = NULL;	/* Global so can be accessed in DataRef callback */
@@ -16,30 +17,47 @@ static int is_night=0;		/* was night last time we recalculated? */
 /* In this file */
 static void bez(XPLMDrawInfo_t *drawinfo, point_t *p1, point_t *p2, point_t *p3, float mu);
 
-/* inlines */
-static inline float R2D(float r)
-{
-    return r * ((float) (180*M_1_PI));
-}
 
-static inline float D2R(float d)
+static int iscollision(route_t *route, int tryno)
 {
-    return d * ((float) (M_PI/180));
-}
+    path_t *last_node = route->path + route->last_node;
+    path_t *next_node = route->path + route->next_node;
+    collision_t *c = tryno ? (route->direction>0 ? last_node->collisions : next_node->collisions) : NULL;
+    int planeno;
+    float t;
 
-
-static int iscollision(route_t *route)
-{
-    collision_t *c = route->direction>0 ? route->path[route->last_node].collisions : route->path[route->next_node].collisions;
+    /* Route collisions */
     while (c)
     {
         if ((c->route->direction>0 ? c->route->last_node : c->route->next_node) == c->node &&
             !(c->route->state.paused||c->route->state.waiting||c->route->state.dataref||c->route->state.collision) &&	/* No point waiting for a paused route. He'll re-check on exit from pause */
             c->route->last_node != c->route->next_node)			/* Check we're not just enabled/activated and deadlocked */
-            break;	/* Collision */
+        {
+            /* Collision */
+            route->deadlocked = tryno;
+            return -1;
+        }
         c = c->next;
     }
-    return (c!=NULL);
+
+    /* Plane collisions */
+    t = route->next_distance / route->speed;	/* time to next waypoint */
+    for (planeno=0; planeno<count_planes(); planeno++)
+    {
+        point_t *p;
+        int i, j;
+
+        if (!(p = get_plane_footprint(planeno, t))) continue;
+
+        /* If our waypoint is inside the exclusion region then get our object out of the way! */
+        if (inside(&last_node->p, p, 4)) return 0;
+
+        for (i=0, j=3; i<4; j=i++)
+            if (intersect(&last_node->p, &next_node->p, p+i, p+j))
+                return -1;	/* Next edge intersects this plane's footprint */
+    }
+
+    return 0;
 }
 
 
@@ -141,11 +159,13 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
     /* draw route paths */
     if (airport.drawroutes && !XPLMGetDatai(ref_rentype))
     {
-        int i;
+#ifdef DEBUG
+        int planeno;
+#endif
         GLdouble model[16], proj[16];
         GLint view[4] = { 0 };
 
-        XPLMSetGraphicsState(0, 0, 0,   0, 0,   0, 0);
+        XPLMSetGraphicsState(0, 0, 0,   0, 1,   0, 0);
         glLineWidth(1.5);
 
         /* This is slow! */
@@ -156,14 +176,15 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
         for(route=airport.routes; route; route=route->next)
             if (!route->parent)
             {
-                glColor3f(route->drawcolor.r, route->drawcolor.g, route->drawcolor.b);
+                int i;
+                glColor3fv(&route->drawcolor.r);
                 glBegin(route->path[route->pathlen-1].flags.reverse ? GL_LINE_STRIP : GL_LINE_LOOP);
                 for (i=0; i<route->pathlen; i++)
                 {
                     path_t *node = route->path + i;
                     GLdouble winX, winY, winZ;
 
-                    glVertex3f(node->p.x, node->p.y, node->p.z);
+                    glVertex3fv(&node->p.x);
                     gluProject(node->p.x, node->p.y, node->p.z, model, proj, view, &winX, &winY, &winZ);
                     if (winZ <= 1)	/* not behind us */
                     {
@@ -177,6 +198,22 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                 }
                 glEnd();
             }
+
+#ifdef DEBUG
+        /* Draw AI plane positions */
+        glColor4f(0,0,0,0.25f);
+        glBegin(GL_QUADS);
+        for (planeno=0; planeno<count_planes(); planeno++)
+        {
+            point_t *p;
+            int i;
+
+            if ((p = get_plane_footprint(planeno, 5.f)))	/* Display 5 seconds ahead */
+                for (i=0; i<4; i++)
+                    glVertex3fv(&(p[i].x));
+        }
+        glEnd();
+#endif
     }
 
     /* We can be called multiple times per frame depending on shadow settings -
@@ -223,8 +260,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                              (route->path[route->last_node].atdays & dow))
                     {
                         route->state.waiting = 0;
-                        if ((route->state.collision = iscollision(route)))	/* Re-check for collision */
-                            route->deadlocked = COLLISION_TIMEOUT;
+                        route->state.collision = iscollision(route, COLLISION_TIMEOUT);	/* Re-check for collision */
                         break;
                     }
                 }
@@ -280,21 +316,19 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                 {
                     /* All passed */
                     route->state.dataref = 0;
-                    if ((route->state.collision = iscollision(route)))	/* Re-check for collision */
-                        route->deadlocked = COLLISION_TIMEOUT;
+                    route->state.collision = iscollision(route, COLLISION_TIMEOUT);	/* Re-check for collision */
                     /* last and next were calculated when we originally hit this waypoint */
                 }
             }
             else if (route->state.paused)
             {
                 route->state.paused = 0;
-                if ((route->state.collision = iscollision(route)))	/* Re-check for collision */
-                    route->deadlocked = COLLISION_TIMEOUT;
+                route->state.collision = iscollision(route, COLLISION_TIMEOUT);	/* Re-check for collision */
                 /* last and next were calculated when we originally hit this waypoint */
             }
             else if (route->state.collision)
             {
-                route->state.collision = (--route->deadlocked) ? iscollision(route) : 0;	/* Break deadlock on timeout */
+                route->state.collision = iscollision(route, route->deadlocked-1);	/* Break deadlock on timeout */
                 /* last and next were calculated when we originally hit this waypoint */
             }
             else	/* next waypoint */
@@ -309,7 +343,12 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                     route->last_distance += route->next_distance;
                 route->distance = route->last_distance;
 
-                if (route->next_node >= route->pathlen)
+                if (route->path[route->last_node].flags.reverse)
+                {
+                    route->direction = -1;
+                    route->next_node = route->pathlen-2;
+                }
+                else if (route->next_node >= route->pathlen)
                 {
                     /* At end of route - head to start */
                     route->next_node = 0;
@@ -320,22 +359,27 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                     route->direction = 1;
                     route->next_node = 1;
                 }
+                last_node = route->path + route->last_node;
+                next_node = route->path + route->next_node;
+
+                /* Assume distances are too small to care about earth curvature so just calculate using OpenGL coords */
+                route->next_heading = R2D(atan2f(next_node->p.x - last_node->p.x, last_node->p.z - next_node->p.z));
+                route->next_distance = sqrtf((next_node->p.x - last_node->p.x) * (next_node->p.x - last_node->p.x) +
+                                             (next_node->p.z - last_node->p.z) * (next_node->p.z - last_node->p.z));
 
                 if (!route->parent)
                 {
-                    if (route->path[route->last_node].whenrefs)
+                    if (last_node->whenrefs)
                         route->state.dataref = 1;
-                    if (route->path[route->last_node].attime[0] != INVALID_AT)
+                    if (last_node->attime[0] != INVALID_AT)
                         route->state.waiting = 1;
-                    if (route->path[route->last_node].pausetime)
+                    if (last_node->pausetime)
                         route->state.paused = 1;
-                    if ((route->state.collision = iscollision(route)))
-                        route->deadlocked = COLLISION_TIMEOUT;
-                    if (route->path[route->last_node].flags.set1 || route->path[route->last_node].flags.set2)
+                    if (last_node->flags.set1 || last_node->flags.set2)
                         doset = 1;
-                    if (route->path[route->last_node].flags.backup)
+                    if (last_node->flags.backup)
                     {
-                        if (route->path[route->last_node].pausetime)	/* A */
+                        if (last_node->pausetime)	/* A */
                         {
                             /* Backing up after pause */
                             route->state.backingup = 1;
@@ -359,22 +403,12 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                             route->state.forwardsa = 0;
                         }
                     }
-                }
-                if (route->path[route->last_node].flags.reverse)
-                {
-                    route->direction = -1;
-                    route->next_node = route->pathlen-2;
+                    route->state.collision = iscollision(route, COLLISION_TIMEOUT);
                 }
             }
             
-            /* calculate time and heading to next node */
             last_node = route->path + route->last_node;
             next_node = route->path + route->next_node;
-
-            /* Assume distances are too small to care about earth curvature so just calculate using OpenGL coords */
-            route->next_heading = R2D(atan2f(next_node->p.x - last_node->p.x, last_node->p.z - next_node->p.z));
-            route->next_distance = sqrtf((next_node->p.x - last_node->p.x) * (next_node->p.x - last_node->p.x) +
-                                         (next_node->p.z - last_node->p.z) * (next_node->p.z - last_node->p.z));
 
             /* Maintain speed/progress unless there's been a large gap in draw callbacks because we were deactivated / disabled */
             if (route->last_time && route_now - route->next_time < RESET_TIME)
@@ -606,6 +640,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                 route->drawinfo->heading = route->next_heading;
             }
             route->drawinfo->heading += route->object.heading - 180;
+            route->drawinfo->pitch = -route->drawinfo->pitch;
         }
         else if (route->state.forwardsb && (last_node->p1.x || last_node->p1.z))
         {
