@@ -140,19 +140,33 @@ typedef struct
 #define INVALID_AT -1
 
 
-/* User-defined DataRef */
+/* User-defined published DataRef or per-route var[n] */
 typedef enum { rising, falling } slope_t;
 typedef enum { linear, sine } curve_t;
 typedef struct userref_t
 {
-    char *name;			/* NULL for standard var[n] datarefs */
+    char *name;			/* NULL for per-route var[n] datarefs */
     XPLMDataRef ref;
     float duration;
     float start1, start2;
     slope_t slope;
     curve_t curve;
-    struct userref_t *next;
+    struct userref_t *next;	/* NULL for per-route var[n] datarefs */
 } userref_t;
+
+/* Set command */
+typedef struct setcmd_t
+{
+    userref_t *userref;
+    float duration;
+    struct {
+        int set1 : 1;		/* set command */
+        int set2 : 1;		/* pause ... set command */
+        slope_t slope : 1;
+        curve_t curve : 1;
+    } flags;
+    struct setcmd_t *next;	/* Next setcmd at a waypoint */
+} setcmd_t;
 
 
 /* DataRef referenced in When or And command */
@@ -190,14 +204,9 @@ typedef struct
     struct {
         int reverse : 1;	/* Reverse whole route */
         int backup : 1;		/* Just reverse to next node */
-        int set1 : 1;		/* set command */
-        int set2 : 1;		/* pause ... set command */
-        slope_t slope : 1;
-        curve_t curve : 1;
     } flags;
     struct collision_t *collisions;	/* Collisions with other routes */
-    userref_t *userref;
-    float userduration;
+    setcmd_t *setcmds;
     whenref_t *whenrefs;
     int drawX, drawY;		/* For labeling nodes */
 } path_t;

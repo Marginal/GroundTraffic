@@ -239,7 +239,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
 
         if (route_now >= route->next_time && !route->state.frozen)
         {
-            int doset=0;
+            setcmd_t *setcmd = NULL;
 
             if (route->state.waiting)
             {
@@ -375,8 +375,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                         route->state.waiting = 1;
                     if (last_node->pausetime)
                         route->state.paused = 1;
-                    if (last_node->flags.set1 || last_node->flags.set2)
-                        doset = 1;
+                    setcmd = last_node->setcmds;
                     if (last_node->flags.backup)
                     {
                         if (last_node->pausetime)	/* A */
@@ -441,23 +440,24 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                 route->next_time = route->last_time + route->next_distance / route->speed;
 
             /* Set DataRefs. Need to do this after calculating last_time so use hacky flag */
-            if (doset)
+            while (setcmd)
             {
-                userref_t *userref = last_node->userref;
+                userref_t *userref = setcmd->userref;
 
-                userref->duration = last_node->userduration;
-                userref->slope = last_node->flags.slope;
-                userref->curve = last_node->flags.curve;
-                if (last_node->flags.set2)
+                userref->duration = setcmd->duration;
+                userref->slope = setcmd->flags.slope;
+                userref->curve = setcmd->flags.curve;
+                if (setcmd->flags.set2)
                 {
                     userref->start1 = route->last_time;
                     userref->start2 = route->last_time + last_node->pausetime - userref->duration;
                 }
-                else if (last_node->flags.set1)
+                else if (setcmd->flags.set1)
                 {
                     userref->start1 = route->last_time;
                     userref->start2 = 0;
                 }
+                setcmd = setcmd->next;
             }
 
             /* Force re-probe since we've changed direction */

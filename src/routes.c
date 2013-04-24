@@ -15,7 +15,7 @@ static time_t mtime=-1;	/* control file modification time  */
 static const char sep[]=" \t\r\n";
 
 /* In this file */
-static userref_t *readuserref(airport_t *airport, route_t *currentroute, path_t *node, char *buffer, int lineno);
+static setcmd_t *readsetcmd(airport_t *airport, route_t *currentroute, path_t *node, char *buffer, int lineno);
 static route_t *expandtrain(airport_t *airport, route_t *currentroute);
 
 const glColor3f_t colors[16] = { { 0.0, 1.0, 0.0 }, // lime (match DRE color)
@@ -62,13 +62,20 @@ void clearconfig(airport_t *airport)
             for (i=0; i<route->pathlen; i++)
             {
                 collision_t *collision = route->path[i].collisions;
-                whenref_t *whenref = route->path[i].whenrefs;
+                setcmd_t    *setcmd    = route->path[i].setcmds;
+                whenref_t   *whenref   = route->path[i].whenrefs;
 
                 while (collision)
                 {
                     collision_t *next = collision->next;
                     free (collision);
                     collision = next;
+                }
+                while (setcmd)
+                {
+                    setcmd_t *next = setcmd->next;
+                    free (setcmd);
+                    setcmd = next;
                 }
                 while (whenref)
                 {
@@ -258,12 +265,12 @@ int readconfig(char *pkgpath, airport_t *airport)
 
                 if ((c1=strtok(NULL, sep)))
                 {
+                    setcmd_t *setcmd;
+
                     if (strcasecmp(c1, "set"))
                         return failconfig(h, airport, buffer, "Expecting \"set\" or nothing, found \"%s\" at line %d", c1, lineno);
-                    else if (readuserref(airport, currentroute, node, buffer, lineno))
-                    {
-                        node->flags.set2=1;
-                    }
+                    else if ((setcmd = readsetcmd(airport, currentroute, node, buffer, lineno)))
+                        setcmd->flags.set2=1;
                     else
                     {
                         fclose(h);
@@ -400,10 +407,12 @@ int readconfig(char *pkgpath, airport_t *airport)
             }
             else if (!strcasecmp(c1, "set"))
             {
+                setcmd_t *setcmd;
+
                 if (!node)
                     return failconfig(h, airport, buffer, "Route can't start with a \"set\" command at line %d", lineno);
-                else if (readuserref(airport, currentroute, node, buffer, lineno))
-                    node->flags.set1=1;
+                else if ((setcmd = readsetcmd(airport, currentroute, node, buffer, lineno)))
+                    setcmd->flags.set1=1;
                 else
                 {
                     fclose(h);
@@ -571,8 +580,9 @@ int readconfig(char *pkgpath, airport_t *airport)
 }
 
 /* Read standalone or pause "set" command. Returns NULL on failure, and leaves error message in buffer. */
-static userref_t *readuserref(airport_t *airport, route_t *currentroute, path_t *node, char *buffer, int lineno)
+static setcmd_t *readsetcmd(airport_t *airport, route_t *currentroute, path_t *node, char *buffer, int lineno)
 {
+    setcmd_t *setcmd;
     userref_t *userref;
     char *c1;
     int eol1;
@@ -632,13 +642,21 @@ static userref_t *readuserref(airport_t *airport, route_t *currentroute, path_t 
             airport->userrefs = userref;
         }
     }
-    node->userref = userref;
 
+    if (!(setcmd = calloc(1, sizeof(setcmd_t))))
+    {
+        strcpy(buffer, "Out of memory!");
+        return 0;
+    }
+    setcmd->next = node->setcmds;
+    node->setcmds = setcmd;
+
+    setcmd->userref = userref;
     c1=strtok(NULL, sep);
     if (c1 && !strcasecmp(c1, "rise"))
-        node->flags.slope = rising;
+        setcmd->flags.slope = rising;
     else if (c1 && !strcasecmp(c1, "fall"))
-        node->flags.slope = falling;
+        setcmd->flags.slope = falling;
     else
     {
         sprintf(buffer, "Expecting a slope \"rise\" or \"fall\", found \"%s\" at line %d", N(c1), lineno);
@@ -647,9 +665,9 @@ static userref_t *readuserref(airport_t *airport, route_t *currentroute, path_t 
 
     c1=strtok(NULL, sep);
     if (c1 && !strcasecmp(c1, "linear"))
-        node->flags.curve = linear;
+        setcmd->flags.curve = linear;
     else if (c1 && !strcasecmp(c1, "sine"))
-        node->flags.curve = sine;
+        setcmd->flags.curve = sine;
     else
     {
         sprintf(buffer, "Expecting a curve \"linear\" or \"sine\", found \"%s\" at line %d", N(c1), lineno);
@@ -657,13 +675,13 @@ static userref_t *readuserref(airport_t *airport, route_t *currentroute, path_t 
     }
 
     c1=strtok(NULL, sep);
-    if (!c1 || !sscanf(c1, "%f%n", &node->userduration, &eol1) || c1[eol1])
+    if (!c1 || !sscanf(c1, "%f%n", &setcmd->duration, &eol1) || c1[eol1])
     {
         sprintf(buffer, "Expecting a duration, found \"%s\" at line %d", N(c1), lineno);
         return 0;
     }
 
-    return userref;
+    return setcmd;
 }
 
 
