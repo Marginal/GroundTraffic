@@ -336,6 +336,13 @@ int readconfig(char *pkgpath, airport_t *airport)
                 if (!(c2=strtok(NULL, sep)))
                     return failconfig(h, airport, buffer, "Expecting a DataRef name at line %d", lineno);
 
+                if (!strncasecmp(c2, "var[", 4) || !strncasecmp(c2, REF_BASE, sizeof(REF_BASE)-1))
+                {
+                    c3 = c1;
+                    while ((*c3 = tolower(*c3))) c3++;
+                    return failconfig(h, airport, buffer, "Can't use a per-route DataRef in a \"%s\" command at line %d", c1, lineno);
+                }
+
                 if ((c3 = strchr(c2, '[')))
                 {
                     *(c3++) = '\0';	/* Strip index for lookup */
@@ -346,13 +353,6 @@ int readconfig(char *pkgpath, airport_t *airport)
                 }
                 else
                     whenref->idx = -1;
-
-                if (!strncasecmp(c2, REF_BASE, sizeof(REF_BASE)))
-                {
-                    c3 = c1;
-                    while ((*c3 = tolower(*c3))) c3++;
-                    return failconfig(h, airport, buffer, "\"%s\" command can't use a per-route DataRef at line %d", c1, lineno);
-                }
 
                 for (extref = airport->extrefs; extref && strcmp(c2, extref->name); extref=extref->next);
                 if (!extref)
