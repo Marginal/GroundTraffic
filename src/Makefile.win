@@ -54,7 +54,7 @@ $(TARGET):	$(OBJS)
 .c{$(BUILDDIR)}.obj:
 	$(CC) $(CFLAGS) -c -Fo$@ -Fd$* $<
 	@echo $@: $< \> $*.dep
-	@for /f "usebackq tokens=4*" %i in (`"$(CC) $(CFLAGS) /Zs /Z7 /showIncludes $< 2>nul:"`) do @echo. "%i %j" \>> $*.dep
+	@for /f "usebackq tokens=4*" %i in (`"$(CC) $(CFLAGS) /Zs /Z7 /w /showIncludes $< 2>nul: | findstr Note:"`) do @echo. "%i %j" \>> $*.dep
 	@echo.>> $*.dep
 
 clean:
