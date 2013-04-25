@@ -255,6 +255,8 @@ int readconfig(char *pkgpath, airport_t *airport)
                 int pausetime;
                 if (!node)
                     return failconfig(h, airport, buffer, "Route can't start with a \"pause\" command at line %d", lineno);
+                else if (currentroute->pathlen>1 && currentroute->path[currentroute->pathlen-2].flags.backup && currentroute->path[currentroute->pathlen-2].pausetime)
+                    return failconfig(h, airport, buffer, "Can't pause both before and after a \"backup\" command at line %d", lineno);
 
                 c1=strtok(NULL, sep);
                 if (!c1 || !sscanf(c1, "%d%n", &pausetime, &eol1) || c1[eol1])
