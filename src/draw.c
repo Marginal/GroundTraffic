@@ -639,16 +639,17 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                 route->drawinfo->z = last_node->p.z + progress * (next_node->p.z - last_node->p.z);
                 route->drawinfo->heading = route->next_heading;
             }
-            route->drawinfo->heading += route->object.heading - 180;
+            route->drawinfo->heading -= 180;
             route->drawinfo->pitch = -route->drawinfo->pitch;
-        }
+        } /* (route->state.backingup) */
+
         else if (route->state.forwardsb && (last_node->p1.x || last_node->p1.z))
         {
             /* Backing up to pause, keep going to mirror of p1 */
             progress = 2 - (route->last_time - route_now) / (TURN_TIME/2);
             route->drawinfo->x = last_node->p.x + progress * (last_node->p.x - last_node->p1.x);
             route->drawinfo->z = last_node->p.z + progress * (last_node->p.z - last_node->p1.z);
-            /* Keep last heading */
+            route->drawinfo->heading -= route->object.heading;	/* Keep last heading */
         }
         else if (progress >= 0.5f)
         {
