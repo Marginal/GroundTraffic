@@ -513,12 +513,6 @@ int readconfig(char *pkgpath, airport_t *airport)
         else if (!strcasecmp(c1, "train"))	/* New train */
         {
             train_t *newtrain;
-            if (!(newtrain=calloc(1, sizeof(train_t))))
-                return failconfig(h, airport, buffer, "Out of memory!");
-            else if (lasttrain)
-                lasttrain->next=newtrain;
-            else
-                airport->trains=newtrain;
 
             for (c1 = c1+strlen(c1)+1; isspace(*c1); c1++);		/* ltrim */
             for (c2 = c1+strlen(c1)-1; isspace(*c2); *(c2--) = '\0');	/* rtrim */
@@ -526,9 +520,18 @@ int readconfig(char *pkgpath, airport_t *airport)
                 return failconfig(h, airport, buffer, "Expecting a train name at line %d", lineno);
             else if (strlen(c1) >= MAX_NAME)
                 return failconfig(h, airport, buffer, "Train name exceeds %d characters at line %d", MAX_NAME-1, lineno);
-            else
-                strcpy(newtrain->name, c1);
+            for (newtrain=airport->trains; newtrain; newtrain=newtrain->next)
+                if (!strcmp(newtrain->name, c1))
+                    return failconfig(h, airport, buffer, "Can't re-define train \"%s\" at line %d", c1, lineno);
 
+            if (!(newtrain=calloc(1, sizeof(train_t))))
+                return failconfig(h, airport, buffer, "Out of memory!");
+            strcpy(newtrain->name, c1);
+
+            if (lasttrain)
+                lasttrain->next=newtrain;
+            else
+                airport->trains=newtrain;
             currenttrain=lasttrain=newtrain;
         }
         else if (!strcasecmp(c1, "debug"))
