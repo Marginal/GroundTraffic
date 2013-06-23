@@ -75,7 +75,8 @@
 #define MAX_NAME 256		/* Arbitrary limit on object name lengths */
 #define TILE_RANGE 1		/* How many tiles away from plane's tile to consider getting out of bed for */
 #define ACTIVE_POLL 16		/* Poll to see if we've come into range every n frames */
-#define ACTIVE_DISTANCE 6000.f	/* Distance [m] from tower location at which to actually get out of bed */
+#define ACTIVE_DISTANCE 8000.f	/* Distance [m] from tower location at which to actually get out of bed */
+#define ACTIVE_WATER 20000.f	/* As above when "water" flag is set (you can see a long way on water) */
 #define ACTIVE_HYSTERESIS (ACTIVE_DISTANCE*0.05f)
 #define DEFAULT_DRAWLOD 2.f	/* Equivalent to an object 3m high */
 #define DEFAULT_LOD 2.25f	/* Equivalent to "medium" world detail distance */
@@ -298,6 +299,8 @@ typedef struct
     dloc_t tower;
     dpoint_t p;			/* Remember OpenGL location of tower to detect scenery shift */
     int drawroutes;
+    int reflections;
+    float active_distance;
     route_t *routes;
     route_t *firstroute;
     train_t *trains;

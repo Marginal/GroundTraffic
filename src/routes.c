@@ -50,6 +50,8 @@ void clearconfig(airport_t *airport)
     airport->tower.alt=INVALID_ALT;
     airport->state = noconfig;
     airport->drawroutes = 0;
+    airport->reflections = 0;
+    airport->active_distance = ACTIVE_DISTANCE;
 
     route = airport->routes;
     while (route)
@@ -533,6 +535,12 @@ int readconfig(char *pkgpath, airport_t *airport)
             else
                 airport->trains=newtrain;
             currenttrain=lasttrain=newtrain;
+        }
+        else if (!strcasecmp(c1, "water"))
+        {
+            airport->reflections = -1;
+            airport->active_distance = ACTIVE_WATER;
+            if ((c1=strtok(NULL, sep))) return failconfig(h, airport, buffer, "Extraneous input \"%s\" at line %d", c1, lineno);
         }
         else if (!strcasecmp(c1, "debug"))
         {
