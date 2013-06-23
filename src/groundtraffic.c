@@ -158,7 +158,7 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFrom, long inMessage, void 
                 view_y=XPLMGetDataf(ref_view_y);
                 view_z=XPLMGetDataf(ref_view_z);
 
-                if (!indrawrange(((float)airport_x)-view_x, ((float)airport_y)-view_y, ((float)airport_z)-view_z, ACTIVE_DISTANCE+ACTIVE_HYSTERESIS))
+                if (!indrawrange(((float)airport_x)-view_x, ((float)airport_y)-view_y, ((float)airport_z)-view_z, airport.active_distance+ACTIVE_HYSTERESIS))
                     deactivate(&airport);
             }
         }
@@ -203,7 +203,7 @@ static float flightcallback(float inElapsedSinceLastCall, float inElapsedTimeSin
             view_y=XPLMGetDataf(ref_view_y);
             view_z=XPLMGetDataf(ref_view_z);
 
-            if (indrawrange(((float)airport_x)-view_x, ((float)airport_y)-view_y, ((float)airport_z)-view_z, ACTIVE_DISTANCE))
+            if (indrawrange(((float)airport_x)-view_x, ((float)airport_y)-view_y, ((float)airport_z)-view_z, airport.active_distance))
                 if (!activate(&airport))	/* Going active */
                     clearconfig(&airport);
         }
@@ -219,7 +219,7 @@ static float flightcallback(float inElapsedSinceLastCall, float inElapsedTimeSin
         view_y=XPLMGetDataf(ref_view_y);
         view_z=XPLMGetDataf(ref_view_z);
 
-        if (!indrawrange(((float)airport_x)-view_x, ((float)airport_y)-view_y, ((float)airport_z)-view_z, ACTIVE_DISTANCE+ACTIVE_HYSTERESIS))
+        if (!indrawrange(((float)airport_x)-view_x, ((float)airport_y)-view_y, ((float)airport_z)-view_z, airport.active_distance+ACTIVE_HYSTERESIS))
             deactivate(&airport);
     }
 
@@ -416,7 +416,11 @@ static XPLMObjectRef loadobject(route_t *route, const char *path)
 
     if (!(h=fopen(path, "r")))
     {
-        assert (h);	/* If X-Plane can load it we should be able to too */
+#ifdef DEBUG
+        char msg[MAX_NAME+64];
+        sprintf(msg, "Can't parse \"%s\"", path);
+        xplog(msg);
+#endif
         route->drawlod = DEFAULT_DRAWLOD;
         return route->objref;
     }
