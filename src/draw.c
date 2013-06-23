@@ -13,6 +13,7 @@
 route_t *drawroute = NULL;	/* Global so can be accessed in DataRef callback */
 float last_frame=0;		/* last time we recalculated */
 static int is_night=0;		/* was night last time we recalculated? */
+float lod_factor;		/* screen_width / lod_bias at time of last draw */
 
 /* In this file */
 static void bez(XPLMDrawInfo_t *drawinfo, point_t *p1, point_t *p2, point_t *p3, float mu);
@@ -103,10 +104,10 @@ static void drawroutes()
     drawroute=airport.routes;
     while (drawroute)
     {
-        if (drawroute->state.hasdataref)
+        if (drawroute->state.hasdataref)	/* Objects that use a per-route DataRef can't be batched */
         {
             /* Have to check draw range every frame since "now" isn't updated while sim paused */
-            if (indrawrange(drawroute->drawinfo->x-view_x, drawroute->drawinfo->y-view_y, drawroute->drawinfo->z-view_z, draw_distance))
+            if (indrawrange(drawroute->drawinfo->x-view_x, drawroute->drawinfo->y-view_y, drawroute->drawinfo->z-view_z, drawroute->drawlod * lod_factor))
                 XPLMDrawObjects(drawroute->objref, 1, drawroute->drawinfo, is_night, 1);
 
             if (drawroute->next && drawroute->objref == drawroute->next->objref)
@@ -120,7 +121,7 @@ static void drawroutes()
 
             for (route=drawroute; route && route->objref==drawroute->objref; route=route->next)
                 /* Have to check draw range every frame since "now" isn't updated while sim paused */
-                if (indrawrange(route->drawinfo->x-view_x, route->drawinfo->y-view_y, route->drawinfo->z-view_z, draw_distance))
+                if (indrawrange(route->drawinfo->x-view_x, route->drawinfo->y-view_y, route->drawinfo->z-view_z, route->drawlod * lod_factor))
                 {
                     if (!first) first = route;
                     last = route;
@@ -156,64 +157,71 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
         maproutes(&airport);
     }
 
-    /* draw route paths */
-    if (airport.drawroutes && !XPLMGetDatai(ref_rentype))
+    if (!XPLMGetDatai(ref_rentype))
     {
-#ifdef DEBUG
-        int planeno;
-#endif
-        GLdouble model[16], proj[16];
-        GLint view[4] = { 0 };
+        int width;
+        XPLMGetScreenSize(&width, NULL);
+        lod_factor = (float) width / lod_bias;	/* Screen size can change while paused, so need to recalculate once per frame */
 
-        XPLMSetGraphicsState(0, 0, 0,   0, 1,   0, 0);
-        glLineWidth(1.5);
-
-        /* This is slow! */
-        glGetDoublev(GL_MODELVIEW_MATRIX, model);
-        glGetDoublev(GL_PROJECTION_MATRIX, proj);
-        XPLMGetScreenSize(view+2, view+3);	/* Real viewport reported by GL_VIEWPORT will be larger than physical screen if FSAA enabled */
-
-        for(route=airport.routes; route; route=route->next)
-            if (!route->parent)
-            {
-                int i;
-                glColor3fv(&route->drawcolor.r);
-                glBegin(route->path[route->pathlen-1].flags.reverse ? GL_LINE_STRIP : GL_LINE_LOOP);
-                for (i=0; i<route->pathlen; i++)
-                {
-                    path_t *node = route->path + i;
-                    GLdouble winX, winY, winZ;
-
-                    glVertex3fv(&node->p.x);
-                    gluProject(node->p.x, node->p.y, node->p.z, model, proj, view, &winX, &winY, &winZ);
-                    if (winZ <= 1)	/* not behind us */
-                    {
-                        node->drawX = winX;
-                        node->drawY = winY;
-                    }
-                    else
-                    {
-                        node->drawX = node->drawY = -1;
-                    }
-                }
-                glEnd();
-            }
-
-#ifdef DEBUG
-        /* Draw AI plane positions */
-        glColor4f(0,0,0,0.25f);
-        glBegin(GL_QUADS);
-        for (planeno=0; planeno<count_planes(); planeno++)
+        /* draw route paths */
+        if (airport.drawroutes)
         {
-            point_t *p;
-            int i;
-
-            if ((p = get_plane_footprint(planeno, 5.f)))	/* Display 5 seconds ahead */
-                for (i=0; i<4; i++)
-                    glVertex3fv(&(p[i].x));
-        }
-        glEnd();
+#ifdef DEBUG
+            int planeno;
 #endif
+            GLdouble model[16], proj[16];
+            GLint view[4] = { 0 };
+
+            XPLMSetGraphicsState(0, 0, 0,   0, 1,   0, 0);
+            glLineWidth(1.5);
+
+            /* This is slow! */
+            glGetDoublev(GL_MODELVIEW_MATRIX, model);
+            glGetDoublev(GL_PROJECTION_MATRIX, proj);
+            XPLMGetScreenSize(view+2, view+3);	/* Real viewport reported by GL_VIEWPORT will be larger than physical screen if FSAA enabled */
+
+            for(route=airport.routes; route; route=route->next)
+                if (!route->parent)
+                {
+                    int i;
+                    glColor3fv(&route->drawcolor.r);
+                    glBegin(route->path[route->pathlen-1].flags.reverse ? GL_LINE_STRIP : GL_LINE_LOOP);
+                    for (i=0; i<route->pathlen; i++)
+                    {
+                        path_t *node = route->path + i;
+                        GLdouble winX, winY, winZ;
+
+                        glVertex3fv(&node->p.x);
+                        gluProject(node->p.x, node->p.y, node->p.z, model, proj, view, &winX, &winY, &winZ);
+                        if (winZ <= 1)	/* not behind us */
+                        {
+                            node->drawX = winX;
+                            node->drawY = winY;
+                        }
+                        else
+                        {
+                            node->drawX = node->drawY = -1;
+                        }
+                    }
+                    glEnd();
+                }
+
+#ifdef DEBUG
+            /* Draw AI plane positions */
+            glColor4f(0,0,0,0.25f);
+            glBegin(GL_QUADS);
+            for (planeno=0; planeno<count_planes(); planeno++)
+            {
+                point_t *p;
+                int i;
+
+                if ((p = get_plane_footprint(planeno, 5.f)))	/* Display 5 seconds ahead */
+                    for (i=0; i<4; i++)
+                        glVertex3fv(&(p[i].x));
+            }
+            glEnd();
+#endif
+        }
     }
 
     /* We can be called multiple times per frame depending on shadow settings -

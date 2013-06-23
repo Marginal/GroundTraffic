@@ -20,12 +20,17 @@ char *pkgpath;
 XPLMDataRef ref_plane_lat, ref_plane_lon, ref_view_x, ref_view_y, ref_view_z, ref_rentype, ref_night, ref_monotonic, ref_doy, ref_tod, ref_LOD;
 XPLMDataRef ref_datarefs[dataref_count] = { 0 }, ref_varref = 0;
 XPLMProbeRef ref_probe;
-float draw_distance = DRAW_DISTANCE/DEFAULT_LOD;
+float lod_bias = DEFAULT_LOD;
 airport_t airport = { 0 };
 int year=113;		/* Current year (in GMT tz) since 1900 */
 
-/* Published DataRefs */
-const char datarefs[dataref_count][60] = { REF_DISTANCE, REF_SPEED, REF_STEER, REF_NODE_LAST, REF_NODE_LAST_DISTANCE, REF_NODE_NEXT, REF_NODE_NEXT_DISTANCE };	/* Must be in same order as dataref_t */
+/* Published DataRefs. Must be in same order as dataref_t */
+const char datarefs[dataref_count][60] = {
+    REF_DISTANCE, REF_SPEED, REF_STEER, REF_NODE_LAST, REF_NODE_LAST_DISTANCE, REF_NODE_NEXT, REF_NODE_NEXT_DISTANCE,
+#ifdef DEBUG
+    REF_LOD, REF_RANGE,
+#endif
+};
 
 /* In this file */
 static XPLMWindowID labelwin = 0;
@@ -160,11 +165,8 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFrom, long inMessage, void 
     }
     else if (inMessage==XPLM_MSG_SCENERY_LOADED)
     {
-        float lod=0;
-
         /* Changing the world detail distance setting causes a reload */
-        if (ref_LOD) lod=XPLMGetDataf(ref_LOD);
-        draw_distance = DRAW_DISTANCE / (lod ? lod : DEFAULT_LOD);
+        if (ref_LOD) lod_bias = XPLMGetDataf(ref_LOD);
 
         /* Scenery might be being reloaded with different "runways follow terrain" setting.
          * So (re)run proberoutes(). Do this immediately to prevent indrawrange() failing.  */
@@ -275,6 +277,17 @@ static float floatrefcallback(XPLMDataRef inDataRef)
         return route->distance - route->last_distance;
     case node_next_distance:
         return route->next_distance - (route->distance - route->last_distance);
+#ifdef DEBUG
+    case lod:
+        return route->drawlod * lod_factor;
+    case range:
+    {
+        float range_x = route->drawinfo->x - XPLMGetDataf(ref_view_x);
+        float range_y = route->drawinfo->y - XPLMGetDataf(ref_view_y);
+        float range_z = route->drawinfo->z - XPLMGetDataf(ref_view_z);
+        return sqrtf(range_x*range_x + range_y*range_y + range_z*range_z);
+    }
+#endif
     default:
         return 0;
     }
@@ -373,6 +386,66 @@ float userrefcallback(XPLMDataRef inRefcon)
 }
 
 
+/*
+ * Load object and emulate X-Plane's LOD calculation for scenery objects
+ *
+ * X-Plane 10 appears to calculate view distance as follows:
+ * - Object contains ATTR_LOD statement:
+ *     view_distance = max(ATTR_LOD)    * 0.0007 * (screen_width / "sim/private/controls/reno/LOD_bias_rat")
+ * - Otherwise:
+ *     view_distance = height           * 0.65   * (screen_width / "sim/private/controls/reno/LOD_bias_rat")
+ * - Fallback for flat objects (skipped here):
+ *     view_distance = min(width,depth) * 0.093  * (screen_width / "sim/private/controls/reno/LOD_bias_rat")
+ */
+static XPLMObjectRef loadobject(route_t *route, const char *path)
+{
+    FILE *h;
+    char line[MAX_NAME];
+    float height=0, lod=0;
+    route_t *other;
+
+    if (!(route->objref = XPLMLoadObject(path))) return NULL;
+
+    /* If we've already loaded this object then use its LOD */
+    for (other = airport.routes; other!=route; other = other->next)
+        if (other->objref == route->objref)
+        {
+            route->drawlod = other->drawlod;
+            return route->objref;
+        }
+
+    if (!(h=fopen(path, "r")))
+    {
+        assert (h);	/* If X-Plane can load it we should be able to too */
+        route->drawlod = DEFAULT_DRAWLOD;
+        return route->objref;
+    }
+
+    while (fgets(line, sizeof(line), h))
+    {
+        float y;
+        if (sscanf(line, " VT %*f %f", &y) == 1)
+        {
+            if (y > height) height = y;
+        }
+        else if (sscanf(line, " ATTR_LOD %*f %f", &y) == 1)
+        {
+            if (y > lod) lod = y;
+        }
+    }
+    fclose(h);
+
+    if (lod)
+        route->drawlod = 0.0007f * lod;
+    else if (height)
+        route->drawlod = 0.65f * height;
+    else
+        route->drawlod = DEFAULT_DRAWLOD;	/* Perhaps a v7 object? */
+
+    return route->objref;
+}
+
+
 /* Callback from XPLMLookupObjects to count library objects */
 static void countlibraryobjs(const char *inFilePath, void *inRef)
 {}	/* Don't need to do anything */
@@ -383,7 +456,7 @@ static void loadlibraryobj(const char *inFilePath, void *inRef)
 {
     route_t *route=inRef;
     if (!route->deadlocked)
-        route->objref=XPLMLoadObject(inFilePath);	/* Load the nth object */
+        loadobject(route, inFilePath);		/* Load the nth object */
     (route->deadlocked)--;
 }
 
@@ -394,7 +467,7 @@ static void loadlibraryobj(const char *inFilePath, void *inRef)
  * Drawing code assumes parents come before children so cater to this - which means if the same object is used as
  * a parent and child it will occur in two separate batches. This isn't disastrous and anyway is unlikely to occur
  * in practice since it's unlikely that the same object would be used as both parent and child. */
-int sortroute(const void *a, const void *b)
+static int sortroute(const void *a, const void *b)
 {
     const route_t *const *ra = a, *const *rb = b;
     if ((*ra)->parent && !(*rb)->parent) return 1;
@@ -472,7 +545,7 @@ int activate(airport_t *airport)
             strcat(path, "/");
             strncat(path, route->object.name, PATH_MAX-strlen(pkgpath)-2);
             if (!stat(path, &info))	/* stat it first to suppress misleading error in Log */
-                route->objref=XPLMLoadObject(path);
+                loadobject(route, path);
         }
         if (!(route->objref))
         {

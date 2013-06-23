@@ -77,7 +77,7 @@
 #define ACTIVE_POLL 16		/* Poll to see if we've come into range every n frames */
 #define ACTIVE_DISTANCE 6000.f	/* Distance [m] from tower location at which to actually get out of bed */
 #define ACTIVE_HYSTERESIS (ACTIVE_DISTANCE*0.05f)
-#define DRAW_DISTANCE 3500.f	/* Distance [m] from object to draw it. Divided by LOD value. */
+#define DEFAULT_DRAWLOD 2.f	/* Equivalent to an object 3m high */
 #define DEFAULT_LOD 2.25f	/* Equivalent to "medium" world detail distance */
 #define PROBE_INTERVAL 4.f	/* How often to probe ahead for altitude [s] */
 #define TURN_TIME 2.f		/* Time [s] to execute a turn at a waypoint */
@@ -98,9 +98,15 @@
 #define REF_NODE_LAST_DISTANCE	REF_BASE "waypoint/last/distance"
 #define REF_NODE_NEXT		REF_BASE "waypoint/next"
 #define REF_NODE_NEXT_DISTANCE	REF_BASE "waypoint/next/distance"
+#define REF_LOD			REF_BASE "lod"
+#define REF_RANGE		REF_BASE "range"
+
 typedef enum
 {
     distance=0, speed, steer, node_last, node_last_distance, node_next, node_next_distance,
+#ifdef DEBUG
+    lod, range,
+#endif
     dataref_count
 } dataref_t;
 
@@ -254,6 +260,7 @@ typedef struct route_t
     float next_heading;		/* Heading from last_node to next_node [m] */
     float steer;		/* Approximate steer angle (degrees) while turning */
     glColor3f_t drawcolor;
+    float drawlod;		/* Multiply by lod_factor to get draw distance */
     XPLMDrawInfo_t *drawinfo;	/* Where to draw - current OpenGL co-ordinates */
     float next_probe;		/* Time we should probe altitude again */
     float last_y, next_y;	/* OpenGL co-ordinates at last probe point */
@@ -320,12 +327,13 @@ extern char *pkgpath;
 extern XPLMDataRef ref_plane_lat, ref_plane_lon, ref_view_x, ref_view_y, ref_view_z, ref_rentype, ref_night, ref_monotonic, ref_doy, ref_tod, ref_LOD;
 extern XPLMDataRef ref_datarefs[dataref_count], ref_varref;
 extern XPLMProbeRef ref_probe;
-extern float draw_distance;
+extern float lod_bias;
 extern airport_t airport;
 extern route_t *drawroute;	/* Global so can be accessed in dataref callback */
 extern int year;		/* Current year (in GMT tz) */
 
 extern float last_frame;	/* Global so can be reset while disabled */
+extern float lod_factor;
 
 
 /* inlines */
