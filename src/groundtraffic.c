@@ -722,11 +722,11 @@ void proberoutes(airport_t *airport)
                 if (!i)
                 {
                     /* Probe first node using tower location */
-                    XPLMWorldToLocal(path->waypoint.lat, path->waypoint.lon, airport->tower.alt, &x, &y, &z);
+                    XPLMWorldToLocal(path->waypoint.lat, path->waypoint.lon, airport->tower.alt + PROBE_ALT_FIRST, &x, &y, &z);
                     XPLMProbeTerrainXYZ(ref_probe, x, y, z, &probeinfo);
                     XPLMLocalToWorld(probeinfo.locationX, probeinfo.locationY, probeinfo.locationZ, &foo, &foo, &alt);
                     /* Probe twice since it might be some distance from the tower */
-                    XPLMWorldToLocal(path->waypoint.lat, path->waypoint.lon, alt, &x, &y, &z);
+                    XPLMWorldToLocal(path->waypoint.lat, path->waypoint.lon, alt + PROBE_ALT_NEXT, &x, &y, &z);
                     XPLMProbeTerrainXYZ(ref_probe, x, y, z, &probeinfo);
                     XPLMLocalToWorld(probeinfo.locationX, probeinfo.locationY, probeinfo.locationZ, &foo, &foo, &alt);
                     path->waypoint.alt=alt;
@@ -734,7 +734,7 @@ void proberoutes(airport_t *airport)
                 else
                 {
                     /* Assume this node is reasonably close to the last node so re-use its altitude to only probe once */
-                    XPLMWorldToLocal(path->waypoint.lat, path->waypoint.lon, route->path[i-1].waypoint.alt, &x, &y, &z);
+                    XPLMWorldToLocal(path->waypoint.lat, path->waypoint.lon, route->path[i-1].waypoint.alt + PROBE_ALT_NEXT, &x, &y, &z);
                     XPLMProbeTerrainXYZ(ref_probe, x, y, z, &probeinfo);
                     XPLMLocalToWorld(probeinfo.locationX, probeinfo.locationY, probeinfo.locationZ, &foo, &foo, &alt);
                     path->waypoint.alt=alt;

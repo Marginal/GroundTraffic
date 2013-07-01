@@ -81,7 +81,10 @@
 #define ACTIVE_HYSTERESIS (ACTIVE_DISTANCE*0.05f)
 #define DEFAULT_DRAWLOD 2.f	/* Equivalent to an object 3m high */
 #define DEFAULT_LOD 2.25f	/* Equivalent to "medium" world detail distance */
-#define PROBE_INTERVAL 4.f	/* How often to probe ahead for altitude [s] */
+#define PROBE_ALT_FIRST 100	/* Arbitrary max bridge deck height above airport that vehicles will follow */
+#define PROBE_ALT_NEXT 25	/* Arbitrary max elevation between nodes that vehicles will follow */
+#define PROBE_INTERVAL 0.5f	/* How often to probe ahead for altitude [s] */
+#define PROBE_GRADIENT 0.25f	/* Max gradient that vehicles will follow = 1:4 */
 #define TURN_TIME 2.f		/* Time [s] to execute a turn at a waypoint */
 #define AT_INTERVAL 60.f	/* How often [s] to poll for At times */
 #define WHEN_INTERVAL 1.f	/* How often [s] to poll for When DataRef values */

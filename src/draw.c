@@ -559,7 +559,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                 route->next_probe = route_now + PROBE_INTERVAL;
                 route->last_y = route->next_y;
                 progress = (route->next_probe - route->last_time) / (route->next_time - route->last_time);
-                XPLMProbeTerrainXYZ(ref_probe, last_node->p.x + progress * (next_node->p.x - last_node->p.x), route->last_y, last_node->p.z + progress * (next_node->p.z - last_node->p.z), &probeinfo);
+                XPLMProbeTerrainXYZ(ref_probe, last_node->p.x + progress * (next_node->p.x - last_node->p.x), route->last_y + route->speed * (PROBE_INTERVAL * PROBE_GRADIENT), last_node->p.z + progress * (next_node->p.z - last_node->p.z), &probeinfo);
                 route->next_y = probeinfo.locationY;
             }
 
