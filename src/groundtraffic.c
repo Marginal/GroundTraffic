@@ -30,6 +30,9 @@ const char datarefs[dataref_count][60] = {
 #ifdef DEBUG
     REF_LOD, REF_RANGE,
 #endif
+#ifdef DO_BENCHMARK
+    REF_DRAWTIME,
+#endif
 };
 
 /* In this file */
@@ -287,6 +290,10 @@ static float floatrefcallback(XPLMDataRef inDataRef)
         float range_z = route->drawinfo->z - XPLMGetDataf(ref_view_z);
         return sqrtf(range_x*range_x + range_y*range_y + range_z*range_z);
     }
+#endif
+#ifdef DO_BENCHMARK
+    case drawtime:
+        return drawframes ? (float) drawcumul / (float) drawframes : 0;
 #endif
     default:
         return 0;

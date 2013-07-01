@@ -14,6 +14,10 @@ route_t *drawroute = NULL;	/* Global so can be accessed in DataRef callback */
 float last_frame=0;		/* last time we recalculated */
 static int is_night=0;		/* was night last time we recalculated? */
 float lod_factor;		/* screen_width / lod_bias at time of last draw */
+#ifdef DO_BENCHMARK
+int drawcumul  = 0;		/* clock time taken drawing [us] */
+int drawframes = 0;		/* over cumulative number of frames */
+#endif
 
 /* In this file */
 static void bez(XPLMDrawInfo_t *drawinfo, point_t *p1, point_t *p2, point_t *p3, float mu);
@@ -146,6 +150,10 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
     unsigned int dow=0;
     XPLMProbeInfo_t probeinfo;
     probeinfo.structSize = sizeof(XPLMProbeInfo_t);
+#ifdef DO_BENCHMARK
+    struct timeval t1, t2;
+    gettimeofday(&t1, NULL);		/* start */
+#endif
 
     assert (airport.state == active);
 
@@ -162,6 +170,9 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
         int width;
         XPLMGetScreenSize(&width, NULL);
         lod_factor = (float) width / lod_bias;	/* Screen size can change while paused, so need to recalculate once per frame */
+#ifdef DO_BENCHMARK
+        drawframes += 1;
+#endif
 
         /* draw route paths */
         if (airport.drawroutes)
@@ -230,6 +241,10 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
     if ((now = XPLMGetDataf(ref_monotonic)) == last_frame)
     {
         drawroutes();
+#ifdef DO_BENCHMARK
+        gettimeofday(&t2, NULL);		/* stop */
+        drawcumul += (t2.tv_sec-t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec;
+#endif
 #ifdef DEBUG
         if (!XPLMGetDatai(ref_rentype)) last_frame = 0;	/* In DEBUG recalculate positions once per frame for easier debugging */
 #endif
@@ -341,6 +356,10 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
             }
             else	/* next waypoint */
             {
+#ifdef DO_BENCHMARK
+                drawcumul = 0;
+                drawframes= XPLMGetDatai(ref_rentype) ? 0 : 1;
+#endif
                 route->last_node = route->next_node;
                 route->next_node += route->direction;
                 if (!route->last_node)
@@ -565,7 +584,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
             route->drawinfo->pitch = 0;	/* Since we're not probing */
         }
 
-#ifdef DEBUG
+#ifdef DO_MARKERS
         {
             /* Show markers - which are only visible if shadows turned off! */
             path_t *node = progress < 0.5f ? last_node : next_node;
@@ -731,6 +750,11 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
     }
 
     drawroutes();
+
+#ifdef DO_BENCHMARK
+    gettimeofday(&t2, NULL);		/* stop */
+    drawcumul += (t2.tv_sec-t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec;
+#endif
     return 1;
 }
 

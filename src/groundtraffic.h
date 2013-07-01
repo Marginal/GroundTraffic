@@ -40,6 +40,7 @@
 #else
 #  include <dirent.h>
 #  include <libgen.h>
+#  include <sys/time.h>
 #endif
 
 #if APL
@@ -89,6 +90,10 @@
 #define RESET_TIME 15.f		/* If we're deactivated for longer than this then reset route timings */
 #define MAX_VAR 10		/* How many var datarefs */
 
+/* Options */
+#undef  DO_BENCHMARK
+#undef  DO_MARKERS
+
 /* Published DataRefs */
 #define REF_BASE		"marginal/groundtraffic/"
 #define REF_VAR			REF_BASE "var"
@@ -101,12 +106,16 @@
 #define REF_NODE_NEXT_DISTANCE	REF_BASE "waypoint/next/distance"
 #define REF_LOD			REF_BASE "lod"
 #define REF_RANGE		REF_BASE "range"
+#define REF_DRAWTIME		REF_BASE "drawtime"
 
 typedef enum
 {
     distance=0, speed, steer, node_last, node_last_distance, node_next, node_next_distance,
 #ifdef DEBUG
     lod, range,
+#endif
+#ifdef DO_BENCHMARK
+    drawtime,
 #endif
     dataref_count
 } dataref_t;
@@ -334,6 +343,10 @@ extern float lod_bias;
 extern airport_t airport;
 extern route_t *drawroute;	/* Global so can be accessed in dataref callback */
 extern int year;		/* Current year (in GMT tz) */
+#ifdef DO_BENCHMARK
+extern int drawcumul;
+extern int drawframes;
+#endif
 
 extern float last_frame;	/* Global so can be reset while disabled */
 extern float lod_factor;
