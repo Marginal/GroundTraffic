@@ -50,7 +50,7 @@ em { font-style:normal; color:FireBrick; }
 <h3>Animation instructions</h3>
 
 <p>Use Notepad, TextEdit, or any other text editor to create a plain text file named <samp>GroundTraffic.txt</samp> in your scenery package folder. Save this blank file with an &ldquo;ANSI&rdquo;, &ldquo;Western&rdquo; or &ldquo;UTF-8&rdquo; encoding. (If using TextEdit, you may have to first choose <samp>Format&nbsp;&rarr; Make Plain Text</samp> to see those choices).</p>
-<p>Add a &ldquo;Header&rdquo; statement to this file, followed by one or more &ldquo;Routes&rdquo;:</p>
+<p>Add a &ldquo;Header&rdquo; statement to this file, optionally followed by a &ldquo;Water&rdquo; and/or &ldquo;Debug&rdquo; statement, followed by one or more &ldquo;<a href="#Route">Routes</a>&rdquo;. You can also optionally add comments to the file.</p>
 
 <h4>Header</h4>
 <p>The Header statement tells the plugin the location of your airport. It should be of the form &ldquo;ICAO&nbsp;lat&nbsp;lon&rdquo;, where:</p>
@@ -64,6 +64,25 @@ em { font-style:normal; color:FireBrick; }
 <pre>KSEA 	47.4557260 -122.3013928
 
 </pre>
+
+<h4>Water</h4>
+The Water statement tells the plugin that some or all of your routes are over water. In practice this causes the plugin to activate sooner as the user approaches the airport (since you can see things at sea from a large distance) and, when &ldquo;water reflection detail&rdquo; is set to &ldquo;medium&rdquo; or above under X-Plane's Rendering Options, to draw objects with reflections. There is a performance cost to both of these activities, so don't use this statement unless you need to.</p>
+<p>The Water statement just consists of the word &ldquo;<code>water</code>&rdquo; and should be preceded by a blank line:</p>
+<pre>
+
+water
+</pre>
+
+<h4><a name="Debug">Debug</a></h4>
+The Debug statement tells the plugin to display and number all routes. This is useful for checking that your routes' waypoints are at the locations that you intended. The Debug statement just consists of the word &ldquo;<code>debug</code>&rdquo; and should be preceded by a blank line:</p>
+<pre>
+
+debug
+</pre>
+
+<h4>Comment</h4>
+<p>Lines starting with &ldquo;<code>#</code>&rdquo; are treated as comments and are ignored. For example:</p>
+<pre># This is a comment</pre>
 
 <h4><a name="Route">Route</a></h4>
 <p>A Route statement starts a new animation. It should be of the form &ldquo;<code>route</code>&nbsp;speed&nbsp;offset&nbsp;heading&nbsp;object&rdquo;, where:</p>
@@ -101,8 +120,8 @@ route	20	2.5	0	opensceneryx/objects/airport/vehicles/loaders/6.obj
 ...</pre>
 <p>The Route statement should be preceded by a blank line and should be followed by a sequence of &ldquo;waypoints&rdquo; and &ldquo;commands&rdquo;. The Route ends with a blank line.</p>
 
-<h4>Waypoint</h4>
-<p>Animated objects move from one waypoint to the next at the speed specified in the Route statement. When the object passes the last waypoint it proceeds towards the first waypoint, forming a circular route (unless you specify a &ldquo;<a href="#reverse">reverse</a>&rdquo; command).</p>
+<h4><a name="Waypoint">Waypoint</a></h4>
+<p>Animated objects move from one waypoint to the next at the speed specified in the <a href="#Route">Route</a> statement. When the object passes the last waypoint it proceeds towards the first waypoint, forming a circular route (unless you specify a &ldquo;<a href="#reverse">reverse</a>&rdquo; command).</p>
 <p>Waypoints should be of the form &ldquo;lat&nbsp;lon&rdquo;. For example:</p>
 <pre>...
 47.4484450 -122.3001950
@@ -137,7 +156,7 @@ pause 60 set var[0] rise linear 5
 <dl>
   <dt>HH:MM</dt>
   <dd>Times of day at which to proceed with the animation. Up to 24 times can be specified, in local time, and using a 24 hour clock.</dd>
-  <dt>days <i>(optional)</i></dt>
+  <dt><code>on</code> days <i>(optional)</i></dt>
   <dd>Days on which to proceed with the animation. Specified in English.</dd>
 </dl>
 <p>For example, an animation that waits until 8am:</p>
@@ -259,18 +278,6 @@ and  sim/weather/rain_percent 0.1 1.0
 ...</pre>
 <p>You can have as many And commands at a waypoint as you like.</p>
 
-<h4>Comment</h4>
-<p>Lines starting with &ldquo;<code>#</code>&rdquo; are treated as comments and are ignored. For example:</p>
-<pre># This is a comment</pre>
-
-<h4>Debug</h4>
-The Debug statement tells the plugin to display and number all waypoints. This is useful for checking that your waypoints are at the locations that you intended. The Debug statement just consists of the word &ldquo;<code>debug</code>&rdquo; and should be preceded by a blank line:
-<pre>
-
-debug
-
-</pre>
-
 <h4><a name="Train">Train</a></h4>
 <p>Instead of animating a single object along a Route, you can animate a number of objects to follow each other in succession like train cars/coaches follow their locomotive.</p>
 <p>A Train statement starts a description of a train of connected objects. It should be of the form &ldquo;<code>train</code>&nbsp;name&rdquo;, where:</p>
@@ -281,7 +288,7 @@ debug
 <p>For example a suitable name for a train consisting of a tug and four luggage carts:</p>
 <pre>
 
-train	marginal/luggage_train_4
+train	my/scenerypackage/luggage_train_4
 ...</pre>
 <p>The Train statement should be preceded by a blank line and should be followed by a list of the &ldquo;Car&rdquo; statements. The Train description ends with a blank line.</p>
 
@@ -295,9 +302,9 @@ train	marginal/luggage_train_4
   <dt>heading</dt>
   <dd>Rotation in degrees to be applied to the object before animation.</dd>
   <dt>object</dt>
-  <dd>The name of the animated object. This can be the name of a library object from X-Plane's built-in library or from an add-on library, or the name of an object in your scenery package. It should not be the name of this or another Train.</dd>
+  <dd>The name of the animated object. This can be the name of a library object from X-Plane's built-in library or from an add-on library, or the name of an object in your scenery package. It should <u>not</u> be the name of this or of another Train.</dd>
 </dl>
-<p>To determine how far an object should lag behind the the lead object you can open/import the objects in your 3D modelling application and measure how far (in metres) you have to move the object behind the lead object for it to appear to &ldquo;link up&rdquo; correctly. If either object needs an <a href="#Route">offset</a> to be centered on its axes then adjust for this before measuring. Repeat the process for further objects.</p>
+<p>To determine how far an object should lag behind the the lead object you can open/import the objects into a 3D modelling application and measure how far (in metres) you have to move the object behind the lead object for it to appear to &ldquo;link up&rdquo; correctly. If either object needs an <a href="#Route">offset</a> to be centered on its axes then adjust for this before measuring. Repeat the process for further objects.</p>
 <p>For example two objects, both of which need to be rotated 180&deg;, the second of which is 3.36m behind the first:</p>
 <pre>...
 0	0	180	lib/airport/Ramp_Equipment/Luggage_Truck.obj
@@ -325,10 +332,10 @@ train	marginal/luggage_train_4
   <dd>The last waypoint in the Route (counting from zero) visited by the object.</dd>
   <br>
   <dt><code>marginal/groundtraffic/waypoint/last/distance</code></dt>
-  <dd>The distance from the last waypoint, in metres. This returns zero if the object is stationary.</dd>
+  <dd>The distance from the last waypoint, in metres. This returns zero if the object is stationary at a waypoint.</dd>
   <br>
   <dt><code>marginal/groundtraffic/waypoint/next</code></dt>
-  <dd>The next waypoint in the Route (counting from zero) visited by the object. This is one greater than the last waypoint unless the object is reversing its route or is circling back to the first waypoint.</dd>
+  <dd>The next waypoint in the Route (counting from zero) to be visited by the object. This is one greater than the last waypoint unless the object is reversing its route or is circling back to the first waypoint.</dd>
   <br>
   <dt><code>marginal/groundtraffic/waypoint/next/distance</code></dt>
   <dd>The distance to the next waypoint, in metres.</dd>
@@ -337,7 +344,7 @@ train	marginal/luggage_train_4
 <p>The objects in a <a href="#Train">Train</a> may receive different values for some of these DataRefs (<i>e.g.</i> the value returned by <code>marginal/groundtraffic/distance</code> takes into account the &ldquo;lag&rdquo; specified in the object's Car statement). But all objects in the train share the same <code>marginal/groundtraffic/var[<i>n</i>]</code> values.</p>
 
 <h4>Animating rotating wheels</h4>
-<p>The speed of rotation of a wheel depends on its size; a smaller wheel needs to rotate more quickly to cover a given distance than a larger wheel. So in your 3D modelling application measure the diameter of the wheel (in metres) and multiple this value by &pi; to obtain the wheel's circumference.</p>
+<p>The speed of rotation of a wheel depends on its size; a smaller wheel needs to rotate more quickly to cover a given distance than a larger wheel. So in a 3D modelling application measure the diameter of the wheel (in metres) and multiple this value by &pi; to obtain the wheel's circumference.</p>
 <p>Set up an animation for the wheel containing two keyframes. Rotate the wheel 90&deg; forwards around its axle between the two keyframes. Specify the X-Plane animation values as follows:</p>
 <ul>
   <li>DataRef: <code>marginal/groundtraffic/distance</code></li>
@@ -352,6 +359,22 @@ train	marginal/luggage_train_4
   <li>Keyframe#1: DataRef value = 1.155 &times; &pi; &div; 4 = 1.155 &times; 0.7854 = 0.907</li>
   <li>Loop DataRef value = 1.155 &times; &pi; = 1.155 &times; 3.1416 = 3.628</li>
 </ul>
+
+<h3>Bridges &amp; &ldquo;Hard&rdquo; surfaces</h3>
+
+<p>The animated objects will always go over &ldquo;Hard&rdquo; surfaces in static objects that are placed conventionally within an X-Plane scenery package. At your choice, animated objects can be made to go over or under the bridges that are part of X-Plane's road and rail networks, and over or under &ldquo;Hard&nbsp;Deck&rdquo; surfaces in static objects.</p>
+<dl>
+  <dt>Going over X-Plane's bridges:</dt>
+  <dd>Add waypoints such that your route follows the bridge. If you turn on <a href="#Debug">Debug</a> you can check visually that these waypoints are correctly elevated to the bridge's deck height. Since objects travel in a straight line between waypoints, if the bridge is curved you will need to add sufficient waypoints to ensure that the objects don't fall off the bridge between waypoints.</dd>
+  <dt>Going over static objects:</dt>
+  <dd>In a 3D modelling application mark the faces of your object that represent the road surface as &ldquo;Hard&rdquo; if the object represents something solid (<i>e.g.</i> an embankment) or as &ldquo;Hard&nbsp;Deck&rdquo; if the object represents something under which traffic can cross (<i>e.g.</i> a bridge, overpass or elevated deck). If using &ldquo;Hard&nbsp;Deck&rdquo; note that the maximum gradient that objects will follow is 1:4 or 25%. Once you've placed the static object in your scenery package (<i>e.g.</i> using <a href="http://marginal.org.uk/x-planescenery/tools.html" target="_blank">OverlayEditor</a> or <a href="http://developer.x-plane.com/tools/worldeditor/" target="_blank">WED</a>) then proceed as for X-Plane's bridges.</dd>
+</dd>
+  <dt>Going under X-Plane's bridges:</dt>
+  <dd>Animated objects will cross under X-Plane's bridges provided that there is sufficient clearance and that you don't place a waypoint directly underneath the bridge.</dd>
+  <dt>Going under static objects:</dt>
+  <dd>Animated objects will ignore static objects (<i>i.e.</i> cross under them or plough right through them) unless the static object contains &ldquo;Hard&rdquo; and/or &ldquo;Hard&nbsp;Deck&rdquo; surfaces. Objects will cross under &ldquo;Hard&nbsp;Deck&rdquo; surfaces provided that there is sufficient clearance and that you don't place a waypoint directly underneath the &ldquo;Hard&nbsp;Deck&rdquo; surface.</dd>
+</dl>
+<p>Animated objects will ignore any &ldquo;Hard&rdquo; and &ldquo;Hard Deck&rdquo; surfaces in other objects that are animated by this or by another plugin.</p>
 
 <h3>Troubleshooting</h3>
 
@@ -368,7 +391,7 @@ Loaded: Custom Scenery/<i>my scenery package</i>/plugins/GroundTraffic/mac.xpl.<
 
 <h3>License</h3>
 
-<p>This kit is licensed under the GNU <a rel="license" target="_blank" href="http://www.gnu.org/licenses/lgpl-2.1-standalone.html">LGPL v2.1</a> license. In short, you can distribute the plugin provided by this kit in commerical scenery packages providing that, in the documentation that accompanies your scenery package, you:</p>
+<p>This kit is licensed under the GNU <a rel="license" target="_blank" href="http://www.gnu.org/licenses/lgpl-2.1-standalone.html">LGPL v2.1</a> license. In short, you can distribute the plugin provided by this kit in free or commerical scenery packages providing that, in the documentation that accompanies your scenery package, you:</p>
 <ul>
   <li>Include a copy of, or a link to the <a rel="license" target="_blank" href="http://www.gnu.org/licenses/lgpl-2.1-standalone.html">LGPL v2.1</a> license that covers the plugin.</li>
   <li>Include a link to where your users may obtain the plugin and its source code, <i>e.g.</i> <a href="http://marginal.org.uk/x-planescenery/tools.html">http://marginal.org.uk/x-planescenery/tools.html</a>.</li>
