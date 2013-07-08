@@ -357,8 +357,11 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
             else	/* next waypoint */
             {
 #ifdef DO_BENCHMARK
-                drawcumul = 0;
-                drawframes= XPLMGetDatai(ref_rentype) ? 0 : 1;
+                if (route == airport.firstroute)
+                {
+                    drawcumul = 0;
+                    drawframes= XPLMGetDatai(ref_rentype) ? 0 : 1;
+                }
 #endif
                 route->last_node = route->next_node;
                 route->next_node += route->direction;
