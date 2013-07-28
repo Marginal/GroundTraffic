@@ -496,6 +496,10 @@ int activate(airport_t *airport)
     char path[PATH_MAX];
     XPLMPluginID PluginID;
     int count, i;
+#ifdef DO_BENCHMARK
+    struct timeval t1, t2;
+    gettimeofday(&t1, NULL);		/* start */
+#endif
 
     assert (airport->state==inactive);
 
@@ -565,6 +569,12 @@ int activate(airport_t *airport)
         }
         /* route->next_time=0;	If previously deactivated, just let it continue when and where it left off */
     }
+#ifdef DO_BENCHMARK
+    gettimeofday(&t2, NULL);		/* stop */
+    sprintf(path, "%d us in activate loading resources", (int) ((t2.tv_sec-t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec));
+    xplog(path);
+    gettimeofday(&t1, NULL);		/* start */
+#endif
 
     /* Sort routes by XPLMObjectRef and assign XPLMDrawInfo_t entries in sequence so objects can be drawn in batches.
      * Rather than actually shuffling the routes around in memory we just sort an array of pointers and then go back
@@ -655,6 +665,11 @@ int activate(airport_t *airport)
         labelwin = XPLMCreateWindow(0, 1, 1, 0, 1, labelcallback, NULL, NULL, NULL);	/* Under the menubar */
 
     airport->state=active;
+#ifdef DO_BENCHMARK
+    gettimeofday(&t2, NULL);		/* stop */
+    sprintf(path, "%d us in activate sorting", (int) ((t2.tv_sec-t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec));
+    xplog(path);
+#endif
     return 2;
 }
 
@@ -700,6 +715,11 @@ void proberoutes(airport_t *airport)
     double x, y, z, foo, alt;
     XPLMProbeInfo_t probeinfo;
     probeinfo.structSize = sizeof(XPLMProbeInfo_t);
+#ifdef DO_BENCHMARK
+    char buffer[MAX_NAME];
+    struct timeval t1, t2;
+    gettimeofday(&t1, NULL);		/* start */
+#endif
 
     /* First find airport location. Probe twice to correct for slant error, since our
      * airport might be up to two tiles away - http://forums.x-plane.org/index.php?showtopic=38688&page=3&#entry566469 */
@@ -742,12 +762,22 @@ void proberoutes(airport_t *airport)
             }
         route = route->next;
     }
+#ifdef DO_BENCHMARK
+    gettimeofday(&t2, NULL);		/* stop */
+    sprintf(buffer, "%d us in proberoutes", (int) ((t2.tv_sec-t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec));
+    xplog(buffer);
+#endif
 }
 
 /* Determine OpenGL co-ordinates of route paths */
 void maproutes(airport_t *airport)
 {
     route_t *route = airport->routes;
+#ifdef DO_BENCHMARK
+    char buffer[MAX_NAME];
+    struct timeval t1, t2;
+    gettimeofday(&t1, NULL);		/* start */
+#endif
 
     while (route)
     {
@@ -800,4 +830,9 @@ void maproutes(airport_t *airport)
         }
         route = route->next;
     }
+#ifdef DO_BENCHMARK
+    gettimeofday(&t2, NULL);		/* stop */
+    sprintf(buffer, "%d us in maproutes", (int) ((t2.tv_sec-t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec));
+    xplog(buffer);
+#endif
 }

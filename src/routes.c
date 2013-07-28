@@ -158,6 +158,10 @@ int readconfig(char *pkgpath, airport_t *airport)
     route_t *lastroute=NULL, *currentroute=NULL;
     train_t *lasttrain=NULL, *currenttrain=NULL;
     userref_t *userref;
+#ifdef DO_BENCHMARK
+    struct timeval t1, t2;
+    gettimeofday(&t1, NULL);		/* start */
+#endif
 
 #if APL || LIN		/* Might be a case sensitive file system */
     DIR *dir;
@@ -589,6 +593,11 @@ int readconfig(char *pkgpath, airport_t *airport)
 
     fclose(h);
     mtime=info.st_mtime;
+#ifdef DO_BENCHMARK
+    gettimeofday(&t2, NULL);		/* stop */
+    sprintf(buffer, "%d us in readconfig", (int) ((t2.tv_sec-t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec));
+    xplog(buffer);
+#endif
     return 2;
 }
 
