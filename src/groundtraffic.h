@@ -62,6 +62,8 @@
 #include "XPLMScenery.h"
 #include "XPLMUtilities.h"
 
+#include "bbox.h"
+
 /* Version of assert that suppresses "variable ... set but not used" if the variable only exists for the purpose of the asserted expression */
 #ifdef NDEBUG
 #  undef assert
@@ -250,6 +252,7 @@ typedef struct route_t
     XPLMObjectRef objref;
     path_t *path;
     int pathlen;
+    bbox_t bbox;		/* Bounding box of path */
     struct
     {
         int frozen : 1;		/* Child whose parent is waiting */

@@ -8,6 +8,7 @@
 
 #include "groundtraffic.h"
 #include "planes.h"
+#include "bbox.h"
 
 #if IBM
 BOOL APIENTRY DllMain(HANDLE hModule, DWORD ul_reason, LPVOID lpReserved)
@@ -593,18 +594,19 @@ int activate(airport_t *airport)
     }
     free(routes);
 
-    /* Check for collisions - O(n2) * O(m2) ! */
-    for(route=airport->routes; route; route=route->next)
+    /* Check for collisions - O(n * log(n) * m^2) ! */
+    for (route=airport->routes; route; route=route->next)
         if (!route->parent)			/* Skip child routes */
         {
             int rrev = route->path[route->pathlen-1].flags.reverse;
 
-            for(other=airport->routes; other; other=other->next)
+            for (other=route->next; other; other=other->next)
             {
                 int orev = other->path[other->pathlen-1].flags.reverse;
                 int r0, r1;
 
-                if (other==route || other->parent) continue;	/* Skip child routes */
+                if (other->parent || !bbox_intersect(&route->bbox, &other->bbox))
+                    continue;	/* Skip child routes and non-intersecting routes */
 
                 for (r0=0; r0 < route->pathlen; r0++)
                 {
@@ -647,12 +649,20 @@ int activate(airport_t *airport)
                         {
                             /* Collision */
                             collision_t *newc;
+
                             if (!(newc=malloc(sizeof(collision_t))))
                                 return xplog("Out of memory!");
                             newc->route = other;
                             newc->node = o0;
                             newc->next = route->path[r0].collisions;
                             route->path[r0].collisions = newc;
+
+                            if (!(newc=malloc(sizeof(collision_t))))
+                                return xplog("Out of memory!");
+                            newc->route = route;
+                            newc->node = r0;
+                            newc->next = other->path[o0].collisions;
+                            other->path[o0].collisions = newc;
                         }
                     }
                 }

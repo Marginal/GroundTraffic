@@ -7,6 +7,7 @@
  */
 
 #include "groundtraffic.h"
+#include "bbox.h"
 
 #define N(c) (c?c:"<nothing>")
 
@@ -444,6 +445,7 @@ int readconfig(char *pkgpath, airport_t *airport)
                 if (!c1 || !sscanf(c1, "%f%n", &node->waypoint.lat, &eol1) || c1[eol1] ||
                     !c2 || !sscanf(c2, "%f%n", &node->waypoint.lon, &eol2) || c2[eol2])
                     return failconfig(h, airport, buffer, "Expecting a waypoint \"lat lon\", a command or a blank line, found \"%s %s\" at line %d", N(c1), N(c2), lineno);
+                bbox_add(&currentroute->bbox, node->waypoint.lat, node->waypoint.lon);
             }
             if ((c1=strtok(NULL, sep)))
                 return failconfig(h, airport, buffer, "Extraneous input \"%s\" at line %d", c1, lineno);
@@ -483,6 +485,7 @@ int readconfig(char *pkgpath, airport_t *airport)
                 airport->routes = airport->firstroute = newroute;	/* Save for DRE */
 
             /* Initialise the route */
+            bbox_init(&newroute->bbox);
             newroute->direction = 1;
             if (count<16)
             {
