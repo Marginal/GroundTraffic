@@ -199,7 +199,7 @@ static float flightcallback(float inElapsedSinceLastCall, float inElapsedTimeSin
             double airport_x, airport_y, airport_z;
             float view_x, view_y, view_z;
 
-            if (airport.tower.alt==INVALID_ALT)
+            if (airport.tower.alt == (double) INVALID_ALT)
                 proberoutes(&airport);	/* First time we've encountered our airport. Determine elevations. */
 
             XPLMWorldToLocal(airport.tower.lat, airport.tower.lon, airport.tower.alt, &airport_x, &airport_y, &airport_z);
@@ -791,6 +791,8 @@ void maproutes(airport_t *airport)
 
     while (route)
     {
+        route->next_y = INVALID_ALT;	/* Need to (re)calculate altitude */
+
         if (!route->parent)	/* Children share parents' route paths, so already mapped */
         {
             /* doesn't make sense to do bezier turns at start and end waypoints of a reversible route */

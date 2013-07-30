@@ -83,8 +83,8 @@
 #define ACTIVE_HYSTERESIS (ACTIVE_DISTANCE*0.05f)
 #define DEFAULT_DRAWLOD 2.f	/* Equivalent to an object 3m high */
 #define DEFAULT_LOD 2.25f	/* Equivalent to "medium" world detail distance */
-#define PROBE_ALT_FIRST 100	/* Arbitrary max bridge deck height above airport that vehicles will follow */
-#define PROBE_ALT_NEXT 25	/* Arbitrary max elevation between nodes that vehicles will follow */
+#define PROBE_ALT_FIRST -100	/* Arbitrary depth below tower for probe of first waypoint */
+#define PROBE_ALT_NEXT -25	/* Arbitrary depth below previous waypoint */
 #define PROBE_INTERVAL 0.5f	/* How often to probe ahead for altitude [s] */
 #define PROBE_GRADIENT 0.25f	/* Max gradient that vehicles will follow = 1:4 */
 #define TURN_TIME 2.f		/* Time [s] to execute a turn at a waypoint */
@@ -131,7 +131,7 @@ typedef struct
     float lat, lon, alt;	/* drawing routines use float, so no point storing higher precision */
 } loc_t;
 
-#define INVALID_ALT DBL_MAX
+#define INVALID_ALT FLT_MAX
 typedef struct
 {
     double lat, lon, alt;	/* but XPLMWorldToLocal uses double, so prevent type conversions */
@@ -278,8 +278,8 @@ typedef struct route_t
     glColor3f_t drawcolor;
     float drawlod;		/* Multiply by lod_factor to get draw distance */
     XPLMDrawInfo_t *drawinfo;	/* Where to draw - current OpenGL co-ordinates */
-    float next_probe;		/* Time we should probe altitude again */
-    float last_y, next_y;	/* OpenGL co-ordinates at last probe point */
+    float last_probe, next_probe;	/* Time of last altitude probe and when we should probe again */
+    float last_y, next_y;	/* OpenGL co-ordinates at last and next probe points */
     int deadlocked;		/* Counter used to break collision deadlock */
     userref_t (*varrefs)[MAX_VAR];	/* Per-route var dataref */
     struct route_t *parent;	/* Points to head of a train */
@@ -361,7 +361,7 @@ extern float lod_factor;
 /* inlines */
 static inline int indrawrange(float xdist, float ydist, float zdist, float range)
 {
-    assert (airport.tower.alt!=INVALID_ALT);	/* If altitude is invalid then arguments to this function will be too */
+    assert (airport.tower.alt != (double) INVALID_ALT);	/* If altitude is invalid then arguments to this function will be too */
     return (xdist*xdist + ydist*ydist + zdist*zdist <= range*range);
 }
 

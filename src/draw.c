@@ -492,7 +492,6 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
 
             /* Force re-probe since we've changed direction */
             route->next_probe = route_now;
-            route->next_y = last_node->p.y;
 
         } // (route_now >= route->next_time && !route->state.frozen)
 
@@ -536,8 +535,18 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
         /* Calculate drawing position */
         last_node = route->path + route->last_node;
         next_node = route->path + route->next_node;
+
+        if (route->next_y == INVALID_ALT)
+        {
+            /* Just loaded, or OpenGL projection has shifted while we are active */
+            route->next_y = last_node->p.y;	/* Unfortunately this will cause the object to fall off any bridge */
+            route->next_probe = route_now;	/* Force probe ahead */
+        }
+
         if (!(route->state.paused||route->state.waiting||route->state.dataref||route->state.collision))
         {
+            float probe_interval;
+
             if (route->state.backingup && route->state.forwardsa && !last_node->flags.backup && route_now-route->last_time >= TURN_TIME/2)	/* C */
             {
                 /* Reached mirror of p3. Fixup things so we're backwards in time on otherwise normal path */
@@ -558,20 +567,35 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
 
             if (route_now >= route->next_probe)
             {
-                /* Probe four seconds in the future */
-                route->next_probe = route_now + PROBE_INTERVAL;
+                /* Probe up to PROBE_INTERVAL into the future */
                 route->last_y = route->next_y;
-                progress = (route->next_probe - route->last_time) / (route->next_time - route->last_time);
-                XPLMProbeTerrainXYZ(ref_probe, last_node->p.x + progress * (next_node->p.x - last_node->p.x), route->last_y + route->speed * (PROBE_INTERVAL * PROBE_GRADIENT), last_node->p.z + progress * (next_node->p.z - last_node->p.z), &probeinfo);
+                route->last_probe = route_now;
+                if (route_now + (PROBE_INTERVAL * 1.25f) >= route->next_time)
+                {
+                    route->next_probe = route->next_time;
+                    probe_interval = route->next_probe - route->last_probe;
+                    XPLMProbeTerrainXYZ(ref_probe, next_node->p.x, route->last_y + route->speed * probe_interval * PROBE_GRADIENT, next_node->p.z, &probeinfo);
+                }
+                else
+                {
+                    route->next_probe = route_now + PROBE_INTERVAL;
+                    probe_interval = route->next_probe - route->last_probe;
+                    progress = (route->next_probe - route->last_time) / (route->next_time - route->last_time);
+                    XPLMProbeTerrainXYZ(ref_probe, last_node->p.x + progress * (next_node->p.x - last_node->p.x), route->last_y + route->speed * PROBE_INTERVAL * PROBE_GRADIENT, last_node->p.z + progress * (next_node->p.z - last_node->p.z), &probeinfo);
+                }
                 route->next_y = probeinfo.locationY;
+            }
+            else
+            {
+                probe_interval = route->next_probe - route->last_probe;
             }
 
             progress = (route_now - route->last_time) / (route->next_time - route->last_time);
-            route->drawinfo->y = route->next_y + (route->last_y - route->next_y) * (route->next_probe - route_now) / PROBE_INTERVAL;
+            route->drawinfo->y = route->next_y + (route->last_y - route->next_y) * (route->next_probe - route_now) / probe_interval;
             if (!route->object.heading)
-                route->drawinfo->pitch = R2D(sinf((route->next_y - route->last_y) / (PROBE_INTERVAL * route->speed)));
+                route->drawinfo->pitch = R2D(sinf((route->next_y - route->last_y) / (probe_interval * route->speed)));
             else if (route->object.heading == 180)
-                route->drawinfo->pitch = R2D(sinf((route->last_y - route->next_y) / (PROBE_INTERVAL * route->speed)));
+                route->drawinfo->pitch = R2D(sinf((route->last_y - route->next_y) / (probe_interval * route->speed)));
             if (route->state.backingup)
                 route->distance = route->last_distance - progress * route->next_distance;
             else
@@ -583,7 +607,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
             /* Paused: Fake up times for drawing code below */
             progress = - (route->object.lag * route->speed) / route->next_distance;
             route_now = route->last_time - route->object.lag;
-            route->drawinfo->y = last_node->p.y;
+            route->drawinfo->y = route->next_y;
             route->drawinfo->pitch = 0;	/* Since we're not probing */
         }
 

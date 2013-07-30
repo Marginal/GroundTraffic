@@ -48,7 +48,7 @@ void clearconfig(airport_t *airport)
 
     airport->ICAO[0]='\0';
     airport->tower.lat=airport->tower.lon=0;
-    airport->tower.alt=INVALID_ALT;
+    airport->tower.alt = (double) INVALID_ALT;
     airport->state = noconfig;
     airport->drawroutes = 0;
     airport->reflections = 0;
