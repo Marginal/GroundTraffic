@@ -10,6 +10,7 @@ clean:
 	rm $(TARGET)
 
 $(TARGET):	$(FILES)
+	touch $^
 	chmod +x $(PROJECT)/*.xpl $(PROJECT)/64/*.xpl
 	rm -f $(TARGET)
-	zip -MM $(TARGET) $+
+	zip -MM -o $(TARGET) $+
