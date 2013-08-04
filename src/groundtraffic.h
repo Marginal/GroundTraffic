@@ -92,6 +92,7 @@
 #define WHEN_INTERVAL 1.f	/* How often [s] to poll for When DataRef values */
 #define COLLISION_INTERVAL 4.f	/* How long [s] to poll for crossing route path to become free */
 #define COLLISION_TIMEOUT ((int) 60/COLLISION_INTERVAL)	/* How many times to poll before giving up to break deadlock */
+#define COLLISION_ALT 3.f	/* Objects won't collide if their altitude differs by more than this [m] */
 #define RESET_TIME 15.f		/* If we're deactivated for longer than this then reset route timings */
 #define MAX_VAR 10		/* How many var datarefs */
 

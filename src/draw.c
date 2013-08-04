@@ -34,9 +34,10 @@ static int iscollision(route_t *route, int tryno)
     /* Route collisions */
     while (c)
     {
-        if ((c->route->direction>0 ? c->route->last_node : c->route->next_node) == c->node &&
+        if (c->route->last_node != c->route->next_node &&	/* Avoid immediate deadlock if we're just enabled/activated */
+            (c->route->direction>0 ? c->route->last_node : c->route->next_node) == c->node &&	/* Potential collision */
             !(c->route->state.paused||c->route->state.waiting||c->route->state.dataref||c->route->state.collision) &&	/* No point waiting for a paused route. He'll re-check on exit from pause */
-            c->route->last_node != c->route->next_node)			/* Check we're not just enabled/activated and deadlocked */
+            fabsf(c->route->drawinfo->y - route->drawinfo->y) <= COLLISION_ALT)	/* At similar altitude */
         {
             /* Collision */
             route->deadlocked = tryno;
