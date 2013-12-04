@@ -2,7 +2,7 @@ include version.mak
 
 TARGET=$(PROJECT)_$(VER).zip
 
-FILES=ReadMe.html $(PROJECT)/lin.xpl $(PROJECT)/mac.xpl $(PROJECT)/win.xpl $(PROJECT)/64/lin.xpl $(PROJECT)/64/win.xpl
+FILES=ReadMe.html $(PROJECT)/ReadMe.txt $(PROJECT)/lin.xpl $(PROJECT)/mac.xpl $(PROJECT)/win.xpl $(PROJECT)/64/lin.xpl $(PROJECT)/64/win.xpl
 
 all:	$(TARGET)
 
