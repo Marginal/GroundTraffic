@@ -37,7 +37,7 @@ install:	$(TARGET) | $(INSTALLDIR)
 	$(CP) $(TARGET) $(INSTALLDIR)/
 
 $(TARGET):	$(OBJS) | $(TARGETDIR)
-	$(CC) $(CFLAGS) $(LDFLAGS) $(LIBS) -o $@ $+
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS)
 
 $(OBJS): | $(BUILDDIR)
 

@@ -47,10 +47,10 @@ install:	$(TARGET_32) $(TARGET_64) | $(INSTALL_32) $(INSTALL_64)
 	$(CP) $(TARGET_64) $(INSTALL_64)/
 
 $(TARGET_32):	$(OBJS_32) | $(TARGETDIR)
-	$(CC) $(CFLAGS) $(LDFLAGS) -m32 $(LIBS) -o $@ $+
+	$(CC) $(CFLAGS) $(LDFLAGS) -m32 -o $@ $+ $(LIBS)
 
 $(TARGET_64):	$(OBJS_64) | $(TARGETDIR)/64
-	$(CC) $(CFLAGS) $(LDFLAGS) -m64 $(LIBS) -o $@ $+
+	$(CC) $(CFLAGS) $(LDFLAGS) -m64 -o $@ $+ $(LIBS)
 
 $(OBJS_32): | $(BUILD_32)
 
