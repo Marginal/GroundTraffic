@@ -1,13 +1,13 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<!DOCTYPE HTML>
 <html>
 <head>
-  <meta content="text/html; charset=ISO-8859-1" http-equiv="content-type">
-  <meta content="Animated jetway and docking guidance system for X-Plane scenery package developers">
+  <meta content="text/html; charset=utf-8" http-equiv="content-type">
+  <meta content="Animated jetway and docking guidance system for X-Plane scenery package developers" name="description">
   <meta content="X-Plane, simulator, scenery" name="keywords">
-  <title>GroundTraffic</title>
   <meta content="Jonathan Harris" name="author">
+  <title>GroundTraffic</title>
   <style type="text/css">
-.banner { font-family: Arial,Helvetica,sans-serif; background-color: lightskyblue; text-align: left; height: 32px; }
+.banner { font-family: Arial,Helvetica,sans-serif; background-color: lightskyblue; text-align: left; height: 32px; padding: 2px; border-spacing: 0; width: 100%; }
 .dnl { font-family: Arial,Helvetica,sans-serif; font-size: small; background-color: lightskyblue; }
 samp { font-family: Arial,Helvetica,sans-serif; }
 h2 { font-family: Arial,Helvetica,sans-serif; }
@@ -19,13 +19,15 @@ kbd {font-family: sans-serif; color: black; background-color: white; border: 1px
 pre { border: 1px solid; padding: 8px; width: 75%; }
 blockquote { font-family: monospace; }
 em { font-style:normal; color:FireBrick; }
+.spaced dd { margin-bottom: 1em; }
   </style>
 </head>
+
 <body>
-<table style="width: 100%;" border="0" cellpadding="2">
+<table class="banner">
   <tbody>
     <tr>
-      <td class="banner">Marginal&nbsp;&rarr; <a href="http://marginal.org.uk/x-planescenery/">X-Plane Scenery</a>&nbsp;&rarr; <a href="http://marginal.org.uk/x-planescenery/tools.html">Tools</a>&nbsp;&rarr; GroundTraffic</td>
+      <td>Marginal&nbsp;&rarr; <a href="http://marginal.org.uk/x-planescenery/">X-Plane Scenery</a>&nbsp;&rarr; <a href="http://marginal.org.uk/x-planescenery/tools.html">Tools</a>&nbsp;&rarr; GroundTraffic</td>
     </tr>
   </tbody>
 </table>
@@ -67,7 +69,7 @@ em { font-style:normal; color:FireBrick; }
 </pre>
 
 <h4>Water</h4>
-The Water statement tells the plugin that some or all of your routes are over water. In practice this causes the plugin to activate sooner as the user approaches the airport (since you can see things at sea from a large distance) and, when &ldquo;water reflection detail&rdquo; is set to &ldquo;medium&rdquo; or above under X-Plane's Rendering Options, to draw objects with reflections. There is a performance cost to both of these activities, so don't use this statement unless you need to.</p>
+<p>The Water statement tells the plugin that some or all of your routes are over water. In practice this causes the plugin to activate sooner as the user approaches the airport (since you can see things at sea from a large distance) and, when &ldquo;water reflection detail&rdquo; is set to &ldquo;medium&rdquo; or above under X-Plane's Rendering Options, to draw objects with reflections. There is a performance cost to both of these activities, so don't use this statement unless you need to.</p>
 <p>The Water statement just consists of the word &ldquo;<code>water</code>&rdquo; and should be preceded by a blank line:</p>
 <pre>
 
@@ -75,7 +77,7 @@ water
 </pre>
 
 <h4><a name="Debug">Debug</a></h4>
-The Debug statement tells the plugin to display and number all routes. This is useful for checking that your routes' waypoints are at the locations that you intended. The Debug statement just consists of the word &ldquo;<code>debug</code>&rdquo; and should be preceded by a blank line:</p>
+<p>The Debug statement tells the plugin to display and number all routes. This is useful for checking that your routes' waypoints are at the locations that you intended. The Debug statement just consists of the word &ldquo;<code>debug</code>&rdquo; and should be preceded by a blank line:</p>
 <pre>
 
 debug
@@ -102,7 +104,7 @@ debug
   <li>If using your own objects, design them so they are pointing North (<i>i.e.</i> along the positive green axis in SketchUp or Blender), sitting at or just slightly below ground level to allow for sloped terrain, and centered at or a little forward of their axes' origin. Use <code>0</code> for the &ldquo;offset&rdquo; and &ldquo;heading&rdquo; values in this statement.</li>
   <li>Objects in X-Plane's built-in library tend to be centered at their origin but are not all pointing North; supply a &ldquo;heading&rdquo; value to rotate such objects.</li>
   <li>Objects in the <a href="http://www.opensceneryx.com/" target="_blank">OpenSceneryX</a> library all point North but are not centered at their origin; supply an &ldquo;offset&rdquo; value of at least half the length of the object to correct for this.</li>
-  <li>For trains of objects, supply desired &ldquo;offset&rdquo; and &ldquo;heading&rdquo; values in the train <a href="#Train">Car</a> statement; the values supplied here are not used.</p>
+  <li>For trains of objects, supply desired &ldquo;offset&rdquo; and &ldquo;heading&rdquo; values in the train <a href="#Train">Car</a> statement; the values supplied here are not used.</li>
 </ul>
 <p>For example, a route using an object from the scenery package, travelling at 30km/h (~18mph):</p>
 <pre>
@@ -128,7 +130,7 @@ route	20	2.5	0	opensceneryx/objects/airport/vehicles/loaders/6.obj
 47.4484450 -122.3001950
 ...</pre>
 <p>You can use <a href="http://marginal.org.uk/x-planescenery/tools.html" target="_blank">OverlayEditor</a> or <a href="http://developer.x-plane.com/tools/worldeditor/" target="_blank">WED</a> to map out your route, typing the the waypoint locations into <samp>GroundTraffic.txt</samp> as you go. You may also want to consider placing a &ldquo;line&rdquo; (<i>e.g.</i> one of <code>opensceneryx/lines/airport/zone_outlines/...</code>) in OverlayEditor or WED to record your route; this will make it easier if you want to adjust your route in the future. But remember to remove or hide these lines before publishing your scenery package.</p>
-<p>Alternatively, you can use online mapping tools such as <a target="_blank" href="http://www.findlatitudeandlongitude.com/click-lat-lng-list/">this<a/> to map out your route.</p>
+<p>Alternatively, you can use online mapping tools such as <a target="_blank" href="http://www.findlatitudeandlongitude.com/click-lat-lng-list/">this</a> to map out your route.</p>
 <p>You can use the <a href="#Debug">Debug</a> statement to visualise your routes in X-Plane.</p>
 
 <h4>Pause command</h4>
@@ -316,28 +318,21 @@ train	my/scenerypackage/luggage_train_4
 <h3>Animation DataRefs</h3>
 
 <p>The plugin publishes the following DataRefs that you can use to create animated objects in a 3D modelling application that supports X-Plane animations:</p>
-<dl>
+<dl class="spaced">
   <dt><code>marginal/groundtraffic/distance</code></dt>
   <dd>Distance travelled from the first waypoint, in metres. Resets to zero every time the object passes the first waypoint. See below for how to use this to animate rotating wheels.</dd>
-  <br>
   <dt><code>marginal/groundtraffic/speed</code></dt>
   <dd>Speed of the object, in metres/second. This returns zero if the object is stationary for any reason, up to the speed that you specified in the Route statement (converted to [m/s]) if it is moving, or negative if it is backing-up (which is useful for displaying reversing lights).</dd>
-  <br>
   <dt><code>marginal/groundtraffic/steer</code></dt>
   <dd>Turn rate of the object, in degrees. This returns zero if the object is moving in a straight line, and between zero and half the turn angle if the object is negotiating a turn; <i>e.g.</i> if the object is negotiating a right-angled turn, this will return up to &plusmn;45. This is useful for animating articulated vehicles / semi-trailer trucks.</dd>
-  <br>
   <dt><code>marginal/groundtraffic/var[0]</code> ... <code>var[9]</code></dt>
   <dd>DataRef whose value is controlled by the &ldquo;<a href="#Set">Set</a>&rdquo; and &ldquo;Pause ... set&rdquo; commands.</dd>
-  <br>
   <dt><code>marginal/groundtraffic/waypoint/last</code></dt>
   <dd>The last waypoint in the Route (counting from zero) visited by the object.</dd>
-  <br>
   <dt><code>marginal/groundtraffic/waypoint/last/distance</code></dt>
   <dd>The distance from the last waypoint, in metres. This returns zero if the object is stationary at a waypoint.</dd>
-  <br>
   <dt><code>marginal/groundtraffic/waypoint/next</code></dt>
   <dd>The next waypoint in the Route (counting from zero) to be visited by the object. This is one greater than the last waypoint unless the object is reversing its route or is circling back to the first waypoint.</dd>
-  <br>
   <dt><code>marginal/groundtraffic/waypoint/next/distance</code></dt>
   <dd>The distance to the next waypoint, in metres.</dd>
 </dl>
@@ -396,12 +391,11 @@ train	my/scenerypackage/luggage_train_4
 <h3>Bridges &amp; &ldquo;Hard&rdquo; surfaces</h3>
 
 <p>The animated objects will always go over &ldquo;Hard&rdquo; surfaces in static objects that are placed conventionally within an X-Plane scenery package. At your choice, animated objects can be made to go over or under the bridges that are part of X-Plane's road and rail networks, and over or under &ldquo;Hard&nbsp;Deck&rdquo; surfaces in static objects.</p>
-<dl>
+<dl class="spaced">
   <dt>Going over X-Plane's bridges:</dt>
   <dd>Place the first waypoint in the route at ground-level. Then add waypoints such that your route follows the path of the bridge. Since objects travel in a straight line between waypoints, if the bridge is curved you will need to add sufficient waypoints to ensure that the object doesn't fall off the bridge between waypoints. Note: If you turn on <a href="#Debug">Debug</a> the waypoints are shown at ground-level, but the object will follow the bridge above unless you let it fall off.</dd>
   <dt>Going over static objects:</dt>
   <dd>In a 3D modelling application mark the faces of your object that represent the road surface as &ldquo;Hard&rdquo; if the object represents something solid (<i>e.g.</i> an embankment) or as &ldquo;Hard&nbsp;Deck&rdquo; if the object represents something under which traffic can cross (<i>e.g.</i> a bridge, overpass or elevated deck). If using &ldquo;Hard&nbsp;Deck&rdquo; note that the maximum gradient that objects will follow is 1:4 or 25%. Once you've placed the static object in your scenery package (<i>e.g.</i> using <a href="http://marginal.org.uk/x-planescenery/tools.html" target="_blank">OverlayEditor</a> or <a href="http://developer.x-plane.com/tools/worldeditor/" target="_blank">WED</a>) then place your waypoints as for X-Plane's bridges.</dd>
-</dd>
   <dt>Going under X-Plane's bridges:</dt>
   <dd>Animated objects will cross under X-Plane's bridges provided that there is sufficient clearance.</dd>
   <dt>Going under static objects:</dt>
@@ -433,10 +427,10 @@ Loaded: Custom Scenery/<i>my scenery package</i>/plugins/GroundTraffic/mac.xpl.<
 <p>The author would appreciate a courtesy copy of any commercial scenery that you make using this kit, but you are under no obligation.</p>
 
 <hr>
-<table style="width: 100%;" border="0" cellpadding="2">
+<table class="banner">
   <tbody>
     <tr>
-      <td class="banner">Version 1.40 &copy; 2013 <a href="mailto:x-plane@marginal.org.uk">Jonathan Harris</a>
+      <td>Version 1.40 &copy; 2013 <a href="mailto:x-plane@marginal.org.uk">Jonathan Harris</a>
       <a rel="license" target="_blank" href="http://www.gnu.org/licenses/lgpl-2.1-standalone.html"><img style="border: 0px solid ; width: 88px; height: 62px; vertical-align: middle;" alt="LGPLv2.1 License" src="http://i.creativecommons.org/l/LGPL/2.1/88x62.png"></a></td>
     </tr>
   </tbody>
