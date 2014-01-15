@@ -1,7 +1,7 @@
 /*
  * GroundTraffic
  *
- * (c) Jonathan Harris 2013
+ * (c) Jonathan Harris 2013-2014
  *
  * Licensed under GNU LGPL v2.1.
  */
@@ -29,15 +29,23 @@ static int iscollision(route_t *route, int tryno)
     path_t *next_node = route->path + route->next_node;
     collision_t *c = tryno ? (route->direction>0 ? last_node->collisions : next_node->collisions) : NULL;
     int planeno;
-    float t;
+    float t = route->next_distance / route->speed;	/* time to next waypoint */;
 
     /* Route collisions */
     while (c)
     {
+        path_t *c_next_node = c->route->path + c->route->next_node;
+
         if (c->route->last_node != c->route->next_node &&	/* Avoid immediate deadlock if we're just enabled/activated */
             (c->route->direction>0 ? c->route->last_node : c->route->next_node) == c->node &&	/* Potential collision */
-            !(c->route->state.paused||c->route->state.waiting||c->route->state.dataref||c->route->state.collision) &&	/* No point waiting for a paused route. He'll re-check on exit from pause */
-            fabsf(c->route->drawinfo->y - route->drawinfo->y) <= COLLISION_ALT)	/* At similar altitude */
+            /* No point waiting for a route that is itself waiting for any reason. He'll re-check on exit from wait. */
+            !(c->route->state.paused||c->route->state.waiting||c->route->state.dataref||c->route->state.collision) &&
+            /* Co-located end nodes? */
+            (next_node->waypoint.lat == c_next_node->waypoint.lat && next_node->waypoint.lon == c_next_node->waypoint.lon ?
+             /* Yes: Allow both to proceed if sufficient lead time (route->next_time hasn't yet been updated yet so ~= now) */
+             route->next_time + t <= c->route->next_time + COLLISION_INTERVAL :
+             /* No:  At similar altitude */
+             fabsf(c->route->drawinfo->y - route->drawinfo->y) <= COLLISION_ALT))
         {
             /* Collision */
             route->deadlocked = tryno;
@@ -47,7 +55,6 @@ static int iscollision(route_t *route, int tryno)
     }
 
     /* Plane collisions */
-    t = route->next_distance / route->speed;	/* time to next waypoint */
     for (planeno=0; planeno<count_planes(); planeno++)
     {
         point_t *p;

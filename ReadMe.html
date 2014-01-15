@@ -122,14 +122,14 @@ route	20	2.5	0	opensceneryx/objects/airport/vehicles/loaders/6.obj
 <p>The Route statement should be preceded by a blank line and should be followed by a sequence of &ldquo;waypoints&rdquo; and &ldquo;commands&rdquo;. The Route ends with a blank line.</p>
 
 <h4><a name="Waypoint">Waypoint</a></h4>
-<p>Animated objects move from one waypoint to the next at the speed specified in the <a href="#Route">Route</a> statement. When the object passes the last waypoint it proceeds towards the first waypoint, forming a circular route (unless you specify a &ldquo;<a href="#reverse">reverse</a>&rdquo; command).</p>
+<p>Animated objects move from one waypoint to the next at the speed specified in the <a href="#Route">Route</a> statement. When the object passes the last waypoint it proceeds towards the first waypoint, forming a circular route (unless you specify a &ldquo;<a href="#reverse">reverse</a>&rdquo; command). Objects will wait at a waypoint if moving on would risk colliding with another object or getting in the way of an aircraft; refer to the guidance <a href="#collision">below</a> if you plan to have routes that overlap with each other or with aircraft taxi paths.</p>
 <p>Waypoints should be of the form &ldquo;lat&nbsp;lon&rdquo;. For example:</p>
 <pre>...
 47.4484450 -122.3001950
 ...</pre>
 <p>You can use <a href="http://marginal.org.uk/x-planescenery/tools.html" target="_blank">OverlayEditor</a> or <a href="http://developer.x-plane.com/tools/worldeditor/" target="_blank">WED</a> to map out your route, typing the the waypoint locations into <samp>GroundTraffic.txt</samp> as you go. You may also want to consider placing a &ldquo;line&rdquo; (<i>e.g.</i> one of <code>opensceneryx/lines/airport/zone_outlines/...</code>) in OverlayEditor or WED to record your route; this will make it easier if you want to adjust your route in the future. But remember to remove or hide these lines before publishing your scenery package.</p>
 <p>Alternatively, you can use online mapping tools such as <a target="_blank" href="http://www.findlatitudeandlongitude.com/click-lat-lng-list/">this<a/> to map out your route.</p>
-<p>Objects will try to avoid crashing into each other by waiting at a waypoint if an object on another route is crossing ahead. So where routes cross don't leave a large distance between the waypoints on either side of the crossing point or they may have to wait for a long time. Similarly, objects will try to avoid getting in the way of the user's and of AI aircraft. So where a route crosses a taxiway or apron path don't leave a large distance between the waypoints on either side of the crossing point.</p>
+<p>You can use the <a href="#Debug">Debug</a> statement to visualise your routes in X-Plane.</p>
 
 <h4>Pause command</h4>
 <p>The Pause command instructs the animated object to wait at the preceding waypoint for a while before moving on. Optionally, you can cause the value of a DataRef to change while the animated object is waiting, and change back before it proceeds.</p>
@@ -360,6 +360,38 @@ train	my/scenerypackage/luggage_train_4
   <li>Keyframe#1: DataRef value = 1.155 &times; &pi; &div; 4 = 1.155 &times; 0.7854 = 0.907</li>
   <li>Loop DataRef value = 1.155 &times; &pi; = 1.155 &times; 3.1416 = 3.628</li>
 </ul>
+
+<h3><a name="collision">Collision avoidance</a></h3>
+<p>Objects will try to avoid crashing into each other by waiting at a waypoint if an object on another route is crossing ahead. So where routes cross don't leave a large distance between the waypoints on either side of the crossing point otherwise an object might have to wait for a long time for the crossing object to clear:</p>
+<div style="margin-left: 40px;">
+  <svg width="300" height="200">
+    <defs>
+      <marker id="Dot" markerWidth="6" markerHeight="6" refx="4" refy="4">
+        <circle cx="4" cy="4" r="1.5" style="fill:darkblue; stroke:none;"/>
+      </marker>
+      <filter id="dropshadow" filterUnits="userSpaceOnUse">
+        <feGaussianBlur in="SourceAlpha" stdDeviation="2"/>
+        <feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0.8 0"/>
+        <feOffset result="offsetblur" dx="1" dy="1.5"/>
+        <feBlend in="SourceGraphic" in2="offsetblur"/>
+      </filter>
+    </defs>
+    <path style="fill:none; stroke:red;  stroke-width:3; marker-mid:url(#Dot); filter:url(#dropshadow)" d="m195,1-65,90-30,30-80,60"/>
+    <path style="fill:none; stroke:lime; stroke-width:3; marker-mid:url(#Dot); filter:url(#dropshadow)" d="m2,20,100,70,30,30,60,75"/>
+    <text x="155" y="110">routes cross</text>
+  </svg>
+</div>
+<p>Similarly, objects will try to avoid getting in the way of the user's and of AI aircraft. So where a route crosses a taxi or apron path don't leave a large distance between the waypoints on either side of the crossing point.</p>
+<p>Where two or more routes share <i>exactly</i> the same waypoint co-ordinates for all or part of their length this is treated as a shared path rather than as a &ldquo;crossing&rdquo;; objects will follow each other along the shared path without waiting for other objects to clear:</p>
+<div style="margin-left: 40px;">
+  <svg width="200" height="180">
+    <path style="fill:none; stroke:red;  stroke-width:3; filter:url(#dropshadow);" d="m13,160,30-70"/>
+    <path style="fill:none; stroke:red;  stroke-width:3; marker-start:url(#Dot); marker-mid:url(#Dot); marker-end:url(#Dot);" d="m43,90,50,10,60-3"/>
+    <path style="fill:none; stroke:red;  stroke-width:3; filter:url(#dropshadow);" d="m153,97,40-70"/>
+    <path style="fill:none; stroke:lime; stroke-width:3; marker-mid:url(#Dot); filter:url(#dropshadow);" d="m2,20,40,70,50,10,60-3,30,70"/>
+    <text x="100" y="125" text-anchor="middle">shared path</text>
+  </svg>
+</div>
 
 <h3>Bridges &amp; &ldquo;Hard&rdquo; surfaces</h3>
 

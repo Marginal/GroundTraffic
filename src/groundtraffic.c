@@ -1,7 +1,7 @@
 /*
  * GroundTraffic
  *
- * (c) Jonathan Harris 2013
+ * (c) Jonathan Harris 2013-2014
  *
  * Licensed under GNU LGPL v2.1.
  */
@@ -626,7 +626,6 @@ int activate(airport_t *airport)
                     for (o0=0; o0 < other->pathlen; o0++)
                     {
                         loc_t *p2, *p3;
-                        double s, t, d, s1_x, s1_y, s2_x, s2_y;
 
                         if ((o1 = o0+1) == other->pathlen)
                         {
@@ -638,16 +637,9 @@ int activate(airport_t *airport)
                         p2 = &other->path[o0].waypoint;
                         p3 = &other->path[o1].waypoint;
 
-                        /* http://stackoverflow.com/a/1968345 */
-                        s1_x = p1->lon - p0->lon;  s1_y = p1->lat - p0->lat;
-                        s2_x = p3->lon - p2->lon;  s2_y = p3->lat - p2->lat;
-                        d = (-s2_x * s1_y + s1_x * s2_y);
-                        s = (-s1_y * (double) (p0->lon - p2->lon) + s1_x * (double) (p0->lat - p2->lat)) / d;
-                        t = ( s2_x * (double) (p0->lat - p2->lat) - s2_y * (double) (p0->lon - p2->lon)) / d;
-
-                        if (s >= 0 && s <= 1 && t >= 0 && t <= 1)
+                        if ((p1->lat == p3->lat && p1->lon == p3->lon) || loc_intersect(p0, p1, p2, p3))
                         {
-                            /* Collision */
+                            /* Co-located path segment end nodes or segments intersect = Collision */
                             collision_t *newc;
 
                             if (!(newc=malloc(sizeof(collision_t))))

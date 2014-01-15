@@ -1,7 +1,7 @@
 /*
  * GroundTraffic
  *
- * (c) Jonathan Harris 2013
+ * (c) Jonathan Harris 2013-2014
  *
  * Licensed under GNU LGPL v2.1.
  */
@@ -90,7 +90,7 @@
 #define TURN_TIME 2.f		/* Time [s] to execute a turn at a waypoint */
 #define AT_INTERVAL 60.f	/* How often [s] to poll for At times */
 #define WHEN_INTERVAL 1.f	/* How often [s] to poll for When DataRef values */
-#define COLLISION_INTERVAL 4.f	/* How long [s] to poll for crossing route path to become free */
+#define COLLISION_INTERVAL 2.f	/* How long [s] to poll for crossing route path to become free. Also minimum spacing on overlapping segments */
 #define COLLISION_TIMEOUT ((int) 60/COLLISION_INTERVAL)	/* How many times to poll before giving up to break deadlock */
 #define COLLISION_ALT 3.f	/* Objects won't collide if their altitude differs by more than this [m] */
 #define RESET_TIME 15.f		/* If we're deactivated for longer than this then reset route timings */
@@ -376,6 +376,7 @@ static inline float D2R(float d)
     return d * ((float) (M_PI/180));
 }
 
+
 /* Operations on point_t */
 
 static inline float angleto(point_t *from, point_t *to)
@@ -404,10 +405,34 @@ static inline int intersect(point_t *p0, point_t *p1, point_t *p2, point_t *p3)
     s1_x = p1->x - p0->x;  s1_z = p1->z - p0->z;
     s2_x = p3->x - p2->x;  s2_z = p3->z - p2->z;
     d = -s2_x * s1_z + s1_x * s2_z;
+    if (d==0) return 0;	/* Precisely parallel or collinear - ignore in either case */
+
     s = (-s1_z * (p0->x - p2->x) + s1_x * (p0->z - p2->z)) / d;
     t = ( s2_x * (p0->z - p2->z) - s2_z * (p0->x - p2->x)) / d;
 
-    return s >= 0 && s <= 1 && t >= 0 && t <= 1;
+    /* use strict comparison because only interested in significant intersections */
+    return s > 0 && s < 1 && t > 0 && t < 1;
+}
+
+
+/* Operations on loc_t */
+
+/* 2D does line p0->p1 intersect p2->p3 */
+static inline int loc_intersect(loc_t *p0, loc_t *p1, loc_t *p2, loc_t *p3)
+{
+    /* http://stackoverflow.com/a/1968345 */
+    float s, t, d, s1_x, s1_y, s2_x, s2_y;
+
+    s1_x = p1->lon - p0->lon;  s1_y = p1->lat - p0->lat;
+    s2_x = p3->lon - p2->lon;  s2_y = p3->lat - p2->lat;
+    d = (-s2_x * s1_y + s1_x * s2_y);
+    if (d==0) return 0;	/* Precisely parallel or collinear - ignore in either case */
+
+    s = (-s1_y * (p0->lon - p2->lon) + s1_x * (p0->lat - p2->lat)) / d;
+    t = ( s2_x * (p0->lat - p2->lat) - s2_y * (p0->lon - p2->lon)) / d;
+
+    /* use strict comparison because path segments don't count as colliding if they just share a starting node */
+    return s > 0 && s < 1 && t > 0 && t < 1;
 }
 
 #endif /* _GROUNDTRAFFIC_H_ */
