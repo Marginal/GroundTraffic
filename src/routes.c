@@ -156,8 +156,8 @@ int readconfig(char *pkgpath, airport_t *airport)
     char buffer[MAX_NAME+128], line[MAX_NAME+64];
     FILE *h;
     int lineno=0, count=0;
-    route_t *lastroute=NULL, *currentroute=NULL;
-    train_t *lasttrain=NULL, *currenttrain=NULL;
+    route_t *currentroute=NULL;
+    train_t *currenttrain=NULL;
     userref_t *userref;
 #ifdef DO_BENCHMARK
     struct timeval t1, t2;
@@ -463,11 +463,15 @@ int readconfig(char *pkgpath, airport_t *airport)
             if (!c1 || !sscanf(c1, "%f%n", &currenttrain->objects[n].lag, &eol1) || c1[eol1] ||
                 !c2 || !sscanf(c2, "%f%n", &currenttrain->objects[n].offset, &eol2) || c2[eol2] ||
                 !c3 || !sscanf(c3, "%f%n", &currenttrain->objects[n].heading, &eol3) || c3[eol3])
-                return failconfig(h, airport, buffer, "Expecting a car \"lag offset heading\" or a blank line, found \"%s %s %s\" at line %d", N(c1), N(c2), N(c3), lineno);
+                return failconfig(h, airport, buffer, n ? "Expecting a car \"lag offset heading\" or a blank line, found \"%s %s %s\" at line %d" : "Expecting a car \"lag offset heading\", found \"%s %s %s\" at line %d", N(c1), N(c2), N(c3), lineno);
+            else if (!n && currenttrain->objects[n].lag < 0)
+                return failconfig(h, airport, buffer, "Train car lag must be greater or equal to 0 at line %d", lineno);
+            else if (n && currenttrain->objects[n].lag < currenttrain->objects[n-1].lag)
+                return failconfig(h, airport, buffer, "Train car lag must be greater than previous car's lag at line %d", lineno);
 
-            for (c1 = c3+strlen(c3)+1; isspace(*c1); c1++);		/* ltrim */
-            for (c2 = c1+strlen(c1)-1; isspace(*c2); *(c2--) = '\0');	/* rtrim */
-            if (c1==c2)
+            for (c1 = c3+strlen(c3)+1; isspace(*c1); c1++);			/* ltrim */
+            for (c2 = c1+strlen(c1)-1; c2>=c1 && isspace(*c2); *(c2--) = '\0');	/* rtrim */
+            if (!*c1)
                 return failconfig(h, airport, buffer, "Expecting an object name at line %d", lineno);
             else if (strlen(c1) >= MAX_NAME)
                 return failconfig(h, airport, buffer, "Object name exceeds %d characters at line %d", MAX_NAME-1, lineno);
@@ -476,72 +480,67 @@ int readconfig(char *pkgpath, airport_t *airport)
         }
         else if (!strcasecmp(c1, "route"))	/* New route */
         {
-            route_t *newroute;
-            if (!(newroute = calloc(1, sizeof(route_t))) || !(newroute->varrefs = calloc(MAX_VAR, sizeof(userref_t))))
+            if (!(currentroute = calloc(1, sizeof(route_t))) || !(currentroute->varrefs = calloc(MAX_VAR, sizeof(userref_t))))
                 return failconfig(h, airport, buffer, "Out of memory!");
-            else if (lastroute)
-                lastroute->next = newroute;
-            else
-                airport->routes = airport->firstroute = newroute;	/* Save for DRE */
+
+            currentroute->next = airport->routes;
+            airport->routes = currentroute;
+            if (!airport->firstroute) airport->firstroute = currentroute;	/* Save for DRE */
 
             /* Initialise the route */
-            bbox_init(&newroute->bbox);
-            newroute->direction = 1;
+            bbox_init(&currentroute->bbox);
+            currentroute->direction = 1;
             if (count<16)
             {
-                newroute->drawcolor = colors[count];
+                currentroute->drawcolor = colors[count];
             }
             else
             {
-                newroute->drawcolor.r = ((float) rand()) / RAND_MAX;
-                newroute->drawcolor.g = ((float) rand()) / RAND_MAX;
-                newroute->drawcolor.b = ((float) rand()) / RAND_MAX;
+                currentroute->drawcolor.r = ((float) rand()) / RAND_MAX;
+                currentroute->drawcolor.g = ((float) rand()) / RAND_MAX;
+                currentroute->drawcolor.b = ((float) rand()) / RAND_MAX;
             }
             count++;
 
             c1=strtok(NULL, sep);
             c2=strtok(NULL, sep);
             c3=strtok(NULL, sep);
-            if (!c1 || !sscanf(c1, "%f%n", &newroute->speed, &eol1) || c1[eol1] ||
-                !c2 || !sscanf(c2, "%f%n", &newroute->object.offset, &eol2) || c2[eol2] ||
-                !c3 || !sscanf(c3, "%f%n", &newroute->object.heading, &eol3) || c3[eol3])
+            if (!c1 || !sscanf(c1, "%f%n", &currentroute->speed, &eol1) || c1[eol1] ||
+                !c2 || !sscanf(c2, "%f%n", &currentroute->object.offset, &eol2) || c2[eol2] ||
+                !c3 || !sscanf(c3, "%f%n", &currentroute->object.heading, &eol3) || c3[eol3])
                 return failconfig(h, airport, buffer, "Expecting a route \"speed offset heading\", found \"%s %s %s\" at line %d",  N(c1), N(c2), N(c3), lineno);
+            else if (currentroute->speed <= 0)
+                return failconfig(h, airport, buffer, "Route speed must be greater than 0 at line %d", lineno);
 
-            for (c1 = c3+strlen(c3)+1; isspace(*c1); c1++);		/* ltrim */
-            for (c2 = c1+strlen(c1)-1; isspace(*c2); *(c2--) = '\0');	/* rtrim */
-            if (c1==c2)
+            for (c1 = c3+strlen(c3)+1; isspace(*c1); c1++);			/* ltrim */
+            for (c2 = c1+strlen(c1)-1; c2>=c1 && isspace(*c2); *(c2--) = '\0');	/* rtrim */
+            if (!*c1)
                 return failconfig(h, airport, buffer, "Expecting an object name at line %d", lineno);
             else if (strlen(c1) >= MAX_NAME)
                 return failconfig(h, airport, buffer, "Object name exceeds %d characters at line %d", MAX_NAME-1, lineno);
             else
-                strcpy(newroute->object.name, c1);
+                strcpy(currentroute->object.name, c1);
 
-            newroute->speed *= (float) (1000.0 / (60*60));	/* convert km/h to m/s */
-            currentroute=lastroute=newroute;
+            currentroute->speed *= (float) (1000.0 / (60*60));	/* convert km/h to m/s */
         }
         else if (!strcasecmp(c1, "train"))	/* New train */
         {
-            train_t *newtrain;
-
-            for (c1 = c1+strlen(c1)+1; isspace(*c1); c1++);		/* ltrim */
-            for (c2 = c1+strlen(c1)-1; isspace(*c2); *(c2--) = '\0');	/* rtrim */
-            if (c1==c2)
+            for (c1 = c1+strlen(c1)+1; isspace(*c1); c1++);			/* ltrim */
+            for (c2 = c1+strlen(c1)-1; c2>=c1 && isspace(*c2); *(c2--) = '\0');	/* rtrim */
+            if (!*c1)
                 return failconfig(h, airport, buffer, "Expecting a train name at line %d", lineno);
             else if (strlen(c1) >= MAX_NAME)
                 return failconfig(h, airport, buffer, "Train name exceeds %d characters at line %d", MAX_NAME-1, lineno);
-            for (newtrain=airport->trains; newtrain; newtrain=newtrain->next)
-                if (!strcmp(newtrain->name, c1))
+            for (currenttrain=airport->trains; currenttrain; currenttrain=currenttrain->next)
+                if (!strcmp(currenttrain->name, c1))
                     return failconfig(h, airport, buffer, "Can't re-define train \"%s\" at line %d", c1, lineno);
 
-            if (!(newtrain=calloc(1, sizeof(train_t))))
+            if (!(currenttrain = calloc(1, sizeof(train_t))))
                 return failconfig(h, airport, buffer, "Out of memory!");
-            strcpy(newtrain->name, c1);
+            strcpy(currenttrain->name, c1);
 
-            if (lasttrain)
-                lasttrain->next=newtrain;
-            else
-                airport->trains=newtrain;
-            currenttrain=lasttrain=newtrain;
+            currenttrain->next = airport->trains;
+            airport->trains = currenttrain;
         }
         else if (!strcasecmp(c1, "water"))
         {

@@ -491,7 +491,7 @@ static int sortroute(const void *a, const void *b)
 /* Going active - load resources. Return non-zero if success */
 int activate(airport_t *airport)
 {
-    route_t *route, *other, **routes;
+    route_t *route, **routes;
     userref_t *userref;
     extref_t *extref;
     char path[PATH_MAX];
@@ -594,7 +594,34 @@ int activate(airport_t *airport)
     }
     free(routes);
 
+    /* Check for collisions */
+    if (!airport->done_first_activation)
+    {
+        if (!check_collisions(airport)) return 0;
+        airport->done_first_activation = -1;
+    }
+
+    XPLMEnableFeature("XPLM_WANTS_REFLECTIONS", airport->reflections);
+    XPLMRegisterDrawCallback(drawcallback, xplm_Phase_Objects, 0, NULL);	/* After other 3D objects */
+    if (airport->drawroutes)
+        labelwin = XPLMCreateWindow(0, 1, 1, 0, 1, labelcallback, NULL, NULL, NULL);	/* Under the menubar */
+
+    airport->state=active;
+#ifdef DO_BENCHMARK
+    gettimeofday(&t2, NULL);		/* stop */
+    sprintf(path, "%d us in activate sorting", (int) ((t2.tv_sec-t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec));
+    xplog(path);
+#endif
+    return 2;
+}
+
+
+static int check_collisions(airport_t *airport)
+{
     /* Check for collisions - O(n * log(n) * m^2) ! */
+    route_t *route, *other;
+    assert (!airport->done_first_activation);
+
     for (route=airport->routes; route; route=route->next)
         if (!route->parent)			/* Skip child routes */
         {
@@ -660,19 +687,7 @@ int activate(airport_t *airport)
                 }
             }
         }
-
-    XPLMEnableFeature("XPLM_WANTS_REFLECTIONS", airport->reflections);
-    XPLMRegisterDrawCallback(drawcallback, xplm_Phase_Objects, 0, NULL);	/* After other 3D objects */
-    if (airport->drawroutes)
-        labelwin = XPLMCreateWindow(0, 1, 1, 0, 1, labelcallback, NULL, NULL, NULL);	/* Under the menubar */
-
-    airport->state=active;
-#ifdef DO_BENCHMARK
-    gettimeofday(&t2, NULL);		/* stop */
-    sprintf(path, "%d us in activate sorting", (int) ((t2.tv_sec-t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec));
-    xplog(path);
-#endif
-    return 2;
+    return 1;
 }
 
 
