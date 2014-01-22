@@ -157,7 +157,6 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
     int tod=-1;
     unsigned int dow=0;
     XPLMProbeInfo_t probeinfo;
-    probeinfo.structSize = sizeof(XPLMProbeInfo_t);
 #ifdef DO_BENCHMARK
     struct timeval t1, t2;
     gettimeofday(&t1, NULL);		/* start */
@@ -259,9 +258,11 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
         return 1;
     }
     last_frame = now;
-        
+
     /* Update and draw */
     is_night = (int) (XPLMGetDataf(ref_night) + 0.67f);
+    probeinfo.structSize = sizeof(XPLMProbeInfo_t);
+
     for(route=airport.routes; route; route=route->next)
     {
         path_t *last_node, *next_node;

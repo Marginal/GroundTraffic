@@ -435,4 +435,22 @@ static inline int loc_intersect(loc_t *p0, loc_t *p1, loc_t *p2, loc_t *p3)
     return s > 0 && s < 1 && t > 0 && t < 1;
 }
 
+
+/* quick and dirty and not very accurate gettimeofday implementation ignoring timezone */
+#if defined(_MSC_VER) && defined(DO_BENCHMARK)
+# include <winsock2.h>	/* for timeval */
+static inline int gettimeofday(struct timeval *tp, void *tzp)
+{
+    LARGE_INTEGER frequency;        // ticks per second
+    LARGE_INTEGER counter;
+
+    QueryPerformanceFrequency(&frequency);
+    QueryPerformanceCounter(&counter);
+    counter.QuadPart = (counter.QuadPart * 1000000) / frequency.QuadPart;	/* In microseconds */
+    tp->tv_sec = counter.QuadPart / 1000000;
+    tp->tv_usec = counter.QuadPart - tp->tv_sec * 1000000;
+    return 0;
+}
+#endif
+
 #endif /* _GROUNDTRAFFIC_H_ */

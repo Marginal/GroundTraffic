@@ -731,7 +731,6 @@ void proberoutes(airport_t *airport)
     int i;
     double x, y, z, foo, alt;
     XPLMProbeInfo_t probeinfo;
-    probeinfo.structSize = sizeof(XPLMProbeInfo_t);
 #ifdef DO_BENCHMARK
     char buffer[MAX_NAME];
     struct timeval t1, t2;
@@ -740,6 +739,7 @@ void proberoutes(airport_t *airport)
 
     /* First find airport location. Probe twice to correct for slant error, since our
      * airport might be up to two tiles away - http://forums.x-plane.org/index.php?showtopic=38688&page=3&#entry566469 */
+    probeinfo.structSize = sizeof(XPLMProbeInfo_t);
     XPLMWorldToLocal(airport->tower.lat, airport->tower.lon, 0, &x, &y, &z);	// 1
     XPLMProbeTerrainXYZ(ref_probe, x, y, z, &probeinfo);			// 2
     XPLMLocalToWorld(probeinfo.locationX, probeinfo.locationY, probeinfo.locationZ, &foo, &foo, &alt);	// 3
