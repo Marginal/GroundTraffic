@@ -10,6 +10,7 @@
 .banner { font-family: Arial,Helvetica,sans-serif; background-color: lightskyblue; text-align: left; height: 32px; padding: 2px; border-spacing: 0; width: 100%; }
 .dnl { font-family: Arial,Helvetica,sans-serif; font-size: small; background-color: lightskyblue; }
 samp { font-family: Arial,Helvetica,sans-serif; }
+h1 { font-family: Arial,Helvetica,sans-serif; }
 h2 { font-family: Arial,Helvetica,sans-serif; }
 h3 { font-family: Arial,Helvetica,sans-serif; }
 h4 { font-family: Arial,Helvetica,sans-serif; }
@@ -33,16 +34,16 @@ em { font-style:normal; color:FireBrick; }
 </table>
 <hr>
 
-<h2>GroundTraffic kit for X-Plane<small><sup>&reg;</sup></small></h2>
+<h1>GroundTraffic kit for X-Plane<small><sup>&reg;</sup></small></h1>
 
-<h3>Overview</h3>
+<h2>Overview</h2>
 
 <p>This kit enables X-Plane scenery designers to add animated ground vehicle traffic to airport scenery packages. It requires X-Plane 10.0 or later.</p>
 
-<h3>How it works</h3>
+<h2>How it works</h2>
 <p>This kit supplies a plugin that you can distribute with your scenery package. The plugin reads instructions from a text file that you create (and which you should also distribute with your scenery package) and animates X-Plane scenery objects according to those instructions. The objects to be animated can come from X-Plane's built-in library, from an add-on object library (<i>e.g.</i> <a href="http://www.opensceneryx.com/" target="_blank">OpenSceneryX</a>), or from your scenery package.</p>
 
-<h3>Installation</h3>
+<h2>Installation</h2>
 
 <ul>
   <li>Create a folder named <samp>plugins</samp> within your scenery package folder.</li>
@@ -50,12 +51,12 @@ em { font-style:normal; color:FireBrick; }
   <li><b>Don't</b> copy this <samp>ReadMe.html</samp> file into your scenery package - this file is intended for you as a scenery designer and would likely confuse users of your scenery package.</li>
 </ul>
 
-<h3>Animation instructions</h3>
+<h2>Animation instructions</h2>
 
 <p>Use Notepad, TextEdit, or any other text editor to create a plain text file named <samp>GroundTraffic.txt</samp> in your scenery package folder. Save this blank file with an &ldquo;ANSI&rdquo;, &ldquo;Western&rdquo; or &ldquo;UTF-8&rdquo; encoding. (If using TextEdit, you may have to first choose <samp>Format&nbsp;&rarr; Make Plain Text</samp> to see those choices).</p>
 <p>Add a &ldquo;Header&rdquo; statement to this file, optionally followed by a &ldquo;Water&rdquo; and/or &ldquo;Debug&rdquo; statement, followed by one or more &ldquo;<a href="#Route">Routes</a>&rdquo;. You can also optionally add comments to the file.</p>
 
-<h4>Header</h4>
+<h3>Header</h3>
 <p>The Header statement tells the plugin the location of your airport. It should be of the form &ldquo;ICAO&nbsp;lat&nbsp;lon&rdquo;, where:</p>
 <dl>
   <dt>ICAO</dt>
@@ -68,7 +69,7 @@ em { font-style:normal; color:FireBrick; }
 
 </pre>
 
-<h4>Water</h4>
+<h3>Water</h3>
 <p>The Water statement tells the plugin that some or all of your routes are over water. In practice this causes the plugin to activate sooner as the user approaches the airport (since you can see things at sea from a large distance) and, when &ldquo;water reflection detail&rdquo; is set to &ldquo;medium&rdquo; or above under X-Plane's Rendering Options, to draw objects with reflections. There is a performance cost to both of these activities, so don't use this statement unless you need to.</p>
 <p>The Water statement just consists of the word &ldquo;<code>water</code>&rdquo; and should be preceded by a blank line:</p>
 <pre>
@@ -76,18 +77,18 @@ em { font-style:normal; color:FireBrick; }
 water
 </pre>
 
-<h4><a name="Debug">Debug</a></h4>
+<h3><a name="Debug">Debug</a></h3>
 <p>The Debug statement tells the plugin to display and number all routes. This is useful for checking that your routes' waypoints are at the locations that you intended. The Debug statement just consists of the word &ldquo;<code>debug</code>&rdquo; and should be preceded by a blank line:</p>
 <pre>
 
 debug
 </pre>
 
-<h4>Comment</h4>
+<h3>Comment</h3>
 <p>Lines starting with &ldquo;<code>#</code>&rdquo; are treated as comments and are ignored. For example:</p>
 <pre># This is a comment</pre>
 
-<h4><a name="Route">Route</a></h4>
+<h3><a name="Route">Route</a></h3>
 <p>A Route statement starts a new animation. It should be of the form &ldquo;<code>route</code>&nbsp;speed&nbsp;offset&nbsp;heading&nbsp;object&rdquo;, where:</p>
 <dl>
   <dt>speed</dt>
@@ -281,7 +282,7 @@ and  sim/weather/rain_percent 0.1 1.0
 ...</pre>
 <p>You can have as many And commands at a waypoint as you like.</p>
 
-<h4><a name="Train">Train</a></h4>
+<h3><a name="Train">Train</a></h3>
 <p>Instead of animating a single object along a Route, you can animate a number of objects to follow each other in succession like train cars/coaches follow their locomotive.</p>
 <p>A Train statement starts a description of a train of connected objects. It should be of the form &ldquo;<code>train</code>&nbsp;name&rdquo;, where:</p>
 <dl>
@@ -295,7 +296,7 @@ train	my/scenerypackage/luggage_train_4
 ...</pre>
 <p>The Train statement should be preceded by a blank line and should be followed by a list of the &ldquo;Car&rdquo; statements. The Train description ends with a blank line.</p>
 
-<h4>Car</h4>
+<h4>Train Car</h4>
 <p>A train Car statement should be of the form &ldquo;lag&nbsp;offset&nbsp;heading&nbsp;object&rdquo;, where:</p>
 <dl>
   <dt>lag</dt>
@@ -308,14 +309,62 @@ train	my/scenerypackage/luggage_train_4
   <dd>The name of the animated object. This can be the name of a library object from X-Plane's built-in library or from an add-on library, or the name of an object in your scenery package. It should <u>not</u> be the name of this or of another Train.</dd>
 </dl>
 <p>To determine how far an object should lag behind the the lead object you can open/import the objects into a 3D modelling application and measure how far (in metres) you have to move the object behind the lead object for it to appear to &ldquo;link up&rdquo; correctly. If either object needs an <a href="#Route">offset</a> to be centered on its axes then adjust for this before measuring. Repeat the process for further objects.</p>
-<p>For example two objects, both of which need to be rotated 180&deg;, the second of which is 3.36m behind the first:</p>
-<pre>...
+<p>For example a train consisting of two objects, both of which need to be rotated 180&deg;, the second of which is 3.36m behind the first:</p>
+<pre>
+
+train	my/scenerypackage/luggage_train_2
 0	0	180	lib/airport/Ramp_Equipment/Luggage_Truck.obj
 3.36	0	180	lib/airport/Ramp_Equipment/Luggage_Cart.obj
-...</pre>
-<p>The plugin animates train Car objects as if they are connected to each other so don't leave huge gaps between Cars. In particular, if you want to send two or more separate objects down the same route don't (ab)use the Train statement; just duplicate the route and change the order of the waypoints in the copy/copies to space out the objects.</p>
 
-<h3>Animation DataRefs</h3>
+</pre>
+<p>The plugin animates train Car objects as if they are connected to each other so don't leave huge gaps between Cars. In particular, if you want to send two or more separate objects down the same route don't (ab)use the Train statement; just duplicate the route (and optionally change the order of the waypoints in the copy/copies to space out the objects) or use a Highway.</p>
+
+<h3><a name="Highway">Highway</a></h3>
+<p>Instead of animating a single object or train of objects, you can create a &ldquo;highway&rdquo; filled with a constant flow of one-way traffic. Highways are similar to <a href="#Route">Routes</a>, except that a Highway description cannot contain any commands and traffic on a Highway does not stop to avoid <a href="#collision">collisions</a> with other Highways or Routes.</a></p>
+<p>A Highway statement starts a description of a traffic flow. It should be of the form &ldquo;<code>highway</code>&nbsp;speed&nbsp;spacing&rdquo;, where:</p>
+<dl>
+  <dt>speed</dt>
+  <dd>The speed of the animated objects, in km/h.</dd>
+  <dt>spacing</dt>
+  <dd>Average distance in metres between objects, when &ldquo;number of cars&rdquo; is at the maximum setting under X-Plane's Rendering Options; lower &ldquo;number of cars&rdquo; settings will result in larger spacings.</dd>
+</dd>
+</dl>
+<p>For example a highway with traffic moving at 65km/h (~40mph) and objects every 50 metres:</p>
+<pre>
+
+highway	65	50
+...</pre>
+<p>The Highway statement should be preceded by a blank line and should be followed by a list of highway &ldquo;Car&rdquo; statements, followed by a sequence of &ldquo;waypoints&rdquo;. The Highway description ends with a blank line.</p>
+
+<h4>Highway Car</h4>
+<p>A highway Car statement should be of the form &ldquo;offset&nbsp;heading&nbsp;object&rdquo;, where:</p>
+<dl>
+  <dt>offset</dt>
+  <dd>Offset in metres to be applied to the object before animation.</dd>
+  <dt>heading</dt>
+  <dd>Rotation in degrees to be applied to the object before animation.</dd>
+  <dt>object</dt>
+  <dd>The name of the animated object. This can be the name of a library object from X-Plane's built-in library or from an add-on library, or the name of an object in your scenery package. It should <u>not</u> be the name of a <a href="#Train">Train</a>.</dd>
+</dl>
+<p>For example a mix of traffic consisting of some cars, some more cars plus some trucks, and some Ford Transit vans shifted forwards 2.5m so that they rotate about their center:</p>
+<pre>
+
+highway	65	20
+0	0	lib/cars/car.obj
+0	0	lib/cars/car_or_truck.obj
+2.5	0	opensceneryx/objects/vehicles/commercial/vans.obj
+...
+</pre>
+<p>The plugin fills your highway with a random mix of the objects listed in the Car statements, so the order of the Car statements is not significant.</p>
+
+<h4>Highway Waypoint</h4>
+<p>Animated objects move from one waypoint to the next at the speed specified in the <a href="#Highway">Highway</a> statement. When an object passes the last waypoint it disappears.</p>
+<p>Highway Waypoints should be of the form &ldquo;lat&nbsp;lon&rdquo;. For example:</p>
+<pre>...
+47.4484450 -122.3001950
+...</pre>
+
+<h2>Animation DataRefs</h2>
 
 <p>The plugin publishes the following DataRefs that you can use to create animated objects in a 3D modelling application that supports X-Plane animations:</p>
 <dl class="spaced">
@@ -337,7 +386,7 @@ train	my/scenerypackage/luggage_train_4
   <dd>The distance to the next waypoint, in metres.</dd>
 </dl>
 <p>These DataRefs return values specific to the route that the object is following; so they are only useful in animating objects on routes controlled by this plugin, not in static objects that are placed conventionally within an X-Plane scenery package. (You can use the &ldquo;<a href="#Set">Set</a>&rdquo; and/or &ldquo;Pause ... set&rdquo; commands with a custom DataRef name to publish DataRefs for use in static objects). You can examine the values of these DataRefs using <a target="_blank" href="http://developer.x-plane.com/tools/datarefeditor/">DataRefEditor</a>, but it will only display the values for the first route listed in <samp>GroundTraffic.txt</samp>.</p>
-<p>The objects in a <a href="#Train">Train</a> may receive different values for some of these DataRefs (<i>e.g.</i> the value returned by <code>marginal/groundtraffic/distance</code> takes into account the &ldquo;lag&rdquo; specified in the object's Car statement). But all objects in the train share the same <code>marginal/groundtraffic/var[<i>n</i>]</code> values.</p>
+<p>The objects in a <a href="#Train">Train</a> or <a href="#Highway">Highway</a> will receive different values for some of these DataRefs (<i>e.g.</i> the value returned by <code>marginal/groundtraffic/distance</code> takes into account the &ldquo;lag&rdquo; specified in the object's Train Car statement). But all objects in the train share the same <code>marginal/groundtraffic/var[<i>n</i>]</code> values.</p>
 
 <h4>Animating rotating wheels</h4>
 <p>The speed of rotation of a wheel depends on its size; a smaller wheel needs to rotate more quickly to cover a given distance than a larger wheel. So in a 3D modelling application measure the diameter of the wheel (in metres) and multiple this value by &pi; to obtain the wheel's circumference.</p>
@@ -356,7 +405,7 @@ train	my/scenerypackage/luggage_train_4
   <li>Loop DataRef value = 1.155 &times; &pi; = 1.155 &times; 3.1416 = 3.628</li>
 </ul>
 
-<h3><a name="collision">Collision avoidance</a></h3>
+<h2><a name="collision">Collision avoidance</a></h2>
 <p>Objects will try to avoid crashing into each other by waiting at a waypoint if an object on another route is crossing ahead. So where routes cross don't leave a large distance between the waypoints on either side of the crossing point otherwise an object might have to wait for a long time for the crossing object to clear:</p>
 <div style="margin-left: 40px;">
   <svg width="300" height="200">
@@ -380,15 +429,15 @@ train	my/scenerypackage/luggage_train_4
 <p>Where two or more routes share <i>exactly</i> the same waypoint co-ordinates for all or part of their length this is treated as a shared path rather than as a &ldquo;crossing&rdquo;; objects will follow each other along the shared path without waiting for other objects to clear:</p>
 <div style="margin-left: 40px;">
   <svg width="200" height="180">
-    <path style="fill:none; stroke:red;  stroke-width:3; filter:url(#dropshadow);" d="m13,160,30-70"/>
-    <path style="fill:none; stroke:red;  stroke-width:3; marker-start:url(#Dot); marker-mid:url(#Dot); marker-end:url(#Dot);" d="m43,90,50,10,60-3"/>
-    <path style="fill:none; stroke:red;  stroke-width:3; filter:url(#dropshadow);" d="m153,97,40-70"/>
+    <path style="fill:none; stroke:red;  stroke-width:3; filter:url(#dropshadow);" d="m13,159,30-70"/>
+    <path style="fill:none; stroke:red;  stroke-width:3; marker-start:url(#Dot); marker-mid:url(#Dot); marker-end:url(#Dot);" d="m43,89,50,10,60-3"/>
+    <path style="fill:none; stroke:red;  stroke-width:3; filter:url(#dropshadow);" d="m153,96,40-70"/>
     <path style="fill:none; stroke:lime; stroke-width:3; marker-mid:url(#Dot); filter:url(#dropshadow);" d="m2,20,40,70,50,10,60-3,30,70"/>
     <text x="100" y="125" text-anchor="middle">shared path</text>
   </svg>
 </div>
 
-<h3>Bridges &amp; &ldquo;Hard&rdquo; surfaces</h3>
+<h2>Bridges &amp; &ldquo;Hard&rdquo; surfaces</h2>
 
 <p>The animated objects will always go over &ldquo;Hard&rdquo; surfaces in static objects that are placed conventionally within an X-Plane scenery package. At your choice, animated objects can be made to go over or under the bridges that are part of X-Plane's road and rail networks, and over or under &ldquo;Hard&nbsp;Deck&rdquo; surfaces in static objects.</p>
 <dl class="spaced">
@@ -403,7 +452,7 @@ train	my/scenerypackage/luggage_train_4
 </dl>
 <p>Animated objects will ignore any &ldquo;Hard&rdquo; and &ldquo;Hard Deck&rdquo; surfaces in other objects that are animated by this or by another plugin.</p>
 
-<h3>Troubleshooting</h3>
+<h2>Troubleshooting</h2>
 
 <p>You can check that the plugin has been loaded and is operating correctly by opening the file <samp>Log.txt</samp> in the X-Plane folder. You should see:</p>
 <blockquote>Fetching plugins for Custom Scenery/<i>my scenery package</i>/plugins<br>
@@ -412,11 +461,11 @@ Loaded: Custom Scenery/<i>my scenery package</i>/plugins/GroundTraffic/mac.xpl.<
 <blockquote>GroundTraffic: Empty route at line 15</blockquote>
 <p>The plugin examines your <samp>GroundTraffic.txt</samp> file when you make a selection from the <samp>Location&nbsp;&rarr; Select&nbsp;Global&nbsp;Airport</samp> dialog; if you have edited the file then the plugin will re-read it and re-start the animations. Or you can force the plugin to re-read the file and re-start the animations by disabling and re-enabling it in the <samp>Plugin&nbsp;&rarr; Plugin&nbsp;Admin&nbsp;&rarr; Enable/Disable</samp> dialog.</p>
 
-<h3>Acknowledgements</h3>
+<h2>Acknowledgements</h2>
 
 <p>&ldquo;X-Plane&rdquo; is a registered trademark of <a href="http://www.x-plane.com/">Laminar Research</a>.</p>
 
-<h3>License</h3>
+<h2>License</h2>
 
 <p>This kit is licensed under the GNU <a rel="license" target="_blank" href="http://www.gnu.org/licenses/lgpl-2.1-standalone.html">LGPL v2.1</a> license. In short, you can distribute the plugin provided by this kit in free or commerical scenery packages providing that, in the documentation that accompanies your scenery package, you:</p>
 <ul>

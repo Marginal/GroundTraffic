@@ -50,6 +50,7 @@ void clearconfig(airport_t *airport)
     airport->tower.lat=airport->tower.lon=0;
     airport->tower.alt = (double) INVALID_ALT;
     airport->state = noconfig;
+    airport->done_first_activation = 0;
     airport->drawroutes = 0;
     airport->reflections = 0;
     airport->active_distance = ACTIVE_DISTANCE;
@@ -89,6 +90,7 @@ void clearconfig(airport_t *airport)
             }
             free(route->path);
             free(route->varrefs);
+            free(route->highway);
         }
         free(route);
         route = nextroute;
@@ -226,7 +228,7 @@ int readconfig(char *pkgpath, airport_t *airport)
         if (!c1)				/* Blank line = end of route or train */
         {
             if (currentroute && !currentroute->pathlen)
-                return failconfig(h, airport, buffer, "Empty route at line %d", lineno);
+                return failconfig(h, airport, buffer, currentroute->highway ? "Empty highway at line %d" : "Empty route at line %d", lineno);
             currentroute = NULL;
             if (currenttrain && !currenttrain->objects[0].name[0])
                 return failconfig(h, airport, buffer, "Empty train at line %d", lineno);
@@ -252,6 +254,52 @@ int readconfig(char *pkgpath, airport_t *airport)
                 return failconfig(h, airport, buffer, "Extraneous input \"%s\" at line %d", c1, lineno);
 
             airport->state=inactive;
+        }
+        else if (currentroute && currentroute->highway)		/* Existing highway */
+        {
+            highway_t *highway = currentroute->highway;
+            int n;	/* Object count */
+            float d1, d2;
+            c2=strtok(NULL, sep);
+
+            for (n=0; n<MAX_HIGHWAY && highway->objects[n].name[0]; n++);
+            if (!c1 || !sscanf(c1, "%f%n", &d1, &eol1) || c1[eol1] ||
+                !c2 || !sscanf(c2, "%f%n", &d2, &eol2) || c2[eol2])
+                return failconfig(h, airport, buffer, currentroute->pathlen ? "Expecting a waypoint \"lat lon\" or a blank line, found \"%s %s\" at line %d" : (n ? "Expecting a car \"offset heading\", a waypoint \"lat lon\", or a blank line, found \"%s %s\" at line %d" : "Expecting a car \"offset heading\", found \"%s %s\" at line %d"), N(c1), N(c2), lineno);
+
+            for (c1 = c2+strlen(c2)+1; isspace(*c1); c1++);		/* ltrim */
+            for (c2 = c1+strlen(c1)-1; c2>=c1 && isspace(*c2); *(c2--) = '\0');	/* rtrim */
+            if (!*c1)
+            {
+                /* Waypoint */
+                path_t *path, *node;
+
+                if (!n)
+                    return failconfig(h, airport, buffer, "Expecting a car \"offset heading object\" at line %d", lineno);
+                if (!(path = realloc(currentroute->path, (1+currentroute->pathlen) * sizeof(path_t))))
+                    return failconfig(h, airport, buffer, "Out of memory!");
+                currentroute->path = path;
+
+                node = path + currentroute->pathlen++;
+                memset(node, 0, sizeof(path_t));
+                node->attime[0] = INVALID_AT;
+                node->waypoint.lat = d1;
+                node->waypoint.lon = d2;
+                bbox_add(&currentroute->bbox, node->waypoint.lat, node->waypoint.lon);
+            }
+            else
+            {
+                /* Car */
+                if (currentroute->pathlen)	/* Once we've had the first waypoint, we only expect waypoints */
+                    return failconfig(h, airport, buffer, "Expecting a waypoint \"lat lon\" or a blank line at line %d", lineno);
+                else if (n>=MAX_HIGHWAY)
+                    return failconfig(h, airport, buffer, "Exceeded %d objects in a highway at line %d", MAX_HIGHWAY, lineno);
+                else if (strlen(c1) >= MAX_NAME)
+                    return failconfig(h, airport, buffer, "Object name exceeds %d characters at line %d", MAX_NAME-1, lineno);
+                highway->objects[n].offset = d1;
+                highway->objects[n].heading = d2;
+                strcpy(highway->objects[n].name, c1);
+            }
         }
         else if (currentroute)			/* Existing route */
         {
@@ -478,6 +526,7 @@ int readconfig(char *pkgpath, airport_t *airport)
             else
                 strcpy(currenttrain->objects[n].name, c1);
         }
+
         else if (!strcasecmp(c1, "route"))	/* New route */
         {
             if (!(currentroute = calloc(1, sizeof(route_t))) || !(currentroute->varrefs = calloc(MAX_VAR, sizeof(userref_t))))
@@ -492,7 +541,7 @@ int readconfig(char *pkgpath, airport_t *airport)
             currentroute->direction = 1;
             if (count<16)
             {
-                currentroute->drawcolor = colors[count];
+                currentroute->drawcolor = colors[count++];
             }
             else
             {
@@ -500,7 +549,6 @@ int readconfig(char *pkgpath, airport_t *airport)
                 currentroute->drawcolor.g = ((float) rand()) / RAND_MAX;
                 currentroute->drawcolor.b = ((float) rand()) / RAND_MAX;
             }
-            count++;
 
             c1=strtok(NULL, sep);
             c2=strtok(NULL, sep);
@@ -542,6 +590,44 @@ int readconfig(char *pkgpath, airport_t *airport)
             currenttrain->next = airport->trains;
             airport->trains = currenttrain;
         }
+        else if (!strcasecmp(c1, "highway"))	/* New highway */
+        {
+            highway_t *highway;
+
+            if (!(currentroute = calloc(1, sizeof(route_t))) || !(highway = calloc(1, sizeof(highway_t))))
+                return failconfig(h, airport, buffer, "Out of memory!");
+
+            c1=strtok(NULL, sep);
+            c2=strtok(NULL, sep);
+            if (!c1 || !sscanf(c1, "%f%n", &currentroute->speed, &eol1) || c1[eol1] ||
+                !c2 || !sscanf(c2, "%f%n", &highway->spacing, &eol2) || c2[eol2])
+                return failconfig(h, airport, buffer, "Expecting a highway \"speed spacing\", found \"%s %s\" at line %d", N(c1), N(c2), lineno);
+            else if (currentroute->speed <= 0)
+                return failconfig(h, airport, buffer, "Highway speed must be greater than 0 at line %d", lineno);
+            else if (highway->spacing <= 0)
+                return failconfig(h, airport, buffer, "Highway spacing must be greater than 0 at line %d", lineno);
+            if ((c3=strtok(NULL, sep))) return failconfig(h, airport, buffer, "Extraneous input \"%s\" at line %d", c3, lineno);
+
+            currentroute->next = airport->routes;
+            airport->routes = currentroute;
+            if (!airport->firstroute) airport->firstroute = currentroute;	/* Save for DRE */
+
+            /* Initialise the route */
+            bbox_init(&currentroute->bbox);
+            currentroute->direction = 1;
+            if (count<16)
+            {
+                currentroute->drawcolor = colors[count++];
+            }
+            else
+            {
+                currentroute->drawcolor.r = ((float) rand()) / RAND_MAX;
+                currentroute->drawcolor.g = ((float) rand()) / RAND_MAX;
+                currentroute->drawcolor.b = ((float) rand()) / RAND_MAX;
+            }
+            currentroute->speed *= (float) (1000.0 / (60*60));	/* convert km/h to m/s */
+            currentroute->highway = highway;
+        }
         else if (!strcasecmp(c1, "water"))
         {
             airport->reflections = -1;
@@ -568,13 +654,6 @@ int readconfig(char *pkgpath, airport_t *airport)
         currentroute = currentroute->next;
     }
 
-    /* Allocate XPLMDrawInfo_t array. We don't assign into this 'til XPLMObjectRefs are known during activate() */
-    for (count = 0, currentroute = airport->routes; currentroute; count++, currentroute = currentroute->next);
-    if (!(airport->drawinfo = calloc(count, sizeof(XPLMDrawInfo_t))))
-        return failconfig(h, airport, buffer, "Out of memory!");
-    for (count = 0, currentroute = airport->routes; currentroute; count++, currentroute = currentroute->next)
-        airport->drawinfo[count].structSize = sizeof(XPLMDrawInfo_t);
-    
     /* Register user's DataRefs.
      * Have to do this early rather than during activate() because objects in DSF are loaded while we're still inactive */
     userref = airport->userrefs;

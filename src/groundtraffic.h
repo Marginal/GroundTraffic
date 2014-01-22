@@ -30,6 +30,7 @@
 #ifdef _MSC_VER
 #  define PATH_MAX MAX_PATH
 #  define snprintf _snprintf
+#  define hypotf _hypotf
 #  define strcasecmp(s1, s2) _stricmp(s1, s2)
 #  define strncasecmp(s1, s2, n) _strnicmp(s1, s2, n)
 #endif
@@ -83,6 +84,7 @@
 #define ACTIVE_HYSTERESIS (ACTIVE_DISTANCE*0.05f)
 #define DEFAULT_DRAWLOD 2.f	/* Equivalent to an object 3m high */
 #define DEFAULT_LOD 2.25f	/* Equivalent to "medium" world detail distance */
+#define DEFAULT_DRAWCARS 3.f	/* Equivalent to "Chicago Suburbs" world detail distance */
 #define PROBE_ALT_FIRST -100	/* Arbitrary depth below tower for probe of first waypoint */
 #define PROBE_ALT_NEXT -25	/* Arbitrary depth below previous waypoint */
 #define PROBE_INTERVAL 0.5f	/* How often to probe ahead for altitude [s] */
@@ -95,6 +97,7 @@
 #define COLLISION_ALT 3.f	/* Objects won't collide if their altitude differs by more than this [m] */
 #define RESET_TIME 15.f		/* If we're deactivated for longer than this then reset route timings */
 #define MAX_VAR 10		/* How many var datarefs */
+#define HIGHWAY_VARIANCE 0.25f	/* How much to vary spacing of objects on a highway */
 
 /* Options */
 #undef  DO_BENCHMARK
@@ -203,7 +206,6 @@ typedef struct extref_t
 
 
 /* When & And command */
-#define xplmType_Mine -1
 typedef struct whenref_t
 {
     extref_t *extref;
@@ -241,12 +243,13 @@ typedef struct
 typedef struct
 {
     char name[MAX_NAME];
-    float heading;		/* rotation applied before drawing */
-    float offset;		/* offset applied after rotation before drawing. [m] */
     float lag;			/* time lag. [m] in train defn, [s] in route */
+    float offset;		/* offset applied after rotation before drawing. [m] */
+    float heading;		/* rotation applied before drawing */
 } objdef_t;
 
 /* A route from routes.txt */
+struct highway_t;
 typedef struct route_t
 {
     objdef_t object;
@@ -282,6 +285,8 @@ typedef struct route_t
     float last_probe, next_probe;	/* Time of last altitude probe and when we should probe again */
     float last_y, next_y;	/* OpenGL co-ordinates at last and next probe points */
     int deadlocked;		/* Counter used to break collision deadlock */
+    float highway_offset;	/* For highway children: Starting offset from start of route */
+    struct highway_t *highway;	/* Is a highway */
     userref_t (*varrefs)[MAX_VAR];	/* Per-route var dataref */
     struct route_t *parent;	/* Points to head of a train */
     struct route_t *next;
@@ -298,6 +303,18 @@ typedef struct train_t
 } train_t;
 
 
+/* A highway */
+#define MAX_HIGHWAY 16
+typedef struct highway_t
+{
+    objdef_t objects[MAX_HIGHWAY];
+    objdef_t *expanded;	/* Physical objects */
+    int obj_count;	/* Physical object count */
+    float spacing;
+    struct highway_t *next;
+} highway_t;
+
+
 /* Collision between routes */
 typedef struct collision_t
 {
@@ -311,6 +328,7 @@ typedef struct collision_t
 typedef struct
 {
     enum { noconfig=0, inactive, active } state;
+    int done_first_activation;	/* Whether we've calculated collisions and expanded highways */
     char ICAO[5];
     dloc_t tower;
     dpoint_t p;			/* Remember OpenGL location of tower to detect scenery shift */

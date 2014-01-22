@@ -31,6 +31,8 @@ static int iscollision(route_t *route, int tryno)
     int planeno;
     float t = route->next_distance / route->speed;	/* time to next waypoint */;
 
+    if (route->highway) return 0;	/* Highways aren't subject to collisions */
+
     /* Route collisions */
     while (c)
     {
@@ -203,7 +205,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                 {
                     int i;
                     glColor3fv(&route->drawcolor.r);
-                    glBegin(route->path[route->pathlen-1].flags.reverse ? GL_LINE_STRIP : GL_LINE_LOOP);
+                    glBegin((route->highway || route->path[route->pathlen-1].flags.reverse) ? GL_LINE_STRIP : GL_LINE_LOOP);
                     for (i=0; i<route->pathlen; i++)
                     {
                         path_t *node = route->path + i;
@@ -374,7 +376,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
 #endif
                 route->last_node = route->next_node;
                 route->next_node += route->direction;
-                if (!route->last_node)
+                if (!route->last_node || (route->highway && route->next_node >= route->pathlen))
                     route->last_distance = 0;	/* reset distance travelled to prevent growing stupidly large */
                 else if (route->state.backingup)
                     route->last_distance -= route->next_distance;
@@ -382,15 +384,49 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                     route->last_distance += route->next_distance;
                 route->distance = route->last_distance;
 
-                if (route->path[route->last_node].flags.reverse)
+                if (route->highway && !route->next_time)
+                {
+                    /* reset highway route */
+                    int i;
+                    float path_cumul = 0;
+
+                    route->distance = route->highway_offset;
+                    route->last_distance = 0;
+                    for (i=1; i<route->pathlen; i++)
+                    {
+                        path_t *node = route->path+i, *prev = route->path+i-1;
+                        path_cumul += hypotf(node->p.x - prev->p.x, node->p.z - prev->p.z);
+                        if (path_cumul >= route->highway_offset)
+                        {
+                            route->next_time = now - (route->highway_offset - route->last_distance) / route->speed;
+                            route->last_node = i-1;
+                            route->next_node = i;
+                            break;
+                        }
+                        else
+                        {
+                            route->last_distance = path_cumul;
+                        }
+                    }
+                }
+                else if (route->path[route->last_node].flags.reverse)
                 {
                     route->direction = -1;
                     route->next_node = route->pathlen-2;
                 }
                 else if (route->next_node >= route->pathlen)
                 {
-                    /* At end of route - head to start */
-                    route->next_node = 0;
+                    /* At end of route */
+                    if (route->highway)
+                    {
+                        route->last_node = 0;	/* jump back to start */
+                        route->next_node = 1;
+                        route->next_y = INVALID_ALT;	/* Discontinuity so reset */
+                    }
+                    else
+                    {
+                        route->next_node = 0;	/* head on to start */
+                    }
                 }
                 else if (route->next_node < 0)
                 {
@@ -449,7 +485,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
             next_node = route->path + route->next_node;
 
             /* Maintain speed/progress unless there's been a large gap in draw callbacks because we were deactivated / disabled */
-            if (route->last_time && route_now - route->next_time < RESET_TIME)
+            if (route->highway || (route->last_time && route_now - route->next_time < RESET_TIME))
                 route->last_time = route->next_time;
             else
             {
@@ -505,7 +541,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
         } // (route_now >= route->next_time && !route->state.frozen)
 
         /* Parent controls state of children */
-        if (route->parent)
+        if (route->parent && !route->highway)
         {
             if ((route->parent->last_time == now) || (route->path[route->pathlen-1].flags.reverse && (!route->parent->last_node || route->parent->last_node==route->pathlen-1)))
             {
