@@ -36,22 +36,52 @@ static int iscollision(route_t *route, int tryno)
     /* Route collisions */
     while (c)
     {
-        path_t *c_next_node = c->route->path + c->route->next_node;
+        path_t *c_end_node;
 
-        if (c->route->last_node != c->route->next_node &&	/* Avoid immediate deadlock if we're just enabled/activated */
-            (c->route->direction>0 ? c->route->last_node : c->route->next_node) == c->node &&	/* Potential collision */
-            /* No point waiting for a route that is itself waiting for any reason. He'll re-check on exit from wait. */
-            !(c->route->state.paused||c->route->state.waiting||c->route->state.dataref||c->route->state.collision) &&
-            /* Co-located end nodes? */
-            (next_node->waypoint.lat == c_next_node->waypoint.lat && next_node->waypoint.lon == c_next_node->waypoint.lon ?
-             /* Yes: Allow both to proceed if sufficient lead time (route->next_time hasn't yet been updated yet so ~= now) */
-             route->next_time + t <= c->route->next_time + COLLISION_INTERVAL :
-             /* No:  At similar altitude */
-             fabsf(c->route->drawinfo->y - route->drawinfo->y) <= COLLISION_ALT))
+	/* Avoid immediate deadlock if we're just enabled/activated */
+        if (c->route->last_node == c->route->next_node)
         {
-            /* Collision */
-            route->deadlocked = tryno;
-            return -1;
+            c = c->next;
+            continue;
+        }
+
+        c_end_node = c->route->path + (c->node+1 >= c->route->pathlen ? 0 : c->node+1);	/* Node at end of colliding segment */
+        if(route->direction>0 && c->route->direction>0 && next_node->waypoint.lat == c_end_node->waypoint.lat && next_node->waypoint.lon == c_end_node->waypoint.lon)
+        {
+            /* Co-located end nodes */
+
+            /* Have to wait if he's sitting on the co-located end node */
+            if (c->route->last_node == c->node+1 &&
+                (c->route->state.dataref || c->route->state.waiting || c->route->state.collision ||
+                 (c->route->state.paused && route->next_time + t <= c->route->next_time + COLLISION_INTERVAL))) /* Our next_time hasn't yet been updated yet so ~= now. His next_time is the time he will unpause. */
+            {
+                route->deadlocked = COLLISION_TIMEOUT;	/* Wait potentially forever */
+                return -1;
+            }
+
+            /* Have to wait if he will wait when he reaches the co-located end node, or if we'll get there too early */
+            /* We don't check whether he might wait for a collision - gets too complicated */
+            if (c->route->last_node == c->node &&	/* On colliding segment */
+                (c_end_node->whenrefs || c_end_node->attime[0] != INVALID_AT ||
+                 route->next_time + t <= c->route->next_time + COLLISION_INTERVAL + c_end_node->pausetime)) /* Our route->next_time hasn't yet been updated yet so ~= now */
+            {
+                route->deadlocked = COLLISION_TIMEOUT;	/* Wait potentially forever */
+                return -1;
+            }
+        }
+        else
+        {
+            /* Paths cross */
+
+            if ((c->route->direction>0 ? c->route->last_node : c->route->next_node) == c->node &&	/* On colliding segment */
+                /* No point waiting for a route that is itself waiting for any reason. He'll re-check on exit from wait. */
+                !(c->route->state.dataref||c->route->state.waiting||c->route->state.collision||c->route->state.paused) &&
+                /* At similar altitude? */
+                fabsf(c->route->drawinfo->y - route->drawinfo->y) <= COLLISION_ALT)
+            {
+                route->deadlocked = tryno;		/* Collision */
+                return -1;
+            }
         }
         c = c->next;
     }
