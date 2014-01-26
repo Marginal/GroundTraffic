@@ -60,7 +60,7 @@ void clearconfig(airport_t *airport)
     {
         route_t *nextroute = route->next;
 
-        if (!route->parent)	/* Paths are shared with parent */
+        if (!route->parent)	/* Paths and highways are shared with parent */
         {
             int i;
             for (i=0; i<route->pathlen; i++)
@@ -90,8 +90,12 @@ void clearconfig(airport_t *airport)
             }
             free(route->path);
             free(route->varrefs);
+            if (route->highway)
+                for (i=0; i<MAX_HIGHWAY; free(route->highway->objects[i++].name));
             free(route->highway);
         }
+        free(route->object.name);
+        free(route->object.physical_name);
         free(route);
         route = nextroute;
     }
@@ -100,7 +104,10 @@ void clearconfig(airport_t *airport)
     train = airport->trains;
     while (train)
     {
+        int i;
         train_t *next = train->next;
+        free(train->name);
+        for (i=0; i<MAX_TRAIN; free(train->objects[i++].name));
         free(train);
         train = next;
     }
@@ -230,7 +237,7 @@ int readconfig(char *pkgpath, airport_t *airport)
             if (currentroute && !currentroute->pathlen)
                 return failconfig(h, airport, buffer, currentroute->highway ? "Empty highway at line %d" : "Empty route at line %d", lineno);
             currentroute = NULL;
-            if (currenttrain && !currenttrain->objects[0].name[0])
+            if (currenttrain && !currenttrain->objects[0].name)
                 return failconfig(h, airport, buffer, "Empty train at line %d", lineno);
             currenttrain = NULL;
             continue;
@@ -262,7 +269,7 @@ int readconfig(char *pkgpath, airport_t *airport)
             float d1, d2;
             c2=strtok(NULL, sep);
 
-            for (n=0; n<MAX_HIGHWAY && highway->objects[n].name[0]; n++);
+            for (n=0; n<MAX_HIGHWAY && highway->objects[n].name; n++);
             if (!c1 || !sscanf(c1, "%f%n", &d1, &eol1) || c1[eol1] ||
                 !c2 || !sscanf(c2, "%f%n", &d2, &eol2) || c2[eol2])
                 return failconfig(h, airport, buffer, currentroute->pathlen ? "Expecting a waypoint \"lat lon\" or a blank line, found \"%s %s\" at line %d" : (n ? "Expecting a car \"offset heading\", a waypoint \"lat lon\", or a blank line, found \"%s %s\" at line %d" : "Expecting a car \"offset heading\", found \"%s %s\" at line %d"), N(c1), N(c2), lineno);
@@ -298,7 +305,8 @@ int readconfig(char *pkgpath, airport_t *airport)
                     return failconfig(h, airport, buffer, "Object name exceeds %d characters at line %d", MAX_NAME-1, lineno);
                 highway->objects[n].offset = d1;
                 highway->objects[n].heading = d2;
-                strcpy(highway->objects[n].name, c1);
+                if (!(highway->objects[n].name = strdup(c1)))
+                    return failconfig(h, airport, buffer, "Out of memory!");
             }
         }
         else if (currentroute)			/* Existing route */
@@ -502,7 +510,7 @@ int readconfig(char *pkgpath, airport_t *airport)
         {
             int n;	/* Train length */
 
-            for (n=0; n<MAX_TRAIN && currenttrain->objects[n].name[0]; n++);
+            for (n=0; n<MAX_TRAIN && currenttrain->objects[n].name; n++);
             if (n>=MAX_TRAIN)
                 return failconfig(h, airport, buffer, "Exceeded %d objects in a train at line %d", MAX_TRAIN, lineno);
 
@@ -523,8 +531,8 @@ int readconfig(char *pkgpath, airport_t *airport)
                 return failconfig(h, airport, buffer, "Expecting an object name at line %d", lineno);
             else if (strlen(c1) >= MAX_NAME)
                 return failconfig(h, airport, buffer, "Object name exceeds %d characters at line %d", MAX_NAME-1, lineno);
-            else
-                strcpy(currenttrain->objects[n].name, c1);
+            else if (!(currenttrain->objects[n].name = strdup(c1)))
+                return failconfig(h, airport, buffer, "Out of memory!");
         }
 
         else if (!strcasecmp(c1, "route"))	/* New route */
@@ -566,8 +574,8 @@ int readconfig(char *pkgpath, airport_t *airport)
                 return failconfig(h, airport, buffer, "Expecting an object name at line %d", lineno);
             else if (strlen(c1) >= MAX_NAME)
                 return failconfig(h, airport, buffer, "Object name exceeds %d characters at line %d", MAX_NAME-1, lineno);
-            else
-                strcpy(currentroute->object.name, c1);
+            else if (!(currentroute->object.name = strdup(c1)))
+                return failconfig(h, airport, buffer, "Out of memory!");
 
             currentroute->speed *= (float) (1000.0 / (60*60));	/* convert km/h to m/s */
         }
@@ -583,9 +591,8 @@ int readconfig(char *pkgpath, airport_t *airport)
                 if (!strcmp(currenttrain->name, c1))
                     return failconfig(h, airport, buffer, "Can't re-define train \"%s\" at line %d", c1, lineno);
 
-            if (!(currenttrain = calloc(1, sizeof(train_t))))
+            if (!(currenttrain = calloc(1, sizeof(train_t))) || !(currenttrain->name = strdup(c1)))
                 return failconfig(h, airport, buffer, "Out of memory!");
-            strcpy(currenttrain->name, c1);
 
             currenttrain->next = airport->trains;
             airport->trains = currenttrain;
@@ -808,7 +815,7 @@ static route_t *expandtrain(airport_t *airport, route_t *currentroute)
     /* It's a train */
     for (i=0; i<MAX_TRAIN; i++)
     {
-        if (!train->objects[i].name[0]) break;
+        if (!train->objects[i].name) break;
         if (i)
         {
             /* Duplicate original route */
@@ -821,7 +828,7 @@ static route_t *expandtrain(airport_t *airport, route_t *currentroute)
             route->parent = currentroute;
         }
         /* Assign carriage to its route */
-        strcpy(route->object.name, train->objects[i].name);
+        if (!(route->object.name = strdup(train->objects[i].name))) return NULL;	/* OOM */
         route->object.lag = train->objects[i].lag / route->speed;	/* Convert distance to time lag */
         route->object.offset = train->objects[i].offset;
         route->object.heading = train->objects[i].heading;

@@ -242,7 +242,10 @@ typedef struct
 
 typedef struct
 {
-    char name[MAX_NAME];
+    char *name;
+    char *physical_name;
+    XPLMObjectRef objref;
+    float drawlod;		/* Multiply by lod_factor to get draw distance */
     float lag;			/* time lag. [m] in train defn, [s] in route */
     float offset;		/* offset applied after rotation before drawing. [m] */
     float heading;		/* rotation applied before drawing */
@@ -253,7 +256,6 @@ struct highway_t;
 typedef struct route_t
 {
     objdef_t object;
-    XPLMObjectRef objref;
     path_t *path;
     int pathlen;
     bbox_t bbox;		/* Bounding box of path */
@@ -280,7 +282,6 @@ typedef struct route_t
     float next_heading;		/* Heading from last_node to next_node [m] */
     float steer;		/* Approximate steer angle (degrees) while turning */
     glColor3f_t drawcolor;
-    float drawlod;		/* Multiply by lod_factor to get draw distance */
     XPLMDrawInfo_t *drawinfo;	/* Where to draw - current OpenGL co-ordinates */
     float last_probe, next_probe;	/* Time of last altitude probe and when we should probe again */
     float last_y, next_y;	/* OpenGL co-ordinates at last and next probe points */
@@ -297,7 +298,7 @@ typedef struct route_t
 #define MAX_TRAIN 16
 typedef struct train_t
 {
-    char name[MAX_NAME];
+    char *name;
     objdef_t objects[MAX_TRAIN];
     struct train_t *next;
 } train_t;

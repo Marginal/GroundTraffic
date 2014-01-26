@@ -44,6 +44,8 @@ static float floatrefcallback(XPLMDataRef inRefCon);
 static int intrefcallback(XPLMDataRef inRefCon);
 static int varrefcallback(XPLMDataRef inRefCon, float *outValues, int inOffset, int inMax);
 static int check_collisions(airport_t *airport);
+static int lookup_objects(airport_t *airport);
+
 
 /* inlines */
 static inline int intilerange(dloc_t loc)
@@ -285,7 +287,7 @@ static float floatrefcallback(XPLMDataRef inDataRef)
         return route->next_distance - (route->distance - route->last_distance);
 #ifdef DEBUG
     case lod:
-        return route->drawlod * lod_factor;
+        return route->object.drawlod * lod_factor;
     case range:
     {
         float range_x = route->drawinfo->x - XPLMGetDataf(ref_view_x);
@@ -407,32 +409,42 @@ float userrefcallback(XPLMDataRef inRefcon)
  * - Fallback for flat objects (skipped here):
  *     view_distance = min(width,depth) * 0.093  * (screen_width / "sim/private/controls/reno/LOD_bias_rat")
  */
-static XPLMObjectRef loadobject(route_t *route, const char *path)
+static XPLMObjectRef loadobject(route_t *route)
 {
     FILE *h;
-    char line[MAX_NAME];
+    char line[MAX_NAME+64];
     float height=0, lod=0;
     route_t *other;
 
-    if (!(route->objref = XPLMLoadObject(path))) return NULL;
+#ifdef DO_BENCHMARK
+    struct timeval t1, t2;
+    gettimeofday(&t1, NULL);		/* start */
+#endif
+    if (!(route->object.objref = XPLMLoadObject(route->object.physical_name))) return NULL;
+#ifdef DO_BENCHMARK
+    gettimeofday(&t2, NULL);		/* stop */
+    snprintf(line, MAX_NAME, "%d us in XPLMLoadObject(\"%s\")", (int) ((t2.tv_sec-t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec), route->object.physical_name);
+    xplog(line);
+    gettimeofday(&t1, NULL);		/* start */
+#endif
 
     /* If we've already loaded this object then use its LOD */
     for (other = airport.routes; other!=route; other = other->next)
-        if (other->objref == route->objref)
+        if (other->object.objref == route->object.objref)
         {
-            route->drawlod = other->drawlod;
-            return route->objref;
+            route->object.drawlod = other->object.drawlod;
+            return route->object.objref;
         }
 
-    if (!(h=fopen(path, "r")))
+    if (!(h=fopen(route->object.physical_name, "r")))
     {
 #ifdef DEBUG
         char msg[MAX_NAME+64];
-        sprintf(msg, "Can't parse \"%s\"", path);
+        sprintf(msg, "Can't parse \"%s\"", route->object.physical_name);
         xplog(msg);
 #endif
-        route->drawlod = DEFAULT_DRAWLOD;
-        return route->objref;
+        route->object.drawlod = DEFAULT_DRAWLOD;
+        return route->object.objref;
     }
 
     while (fgets(line, sizeof(line), h))
@@ -450,36 +462,26 @@ static XPLMObjectRef loadobject(route_t *route, const char *path)
     fclose(h);
 
     if (lod)
-        route->drawlod = 0.0007f * lod;
+        route->object.drawlod = 0.0007f * lod;
     else if (height)
-        route->drawlod = 0.65f * height;
+        route->object.drawlod = 0.65f * height;
     else
-        route->drawlod = DEFAULT_DRAWLOD;	/* Perhaps a v7 object? */
+    {
+#ifdef DEBUG
+        char msg[MAX_NAME+64];
+        sprintf(msg, "Can't parse \"%s\"", route->object.physical_name);
+        xplog(msg);
+#endif
+        route->object.drawlod = DEFAULT_DRAWLOD;	/* Perhaps a v7 object? */
+    }
 
-    return route->objref;
-}
+#ifdef DO_BENCHMARK
+    gettimeofday(&t2, NULL);		/* stop */
+    snprintf(line, MAX_NAME, "%d us in LOD calculation", (int) ((t2.tv_sec-t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec));
+    xplog(line);
+#endif
 
-
-/* Callback from XPLMLookupObjects to count library objects */
-static void countlibraryobjs(const char *inFilePath, void *inRef)
-{}	/* Don't need to do anything */
-
-
-/* Callback from XPLMLookupObjects to load a library object */
-static void loadlibraryobj(const char *inFilePath, void *inRef)
-{
-    route_t *route=inRef;
-    if (!route->deadlocked)
-        loadobject(route, inFilePath);		/* Load the nth object */
-    (route->deadlocked)--;
-}
-
-/* Callback from XPLMLookupObjects to load a highway library object */
-static void enumeratehighwayobj(const char *inFilePath, void *inRef)
-{
-    highway_t *highway=inRef;
-    objdef_t *objdef = highway->expanded + (highway->obj_count ++);
-    strcpy(objdef->name, inFilePath);
+    return route->object.objref;
 }
 
 
@@ -494,7 +496,7 @@ static int sortroute(const void *a, const void *b)
     const route_t *const *ra = a, *const *rb = b;
     if ((*ra)->parent && !(*rb)->parent) return 1;
     if ((*rb)->parent && !(*ra)->parent) return -1;
-    return ((*ra)->objref > (*rb)->objref) - ((*ra)->objref < (*rb)->objref);	/* Simple (ra->objref - rb->objref) risks overflow */
+    return ((*ra)->object.objref > (*rb)->object.objref) - ((*ra)->object.objref < (*rb)->object.objref);	/* Simple (ra->object.objref - rb->object.objref) risks overflow */
 }
 
 
@@ -504,13 +506,8 @@ int activate(airport_t *airport)
     route_t *route, **routes;
     userref_t *userref;
     extref_t *extref;
-    char path[PATH_MAX];
     XPLMPluginID PluginID;
     int count, i;
-#ifdef DO_BENCHMARK
-    struct timeval t1, t2;
-    gettimeofday(&t1, NULL);		/* start */
-#endif
 
     assert (airport->state==inactive);
 
@@ -552,132 +549,37 @@ int activate(airport_t *airport)
         /* Silently fail on failed lookup - like .obj files do */
     }
 
-    /* Turn highways into multiple routes */
+    /* Check for collisions and lookup library objects on first activation */
     if (!airport->done_first_activation)
     {
-        float drawcars = ref_cars ? XPLMGetDatai(ref_cars) : DEFAULT_DRAWCARS;
-
-        for (route = airport->routes; route; route = route->next)
-        {
-            if (route->highway && !route->parent)
-            {
-                highway_t *highway = route->highway;
-                float path_dist, path_cumul;
-
-                /* Lookup and enumerate highway object names */
-                count = 0;	/* Number of physical objects */
-                for (i=0; i<MAX_HIGHWAY; i++)
-                {
-                    int thiscount;
-                    if (!highway->objects[i].name[0]) break;
-                    thiscount = XPLMLookupObjects(highway->objects[i].name, airport->tower.lat, airport->tower.lon, countlibraryobjs, NULL);
-                    count += thiscount ? thiscount : 1;
-                }
-                if (!(highway->expanded = calloc(count, sizeof(objdef_t))))
-                    return xplog("Out of memory!");
-                count = 0;
-                for (i=0; i<MAX_HIGHWAY; i++)
-                {
-                    if (!highway->objects[i].name[0]) break;
-                    if (!XPLMLookupObjects(highway->objects[i].name, airport->tower.lat, airport->tower.lon, enumeratehighwayobj, highway))
-                    {
-                        /* Try local object */
-                        struct stat info;
-                        objdef_t *objdef = highway->expanded + (highway->obj_count ++);
-
-                        strcpy(objdef->name, pkgpath);
-                        strcat(objdef->name, "/");
-                        strncat(objdef->name, highway->objects[i].name, PATH_MAX-strlen(pkgpath)-2);
-                        if (stat(objdef->name, &info))	/* stat it to force error if missing even if it's not used */
-                        {
-                            snprintf(objdef->name, MAX_NAME, "Can't find object \"%s\"", highway->objects[i].name);
-                            return xplog(objdef->name);
-                        }
-                    }
-                    while (count < highway->obj_count)
-                    {
-                        highway->expanded[count].offset  = highway->objects[i].offset;
-                        highway->expanded[count].heading = highway->objects[i].heading;
-                        count++;
-                    }
-                }
-
-                /* Measure route path length */
-                path_dist = 0;
-                for (i=1; i<route->pathlen; i++)
-                {
-                    path_t *node = route->path+i, *prev = route->path+i-1;
-                    path_dist += hypotf(node->p.x - prev->p.x, node->p.z - prev->p.z);
-                }
-
-                /* This route becomes the parent and always exists even if DataRef draw_cars_05 == 0 */
-                memcpy(&route->object, highway->expanded + (rand() / (RAND_MAX / highway->obj_count + 1)), sizeof(objdef_t));
-
-                /* Generate zero or more new child routes */
-                if (drawcars > 0)
-                {
-                    float spacing = highway->spacing * (drawcars <= 5 ? 6-drawcars : 1);
-
-                    for (path_cumul = spacing; path_cumul <= path_dist - (1-HIGHWAY_VARIANCE) * spacing; path_cumul += spacing)
-                    {
-                        route_t *newroute;
-
-                        if (!(newroute = malloc(sizeof(route_t))))
-                            return xplog("Out of memory!");
-                        memcpy(newroute, route, sizeof(route_t));
-                        route->next = newroute;
-                        memcpy(&newroute->object, highway->expanded + (rand() / (RAND_MAX / highway->obj_count + 1)), sizeof(objdef_t));
-                        newroute->parent = route;
-                        newroute->highway_offset = path_cumul + HIGHWAY_VARIANCE * spacing * ((float) rand() / RAND_MAX - 0.5f);
-                    }
-                }
-
-                free (highway->expanded);	/* Don't need this any more */
-                highway->expanded = NULL;
-            }
-        }
+        if (!lookup_objects(airport)) return 0;
+        if (!check_collisions(airport)) return 0;
+        airport->done_first_activation = -1;
     }
 
     /* Load objects */
-    for (route = airport->routes; route; route = route->next)
     {
-        /* Highway objects are already looked up */
-        if (route->highway)
-        {
-            loadobject(route, route->object.name);
-        }
-        /* Try library object */
-        else if ((count = XPLMLookupObjects(route->object.name, airport->tower.lat, airport->tower.lon, countlibraryobjs, NULL)))
-        {
-            /* Pick one at random (temporarily abuse deadlock variable as a counter) */
-            route->deadlocked = rand() % count;	/* rand() doesn't give an even distribution; I don't care */
-            XPLMLookupObjects(route->object.name, airport->tower.lat, airport->tower.lon, loadlibraryobj, route);
-        }
-        else
-        {
-            /* Try local object */
-            struct stat info;
-
-            strcpy(path, pkgpath);
-            strcat(path, "/");
-            strncat(path, route->object.name, PATH_MAX-strlen(pkgpath)-2);
-            if (!stat(path, &info))	/* stat it first to suppress misleading error in Log */
-                loadobject(route, path);
-        }
-        if (!(route->objref))
-        {
-            sprintf(path, "Can't find object or train \"%s\"", route->object.name);
-            return xplog(path);
-        }
-        if (route->highway)	/* If previously deactivated, just let it continue when and where it left off */
-            route->next_time=0;	/* apart from highways, which always need resetting to maintain spacing */
-    }
+        char msg[MAX_NAME+64];
 #ifdef DO_BENCHMARK
-    gettimeofday(&t2, NULL);		/* stop */
-    sprintf(path, "%d us in activate loading resources", (int) ((t2.tv_sec-t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec));
-    xplog(path);
-    gettimeofday(&t1, NULL);		/* start */
+        struct timeval t1, t2;
+        gettimeofday(&t1, NULL);		/* start */
 #endif
+        for (route = airport->routes; route; route = route->next)
+        {
+            if (!loadobject(route))
+            {
+                sprintf(msg, "Can't load object or train \"%s\"", route->object.name);
+                return xplog(msg);
+            }
+            if (route->highway)		/* If previously deactivated, just let it continue when and where it left off */
+                route->next_time=0;	/* apart from highways, which always need resetting to maintain spacing */
+        }
+#ifdef DO_BENCHMARK
+        gettimeofday(&t2, NULL);		/* stop */
+        sprintf(msg, "%d us in activate loading resources", (int) ((t2.tv_sec-t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec));
+        xplog(msg);
+#endif
+    }
 
     /* Sort routes by XPLMObjectRef and assign XPLMDrawInfo_t entries in sequence so objects can be drawn in batches.
      * Rather than actually shuffling the routes around in memory we just sort an array of pointers and then go back
@@ -702,32 +604,199 @@ int activate(airport_t *airport)
     }
     free(routes);
 
-    /* Check for collisions */
-    if (!airport->done_first_activation)
-    {
-        if (!check_collisions(airport)) return 0;
-        airport->done_first_activation = -1;
-    }
-
     XPLMEnableFeature("XPLM_WANTS_REFLECTIONS", airport->reflections);
     XPLMRegisterDrawCallback(drawcallback, xplm_Phase_Objects, 0, NULL);	/* After other 3D objects */
     if (airport->drawroutes)
         labelwin = XPLMCreateWindow(0, 1, 1, 0, 1, labelcallback, NULL, NULL, NULL);	/* Under the menubar */
 
     airport->state=active;
-#ifdef DO_BENCHMARK
-    gettimeofday(&t2, NULL);		/* stop */
-    sprintf(path, "%d us in activate sorting", (int) ((t2.tv_sec-t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec));
-    xplog(path);
-#endif
     return 2;
 }
 
 
+/* Callback from XPLMLookupObjects to count library objects */
+static void countlibraryobjs(const char *inFilePath, void *inRef)
+{}	/* Don't need to do anything */
+
+
+/* Callback from XPLMLookupObjects to load a library object */
+static void chooselibraryobj(const char *inFilePath, void *inRef)
+{
+    route_t *route=inRef;
+    if (!(route->deadlocked--))
+        route->object.physical_name = strdup(inFilePath);		/* Load the nth object */
+}
+
+/* Callback from XPLMLookupObjects to load a highway library object */
+static void enumeratehighwayobj(const char *inFilePath, void *inRef)
+{
+    highway_t *highway=inRef;
+    objdef_t *objdef = highway->expanded + (highway->obj_count ++);
+    objdef->physical_name = strdup(inFilePath);
+}
+
+
+/* Lookup object names. Turn highways into multiple routes. */
+static int lookup_objects(airport_t *airport)
+{
+    route_t *route;
+    float drawcars = ref_cars ? XPLMGetDatai(ref_cars) : DEFAULT_DRAWCARS;
+#ifdef DO_BENCHMARK
+    char msg[64];
+    struct timeval t1, t2;
+    gettimeofday(&t1, NULL);		/* start */
+#endif
+
+    assert (!airport->done_first_activation);
+
+    for (route = airport->routes; route; route = route->next)
+    {
+        if (route->highway && !route->parent)		/* Unexpanded highway */
+        {
+            highway_t *highway = route->highway;
+            float path_dist, path_cumul;
+            int i;
+            int count = 0;	/* Number of physical objects */
+
+            /* Lookup and enumerate highway object names */
+            for (i=0; i<MAX_HIGHWAY; i++)
+            {
+                int thiscount;
+                if (!highway->objects[i].name) break;
+                thiscount = XPLMLookupObjects(highway->objects[i].name, airport->tower.lat, airport->tower.lon, countlibraryobjs, NULL);
+                count += thiscount ? thiscount : 1;
+            }
+            if (!(highway->expanded = calloc(count, sizeof(objdef_t))))
+                return xplog("Out of memory!");
+            count = 0;
+            for (i=0; i<MAX_HIGHWAY; i++)
+            {
+                if (!highway->objects[i].name) break;
+                if (!XPLMLookupObjects(highway->objects[i].name, airport->tower.lat, airport->tower.lon, enumeratehighwayobj, highway))
+                {
+                    /* Try local object */
+                    struct stat info;
+                    objdef_t *objdef = highway->expanded + (highway->obj_count ++);
+
+                    if ((objdef->physical_name = malloc(strlen(pkgpath) + strlen(objdef->name) + 2)))
+                    {
+                        strcpy(objdef->physical_name, pkgpath);
+                        strcat(objdef->physical_name, "/");
+                        strcat(objdef->physical_name, highway->objects[i].name);
+                        if (stat(objdef->physical_name, &info))	/* stat it to force error if missing even if it's not used */
+                        {
+                            char msg[MAX_NAME+64];
+                            snprintf(msg, sizeof(msg), "Can't find object \"%s\"", highway->objects[i].name);
+                            return xplog(msg);
+                        }
+                    }
+                }
+                while (count < highway->obj_count)
+                {
+                    if (!highway->expanded[count].physical_name)
+                        return xplog("Out of memory!");
+                    highway->expanded[count].offset  = highway->objects[i].offset;
+                    highway->expanded[count].heading = highway->objects[i].heading;
+                    count++;
+                }
+            }
+
+            /* Measure route path length */
+            path_dist = 0;
+            for (i=1; i<route->pathlen; i++)
+            {
+                path_t *node = route->path+i, *prev = route->path+i-1;
+                path_dist += hypotf(node->p.x - prev->p.x, node->p.z - prev->p.z);
+            }
+
+            /* This route becomes the parent and always exists even if DataRef draw_cars_05 == 0 */
+            {
+                objdef_t *objdef = highway->expanded + (rand() / (RAND_MAX / highway->obj_count + 1));
+                if (!(route->object.physical_name = strdup(objdef->physical_name)))
+                    return xplog("Out of memory!");
+                route->object.offset  = objdef->offset;
+                route->object.heading = objdef->heading;
+            }
+
+            /* Generate zero or more new child routes */
+            if (drawcars > 0)
+            {
+                float spacing = highway->spacing * (drawcars <= 5 ? 6-drawcars : 1);
+
+                for (path_cumul = spacing; path_cumul <= path_dist - (1-HIGHWAY_VARIANCE) * spacing; path_cumul += spacing)
+                {
+                    route_t *newroute;
+                    objdef_t *objdef = highway->expanded + (rand() / (RAND_MAX / highway->obj_count + 1));
+
+                    if (!(newroute = malloc(sizeof(route_t))))
+                        return xplog("Out of memory!");
+                    memcpy(newroute, route, sizeof(route_t));
+                    route->next = newroute;
+                    if (!(newroute->object.physical_name = strdup(objdef->physical_name)))
+                        return xplog("Out of memory!");
+                    newroute->object.offset  = objdef->offset;
+                    newroute->object.heading = objdef->heading;
+                    newroute->parent = route;
+                    newroute->highway_offset = path_cumul + HIGHWAY_VARIANCE * spacing * ((float) rand() / RAND_MAX - 0.5f);
+                }
+            }
+
+            for (i=0; i<highway->obj_count; free(highway->expanded[i++].physical_name));
+            free (highway->expanded);	/* Don't need this any more */
+            highway->expanded = NULL;
+        }
+        else if (route->object.name)	/* Not an expanded highway */
+        {
+            /* Try library object */
+            int count;
+
+            if ((count = XPLMLookupObjects(route->object.name, airport->tower.lat, airport->tower.lon, countlibraryobjs, NULL)))
+            {
+                /* Pick one at random (temporarily abuse deadlock variable as a counter) */
+                route->deadlocked = rand() % count;	/* rand() doesn't give an even distribution; I don't care */
+                XPLMLookupObjects(route->object.name, airport->tower.lat, airport->tower.lon, chooselibraryobj, route);
+            }
+            else
+            {
+                /* Try local object */
+                struct stat info;
+                if ((route->object.physical_name = malloc(strlen(pkgpath) + strlen(route->object.name) + 2)))
+                {
+                    strcpy(route->object.physical_name, pkgpath);
+                    strcat(route->object.physical_name, "/");
+                    strcat(route->object.physical_name, route->object.name);
+                    if (stat(route->object.physical_name, &info))	/* stat it first to suppress misleading error in Log */
+                    {
+                        char msg[MAX_NAME+64];
+                        snprintf(msg, sizeof(msg), "Can't find object or train \"%s\"", route->object.name);
+                        return xplog(msg);
+                    }
+                }
+            }
+            if (!route->object.physical_name)
+                return xplog("Out of memory!");
+        }
+    }
+
+#ifdef DO_BENCHMARK
+    gettimeofday(&t2, NULL);		/* stop */
+    sprintf(msg, "%d us in activate lookup", (int) ((t2.tv_sec-t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec));
+    xplog(msg);
+#endif
+    return 1;
+}
+
+
+/* Check for collisions - O(n * log(n) * m^2) ! */
 static int check_collisions(airport_t *airport)
 {
-    /* Check for collisions - O(n * log(n) * m^2) ! */
     route_t *route, *other;
+#ifdef DO_BENCHMARK
+    char buffer[64];
+    struct timeval t1, t2;
+    gettimeofday(&t1, NULL);		/* start */
+#endif
+
     assert (!airport->done_first_activation);
 
     for (route=airport->routes; route; route=route->next)
@@ -795,6 +864,13 @@ static int check_collisions(airport_t *airport)
                 }
             }
         }
+
+#ifdef DO_BENCHMARK
+    gettimeofday(&t2, NULL);		/* stop */
+    sprintf(buffer, "%d us in activate check collisions", (int) ((t2.tv_sec-t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec));
+    xplog(buffer);
+#endif
+
     return 1;
 }
 
@@ -809,8 +885,8 @@ void deactivate(airport_t *airport)
 
     for(route=airport->routes; route; route=route->next)
     {
-        XPLMUnloadObject(route->objref);
-        route->objref=0;
+        XPLMUnloadObject(route->object.objref);
+        route->object.objref=0;
     }
 
     /* Unregister per-route DataRefs */

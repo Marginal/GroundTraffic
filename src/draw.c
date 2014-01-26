@@ -151,10 +151,10 @@ static void drawroutes()
         if (drawroute->state.hasdataref)	/* Objects that use a per-route DataRef can't be batched */
         {
             /* Have to check draw range every frame since "now" isn't updated while sim paused */
-            if (indrawrange(drawroute->drawinfo->x-view_x, drawroute->drawinfo->y-view_y, drawroute->drawinfo->z-view_z, drawroute->drawlod * lod_factor))
-                XPLMDrawObjects(drawroute->objref, 1, drawroute->drawinfo, is_night, 1);
+            if (indrawrange(drawroute->drawinfo->x-view_x, drawroute->drawinfo->y-view_y, drawroute->drawinfo->z-view_z, drawroute->object.drawlod * lod_factor))
+                XPLMDrawObjects(drawroute->object.objref, 1, drawroute->drawinfo, is_night, 1);
 
-            if (drawroute->next && drawroute->objref == drawroute->next->objref)
+            if (drawroute->next && drawroute->object.objref == drawroute->next->object.objref)
                 drawroute->next->state.hasdataref = -1;	/* propagate flag to all routes using this objref */
 
             drawroute=drawroute->next;
@@ -163,16 +163,16 @@ static void drawroutes()
         {
             route_t *route, *first = 0, *last = 0;
 
-            for (route=drawroute; route && route->objref==drawroute->objref; route=route->next)
+            for (route=drawroute; route && route->object.objref==drawroute->object.objref; route=route->next)
                 /* Have to check draw range every frame since "now" isn't updated while sim paused */
-                if (indrawrange(route->drawinfo->x-view_x, route->drawinfo->y-view_y, route->drawinfo->z-view_z, route->drawlod * lod_factor))
+                if (indrawrange(route->drawinfo->x-view_x, route->drawinfo->y-view_y, route->drawinfo->z-view_z, route->object.drawlod * lod_factor))
                 {
                     if (!first) first = route;
                     last = route;
                 }
 
             if (first)
-                XPLMDrawObjects(drawroute->objref, 1 + last->drawinfo - first->drawinfo, first->drawinfo, is_night, 1);
+                XPLMDrawObjects(drawroute->object.objref, 1 + last->drawinfo - first->drawinfo, first->drawinfo, is_night, 1);
 
             drawroute=route;
         }
