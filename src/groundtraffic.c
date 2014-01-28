@@ -968,6 +968,7 @@ static void *check_collisions(void *arg)
                 {
                     int o0, o1;
                     loc_t *p0, *p1;
+                    bbox_t rbox;
 
                     if ((r1 = r0+1) == route->pathlen)
                     {
@@ -978,10 +979,14 @@ static void *check_collisions(void *arg)
                     }
                     p0 = &route->path[r0].waypoint;
                     p1 = &route->path[r1].waypoint;
+                    bbox_init(&rbox);
+                    bbox_add(&rbox, p0->lat, p0->lon);
+                    bbox_add(&rbox, p1->lat, p1->lon);
 
                     for (o0=0; o0 < other->pathlen; o0++)
                     {
                         loc_t *p2, *p3;
+                        bbox_t obox;
 
                         if ((o1 = o0+1) == other->pathlen)
                         {
@@ -992,8 +997,11 @@ static void *check_collisions(void *arg)
                         }
                         p2 = &other->path[o0].waypoint;
                         p3 = &other->path[o1].waypoint;
+                        bbox_init(&obox);
+                        bbox_add(&obox, p2->lat, p2->lon);
+                        bbox_add(&obox, p3->lat, p3->lon);
 
-                        if ((p1->lat == p3->lat && p1->lon == p3->lon) || loc_intersect(p0, p1, p2, p3))
+                        if ((p1->lat == p3->lat && p1->lon == p3->lon) || (bbox_intersect(&rbox, &obox) && loc_intersect(p0, p1, p2, p3)))
                         {
                             /* Co-located path segment end nodes or segments intersect = Collision */
                             collision_t *newc;
