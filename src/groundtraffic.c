@@ -663,7 +663,11 @@ static void activate2(airport_t *airport)
     XPLMEnableFeature("XPLM_WANTS_REFLECTIONS", airport->reflections);
     XPLMRegisterDrawCallback(drawcallback, xplm_Phase_Objects, 0, NULL);	/* After other 3D objects */
     if (airport->drawroutes)
+    {
+        XPLMGetFontDimensions(xplmFont_Basic, &font_width, &font_semiheight, NULL);
+        font_semiheight = (font_semiheight+1)/2;
         labelwin = XPLMCreateWindow(0, 1, 1, 0, 1, labelcallback, NULL, NULL, NULL);	/* Under the menubar */
+    }
 
 #ifdef DO_BENCHMARK
     {

@@ -259,9 +259,11 @@ typedef struct
 } objdef_t;
 
 /* A route from routes.txt */
+struct collision_t;
 struct highway_t;
 typedef struct route_t
 {
+    int lineno;			/* Source line in GroundTraffic.txt */
     objdef_t object;
     path_t *path;
     int pathlen;
@@ -272,11 +274,11 @@ typedef struct route_t
         int paused : 1;		/* Waiting for pause duration */
         int waiting : 1;	/* Waiting for At time */
         int dataref : 1;	/* Waiting for DataRef value */
-        int collision : 1;	/* Waiting for collision to resolve */
         int forwardsb : 1;	/* Waypoint before backing up */
         int backingup : 1;
         int forwardsa : 1;	/* Waypoint after backing up */
         int hasdataref: 1;	/* Does the object on this route have DataRef callbacks? */
+        struct collision_t *collision;	/* Waiting for this collision to resolve */
     } state;
     int direction;		/* Traversing path 1=forwards, -1=reverse */
     int last_node, next_node;	/* The last and next waypoints visited on the path */
@@ -288,7 +290,8 @@ typedef struct route_t
     float distance;		/* Cumulative distance travelled from first node [m] */
     float next_heading;		/* Heading from last_node to next_node [m] */
     float steer;		/* Approximate steer angle (degrees) while turning */
-    glColor3f_t drawcolor;
+    glColor3f_t drawcolor;	/* debug path color */
+    int drawX, drawY;		/* debug label position */
     XPLMDrawInfo_t *drawinfo;	/* Where to draw - current OpenGL co-ordinates */
     float last_probe, next_probe;	/* Time of last altitude probe and when we should probe again */
     float last_y, next_y;	/* OpenGL co-ordinates at last and next probe points */
@@ -402,9 +405,21 @@ extern int drawframes;
 
 extern float last_frame;	/* Global so can be reset while disabled */
 extern float lod_factor;
+extern int font_width, font_semiheight;
 
 
 /* inlines */
+
+/* naive UTF8-aware strlen */
+static inline int utf8_strlen(const char *s)
+{
+    int len = 0;
+    while (*s)
+        if (((*s++) & 0xC0) != 0x80) len++;	/* Not a continuation byte */
+    return len;
+}
+
+
 static inline int indrawrange(float xdist, float ydist, float zdist, float range)
 {
     assert (airport.tower.alt != (double) INVALID_ALT);	/* If altitude is invalid then arguments to this function will be too */

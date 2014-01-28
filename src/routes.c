@@ -546,6 +546,7 @@ int readconfig(char *pkgpath, airport_t *airport)
             if (!airport->firstroute) airport->firstroute = currentroute;	/* Save for DRE */
 
             /* Initialise the route */
+            currentroute->lineno = lineno;
             bbox_init(&currentroute->bbox);
             currentroute->direction = 1;
             if (count<16)
@@ -621,6 +622,7 @@ int readconfig(char *pkgpath, airport_t *airport)
             if (!airport->firstroute) airport->firstroute = currentroute;	/* Save for DRE */
 
             /* Initialise the route */
+            currentroute->lineno = lineno;
             bbox_init(&currentroute->bbox);
             currentroute->direction = 1;
             if (count<16)

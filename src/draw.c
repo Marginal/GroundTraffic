@@ -14,6 +14,7 @@ route_t *drawroute = NULL;	/* Global so can be accessed in DataRef callback */
 float last_frame=0;		/* last time we recalculated */
 static int is_night=0;		/* was night last time we recalculated? */
 float lod_factor;		/* screen_width / lod_bias at time of last draw */
+int font_width, font_semiheight;
 #ifdef DO_BENCHMARK
 int drawcumul  = 0;		/* clock time taken drawing [us] */
 int drawframes = 0;		/* over cumulative number of frames */
@@ -23,7 +24,7 @@ int drawframes = 0;		/* over cumulative number of frames */
 static void bez(XPLMDrawInfo_t *drawinfo, point_t *p1, point_t *p2, point_t *p3, float mu);
 
 
-static int iscollision(route_t *route, int tryno)
+static collision_t* iscollision(route_t *route, int tryno)
 {
     path_t *last_node = route->path + route->last_node;
     path_t *next_node = route->path + route->next_node;
@@ -31,7 +32,7 @@ static int iscollision(route_t *route, int tryno)
     int planeno;
     float t = route->next_distance / route->speed;	/* time to next waypoint */;
 
-    if (route->highway) return 0;	/* Highways aren't subject to collisions */
+    if (route->highway) return NULL;	/* Highways aren't subject to collisions */
 
     /* Route collisions */
     while (c)
@@ -56,7 +57,7 @@ static int iscollision(route_t *route, int tryno)
                  (c->route->state.paused && route->next_time + t <= c->route->next_time + COLLISION_INTERVAL))) /* Our next_time hasn't yet been updated yet so ~= now. His next_time is the time he will unpause. */
             {
                 route->deadlocked = COLLISION_TIMEOUT;	/* Wait potentially forever */
-                return -1;
+                return c;
             }
 
             /* Have to wait if he will wait when he reaches the co-located end node, or if we'll get there too early */
@@ -66,7 +67,7 @@ static int iscollision(route_t *route, int tryno)
                  route->next_time + t <= c->route->next_time + COLLISION_INTERVAL + c_end_node->pausetime)) /* Our route->next_time hasn't yet been updated yet so ~= now */
             {
                 route->deadlocked = COLLISION_TIMEOUT;	/* Wait potentially forever */
-                return -1;
+                return c;
             }
         }
         else
@@ -80,7 +81,7 @@ static int iscollision(route_t *route, int tryno)
                 fabsf(c->route->drawinfo->y - route->drawinfo->y) <= COLLISION_ALT)
             {
                 route->deadlocked = tryno;		/* Collision */
-                return -1;
+                return c;
             }
         }
         c = c->next;
@@ -99,32 +100,53 @@ static int iscollision(route_t *route, int tryno)
 
         for (i=0, j=3; i<4; j=i++)
             if (intersect(&last_node->p, &next_node->p, p+i, p+j))
-                return -1;	/* Next edge intersects this plane's footprint */
+                return (collision_t*) -1;	/* Next edge intersects this plane's footprint */
     }
 
-    return 0;
+    return NULL;
 }
 
 
 /* For drawing route nodes. Relies on the fact that the OpenGL view is not clipped to our window */
 void labelcallback(XPLMWindowID inWindowID, void *inRefcon)
 {
-    float color[] = { 1, 1, 1 };
+    float waycolor[] = { 1, 1, 1 }, routecolor[] = { 0.5f, 1, 1 };
     int i;
     route_t *route;
-    char buf[8];
+    char buf[32];
 
     for (route=airport.routes; route; route=route->next)
         if (!route->parent)
+        {
             for (i=0; i<route->pathlen; i++)
             {
                 path_t *node = route->path + i;
-                if (node->drawX>0 && node->drawY>0)
+                if (node->drawX && node->drawY)
                 {
                     snprintf(buf, sizeof(buf), "%d", i);
-                    XPLMDrawString(color, node->drawX, node->drawY, buf, NULL, xplmFont_Basic);
+                    XPLMDrawTranslucentDarkBox(node->drawX-font_width, node->drawY+font_semiheight-2, node->drawX+(strlen(buf)-1)*font_width+1, node->drawY-font_semiheight-2);
+                    XPLMDrawString(waycolor, node->drawX-font_width, node->drawY-font_semiheight, buf, NULL, xplmFont_Basic);
                 }
             }
+            if (route->drawX && route->drawY)
+            {
+                /* Test state flags in same order as drawcallback */
+                if (route->state.waiting)
+                    snprintf(buf, sizeof(buf), "%d %d\xE2\x96\xAA" "At", route->lineno, route->last_node);
+                else if (route->state.dataref)
+                    snprintf(buf, sizeof(buf), "%d %d\xE2\x96\xAA" "When", route->lineno, route->last_node);
+                else if (route->state.paused)
+                    snprintf(buf, sizeof(buf), "%d %d\xE2\x96\xAA" "Pause", route->lineno, route->last_node);
+                else if (route->state.collision == (collision_t*) -1)
+                    snprintf(buf, sizeof(buf), "%d %d\xE2\xA8\xAF" "aircraft", route->lineno, route->last_node);
+                else if (route->state.collision)
+                    snprintf(buf, sizeof(buf), "%d %d\xE2\xA8\xAF" "%d", route->lineno, route->last_node, route->state.collision->route->lineno);
+                else
+                    snprintf(buf, sizeof(buf), "%d %d\xE2\x9E\xA1" "%d", route->lineno, route->last_node, route->next_node);
+                XPLMDrawTranslucentDarkBox(route->drawX-2*font_width, route->drawY+3*font_semiheight, route->drawX+(strlen(buf)-4)*font_width+1, route->drawY+font_semiheight);
+                XPLMDrawString(routecolor, route->drawX-2*font_width, route->drawY+font_semiheight+2, buf, NULL, xplmFont_Basic);
+            }
+        }
 }
 
 
@@ -234,12 +256,22 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                 if (!route->parent)
                 {
                     int i;
+                    GLdouble winX, winY, winZ;
+
+                    gluProject(route->drawinfo->x, route->drawinfo->y, route->drawinfo->z, model, proj, view, &winX, &winY, &winZ);
+                    if (winZ <= 1)	/* not behind us */
+                    {
+                        route->drawX = winX;
+                        route->drawY = winY;
+                    }
+                    else
+                        route->drawX = route->drawY = 0;
+
                     glColor3fv(&route->drawcolor.r);
                     glBegin((route->highway || route->path[route->pathlen-1].flags.reverse) ? GL_LINE_STRIP : GL_LINE_LOOP);
                     for (i=0; i<route->pathlen; i++)
                     {
                         path_t *node = route->path + i;
-                        GLdouble winX, winY, winZ;
 
                         glVertex3fv(&node->p.x);
                         gluProject(node->p.x, node->p.y, node->p.z, model, proj, view, &winX, &winY, &winZ);
@@ -249,9 +281,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                             node->drawY = winY;
                         }
                         else
-                        {
-                            node->drawX = node->drawY = -1;
-                        }
+                            node->drawX = node->drawY = 0;
                     }
                     glEnd();
                 }
