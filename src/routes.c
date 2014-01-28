@@ -51,6 +51,7 @@ void clearconfig(airport_t *airport)
     airport->tower.alt = (double) INVALID_ALT;
     airport->state = noconfig;
     airport->done_first_activation = 0;
+    airport->new_airport = -1;	/* Reloaded config causes synchronous load */
     airport->drawroutes = 0;
     airport->reflections = 0;
     airport->active_distance = ACTIVE_DISTANCE;
@@ -804,6 +805,7 @@ static route_t *expandtrain(airport_t *airport, route_t *currentroute)
 
     assert (currentroute);
     if (!currentroute) return NULL;
+    if (currentroute->highway) return currentroute;	/* Highways don't have an object name */
 
     while (train)
     {
@@ -813,6 +815,7 @@ static route_t *expandtrain(airport_t *airport, route_t *currentroute)
     if (!train) return currentroute;
 
     /* It's a train */
+    free(route->object.name);
     for (i=0; i<MAX_TRAIN; i++)
     {
         if (!train->objects[i].name) break;

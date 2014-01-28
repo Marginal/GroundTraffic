@@ -35,13 +35,20 @@
 #  define strncasecmp(s1, s2, n) _strnicmp(s1, s2, n)
 #endif
 
-#if IBM
+#if IBM		/* http://msdn.microsoft.com/en-us/library/windows/desktop/ms686355%28v=vs.85%29.aspx */
 #  define WIN32_LEAN_AND_MEAN
 #  include <windows.h>
 #else
 #  include <dirent.h>
 #  include <libgen.h>
 #  include <sys/time.h>
+#  include <pthread.h>
+#  if APL	/* https://developer.apple.com/library/mac/documentation/cocoa/Conceptual/Multithreading/ThreadSafety/ThreadSafety.html */
+#    include <libkern/OSAtomic.h>
+#    define MemoryBarrier OSMemoryBarrier
+#  elif LIN	/* http://gcc.gnu.org/onlinedocs/gcc-4.6.3/gcc/Atomic-Builtins.html */
+#    define MemoryBarrier __sync_synchronize
+#  endif
 #endif
 
 #if APL
@@ -328,8 +335,9 @@ typedef struct collision_t
 /* airport info from routes.txt */
 typedef struct
 {
-    enum { noconfig=0, inactive, active } state;
+    enum { noconfig=0, inactive, activating, active } state;
     int done_first_activation;	/* Whether we've calculated collisions and expanded highways */
+    int new_airport;		/* Whether we've moved to a new airport, so activation should be immediate */
     char ICAO[5];
     dloc_t tower;
     dpoint_t p;			/* Remember OpenGL location of tower to detect scenery shift */
@@ -343,6 +351,24 @@ typedef struct
     extref_t *extrefs;
     XPLMDrawInfo_t *drawinfo;	/* consolidated XPLMDrawInfo_t array for all routes/objects so they can be batched */
 } airport_t;
+
+
+/* Worker thread */
+/* Align to cache-line - http://software.intel.com/en-us/articles/avoiding-and-identifying-false-sharing-among-threads */
+#if IBM
+typedef __declspec(align(64)) struct
+#else
+typedef struct __attribute__((aligned(64)))
+#endif
+{
+#if IBM
+    HANDLE thread;
+#else
+    pthread_t thread;
+#endif
+    int die_please;
+    int finished;
+} worker_t;
 
 
 /* prototypes */
@@ -471,5 +497,74 @@ static inline int gettimeofday(struct timeval *tp, void *tzp)
     return 0;
 }
 #endif
+
+
+/* Operations on worker_t */
+
+static inline int worker_start(worker_t *worker, void *(*start_routine)(void *))
+{
+    worker->die_please = worker->finished = 0;
+    MemoryBarrier();
+#if IBM
+    if (!(worker->thread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE) start_routine, NULL, 0, NULL)))
+#else
+    if (pthread_create(&worker->thread, NULL, start_routine, NULL))
+#endif
+    {
+        return xplog("Internal error: Can't create worker thread");
+    }
+    return -1;
+}
+
+/* Wait for worker to stop */
+static inline void worker_wait(worker_t *worker)
+{
+    if (worker->thread)
+    {
+#if IBM
+        WaitForSingleObject(worker->thread, INFINITE);
+        CloseHandle(worker->thread);
+#else
+        pthread_join(worker->thread, NULL);
+#endif
+        worker->thread =  0;
+    }
+}
+
+/* Signal worker and wait for it to stop */
+static inline void worker_stop(worker_t *worker)
+{
+    if (worker->thread)
+    {
+        worker->die_please = -1;
+        MemoryBarrier();
+        worker_wait(worker);
+    }
+}
+
+/* Check whether worker is finished */
+static inline int worker_is_finished(worker_t *worker)
+{
+    if (worker->thread)
+    {
+        MemoryBarrier();
+        if (worker->finished)
+        {
+            worker_wait(worker);
+            return -1;
+        }
+        else
+            return 0;
+    }
+    else
+        return -1;
+}
+
+/* Called from worker thread to check for early termination */
+#define worker_check_stop(worker) { MemoryBarrier(); if ((*(worker)).die_please) return NULL; }
+
+/* Called from worker thread to indicate completion */
+#define worker_has_finished(worker) { MemoryBarrier(); (*(worker)).finished = -1; }
+
 
 #endif /* _GROUNDTRAFFIC_H_ */

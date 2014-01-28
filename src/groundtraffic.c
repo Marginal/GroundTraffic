@@ -24,6 +24,11 @@ XPLMProbeRef ref_probe;
 float lod_bias = DEFAULT_LOD;
 airport_t airport = { 0 };
 int year=113;		/* Current year (in GMT tz) since 1900 */
+worker_t collision_worker = { 0 }, LOD_worker = { 0 };
+route_t *activating_route = NULL;
+#ifdef DO_BENCHMARK
+struct timeval activating_loading_t1, activating_elapsed_t1;
+#endif
 
 /* Published DataRefs. Must be in same order as dataref_t */
 const char datarefs[dataref_count][60] = {
@@ -39,12 +44,15 @@ const char datarefs[dataref_count][60] = {
 /* In this file */
 static XPLMWindowID labelwin = 0;
 
+static int newairportcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon);
 static float flightcallback(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop, int inCounter, void *inRefcon);
 static float floatrefcallback(XPLMDataRef inRefCon);
 static int intrefcallback(XPLMDataRef inRefCon);
 static int varrefcallback(XPLMDataRef inRefCon, float *outValues, int inOffset, int inMax);
-static int check_collisions(airport_t *airport);
 static int lookup_objects(airport_t *airport);
+static void activate2(airport_t *airport);
+static void *check_LODs(void *arg);
+static void *check_collisions(void *arg);
 
 
 /* inlines */
@@ -119,7 +127,7 @@ PLUGIN_API int XPluginStart(char *outName, char *outSignature, char *outDescript
     srand(time(NULL));	/* Seed rng */
     if (time(&t)!=-1 && (tm = localtime(&t)))	year=tm->tm_year;			/* What year is it? */
 
-    XPLMRegisterFlightLoopCallback(flightcallback, -1 - (rand() % ACTIVE_POLL), NULL);	/* Spread out poll across frames */
+    XPLMRegisterFlightLoopCallback(flightcallback, 0, NULL);	/* inactive - wait for XPLM_MSG_AIRPORT_LOADED */
 
     return 1;
 }
@@ -139,6 +147,9 @@ PLUGIN_API int XPluginEnable(void)
 
 PLUGIN_API void XPluginDisable(void)
 {
+    activating_route = NULL;	/* Discard any pending async object load */
+    worker_stop(&LOD_worker);
+    worker_stop(&collision_worker);
     clearconfig(&airport);
 }
 
@@ -146,30 +157,18 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFrom, long inMessage, void 
 {
     if (inMessage==XPLM_MSG_AIRPORT_LOADED)
     {
-        readconfig(pkgpath, &airport);
+        readconfig(pkgpath, &airport);	/* Check for edits */
 
-        /* Check if we've gone out of range so that the old airport is deactivated and per-route DataRefs
-           unregistered before the new airport is activated and tries to register those same DataRefs. */
-        if (airport.state == active)
-        {
-            if (!intilerange(airport.tower))
-            {
-                deactivate(&airport);
-            }
-            else
-            {
-                double airport_x, airport_y, airport_z;
-                float view_x, view_y, view_z;
+        if ((airport.state == active || airport.state == activating) && !intilerange(airport.tower))
+            deactivate(&airport);
 
-                XPLMWorldToLocal(airport.tower.lat, airport.tower.lon, airport.tower.alt, &airport_x, &airport_y, &airport_z);
-                view_x=XPLMGetDataf(ref_view_x);
-                view_y=XPLMGetDataf(ref_view_y);
-                view_z=XPLMGetDataf(ref_view_z);
-
-                if (!indrawrange(((float)airport_x)-view_x, ((float)airport_y)-view_y, ((float)airport_z)-view_z, airport.active_distance+ACTIVE_HYSTERESIS))
-                    deactivate(&airport);
-            }
-        }
+        /* Schedule a one-shot draw callback ASAP so:
+         * - We can check if we've gone out of range and if so deactivate and unregister per-route DataRefs before
+         *   any new airport is activated and tries to register those same DataRefs.
+         * - If the user has placed the plane at our airport we can activate synchronously before the first draw frame.
+         * We can't do these checks here since the view DataRefs aren't yet updated with the new plane position. */
+        XPLMRegisterDrawCallback(newairportcallback, xplm_Phase_FirstScene, airport.state==active || airport.state==activating, NULL);
+        XPLMSetFlightLoopCallbackInterval(flightcallback, 0, 1, NULL);	/* pause flight callback */
     }
     else if (inMessage==XPLM_MSG_SCENERY_LOADED)
     {
@@ -193,44 +192,74 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFrom, long inMessage, void 
 }
 
 
-/* Flight loop callback for checking whether we've come into or gone out of range */
-static float flightcallback(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop, int inCounter, void *inRefcon)
+/* Check whether we've come into or gone out of range */
+static void check_range(airport_t *airport)
 {
-    if (airport.state == inactive)
+    if (airport->state == inactive)
     {
-        if (intilerange(airport.tower))
+        if (intilerange(airport->tower))
         {
             double airport_x, airport_y, airport_z;
             float view_x, view_y, view_z;
 
-            if (airport.tower.alt == (double) INVALID_ALT)
-                proberoutes(&airport);	/* First time we've encountered our airport. Determine elevations. */
+            if (airport->tower.alt == (double) INVALID_ALT)
+                proberoutes(airport);	/* First time we've encountered our airport Determine elevations. */
 
-            XPLMWorldToLocal(airport.tower.lat, airport.tower.lon, airport.tower.alt, &airport_x, &airport_y, &airport_z);
+            XPLMWorldToLocal(airport->tower.lat, airport->tower.lon, airport->tower.alt, &airport_x, &airport_y, &airport_z);
             view_x=XPLMGetDataf(ref_view_x);
             view_y=XPLMGetDataf(ref_view_y);
             view_z=XPLMGetDataf(ref_view_z);
 
-            if (indrawrange(((float)airport_x)-view_x, ((float)airport_y)-view_y, ((float)airport_z)-view_z, airport.active_distance))
-                if (!activate(&airport))	/* Going active */
-                    clearconfig(&airport);
+            if (indrawrange(((float)airport_x)-view_x, ((float)airport_y)-view_y, ((float)airport_z)-view_z, airport->active_distance))
+                if (!activate(airport))	/* Going active. Will be synchronous if airport->new_airport. */
+                    clearconfig(airport);
         }
     }
-    else if (airport.state == active)
+    else if (airport->state == active || airport->state == activating)
     {
-        /* Do this check here rather than in drawcallback() because we can't delete labelwin in the middle of the draw callbacks */
+        /* Do this check here rather than in drawcallback() because we can't delete labelwin in the middle of
+           the draw callbacks. */
         double airport_x, airport_y, airport_z;
         float view_x, view_y, view_z;
 
-        XPLMWorldToLocal(airport.tower.lat, airport.tower.lon, airport.tower.alt, &airport_x, &airport_y, &airport_z);
-        view_x=XPLMGetDataf(ref_view_x);
-        view_y=XPLMGetDataf(ref_view_y);
-        view_z=XPLMGetDataf(ref_view_z);
+        if (!intilerange(airport->tower))
+        {
+            deactivate(airport);
+        }
+        else
+        {
+            XPLMWorldToLocal(airport->tower.lat, airport->tower.lon, airport->tower.alt, &airport_x, &airport_y, &airport_z);
+            view_x=XPLMGetDataf(ref_view_x);
+            view_y=XPLMGetDataf(ref_view_y);
+            view_z=XPLMGetDataf(ref_view_z);
 
-        if (!indrawrange(((float)airport_x)-view_x, ((float)airport_y)-view_y, ((float)airport_z)-view_z, airport.active_distance+ACTIVE_HYSTERESIS))
-            deactivate(&airport);
+            if (!indrawrange(((float)airport_x)-view_x, ((float)airport_y)-view_y, ((float)airport_z)-view_z, airport->active_distance+ACTIVE_HYSTERESIS))
+                deactivate(airport);
+            else if (airport->state == activating && !activating_route)
+                activate2(airport);	/* obj loading is complete - check for completion of other tasks */
+        }
     }
+}
 
+
+/* One-shot draw callback after new airport */
+static int newairportcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
+{
+    airport.new_airport = -1;	/* Plane was moved manually so activate() should operate synchronously  */
+    check_range(&airport);
+    airport.new_airport = 0;
+
+    XPLMUnregisterDrawCallback(newairportcallback, xplm_Phase_FirstScene, inIsBefore, inRefcon);
+    /* All inactive plugins get called immediately after a new airport, so spread out poll across frames */
+    XPLMSetFlightLoopCallbackInterval(flightcallback, -1 - (rand() % ACTIVE_POLL), 1, NULL);
+
+    return 1;
+}
+
+/* Flight loop callback for checking whether we've come into or gone out of range */
+static float flightcallback(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop, int inCounter, void *inRefcon)
+{
+    check_range(&airport);
     return -ACTIVE_POLL;
 }
 
@@ -398,90 +427,41 @@ float userrefcallback(XPLMDataRef inRefcon)
 }
 
 
-/*
- * Load object and emulate X-Plane's LOD calculation for scenery objects
- *
- * X-Plane 10 appears to calculate view distance as follows:
- * - Object contains ATTR_LOD statement:
- *     view_distance = max(ATTR_LOD)    * 0.0007 * (screen_width / "sim/private/controls/reno/LOD_bias_rat")
- * - Otherwise:
- *     view_distance = height           * 0.65   * (screen_width / "sim/private/controls/reno/LOD_bias_rat")
- * - Fallback for flat objects (skipped here):
- *     view_distance = min(width,depth) * 0.093  * (screen_width / "sim/private/controls/reno/LOD_bias_rat")
- */
-static XPLMObjectRef loadobject(route_t *route)
+/* Callback from XPLMLoadObjectAsync */
+static void loadobject(XPLMObjectRef inObject, void *inRef)
 {
-    FILE *h;
-    char line[MAX_NAME+64];
-    float height=0, lod=0;
-    route_t *other;
-
-#ifdef DO_BENCHMARK
-    struct timeval t1, t2;
-    gettimeofday(&t1, NULL);		/* start */
-#endif
-    if (!(route->object.objref = XPLMLoadObject(route->object.physical_name))) return NULL;
-#ifdef DO_BENCHMARK
-    gettimeofday(&t2, NULL);		/* stop */
-    snprintf(line, MAX_NAME, "%d us in XPLMLoadObject(\"%s\")", (int) ((t2.tv_sec-t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec), route->object.physical_name);
-    xplog(line);
-    gettimeofday(&t1, NULL);		/* start */
-#endif
-
-    /* If we've already loaded this object then use its LOD */
-    for (other = airport.routes; other!=route; other = other->next)
-        if (other->object.objref == route->object.objref)
-        {
-            route->object.drawlod = other->object.drawlod;
-            return route->object.objref;
-        }
-
-    if (!(h=fopen(route->object.physical_name, "r")))
+    if (!activating_route)
     {
-#ifdef DEBUG
+        /* We were deactivated / disabled */
+        if (inObject) XPLMUnloadObject(inObject);
+        return;
+    }
+
+    assert ((route_t *) inRef == activating_route);
+
+    if (!(activating_route->object.objref = inObject))
+    {
         char msg[MAX_NAME+64];
-        sprintf(msg, "Can't parse \"%s\"", route->object.physical_name);
+        sprintf(msg, "Can't load object or train \"%s\"", activating_route->object.name);
         xplog(msg);
-#endif
-        route->object.drawlod = DEFAULT_DRAWLOD;
-        return route->object.objref;
+        clearconfig(&airport);
+        return;
     }
 
-    while (fgets(line, sizeof(line), h))
-    {
-        float y;
-        if (sscanf(line, " VT %*f %f", &y) == 1)
-        {
-            if (y > height) height = y;
-        }
-        else if (sscanf(line, " ATTR_LOD %*f %f", &y) == 1)
-        {
-            if (y > lod) lod = y;
-        }
-    }
-    fclose(h);
-
-    if (lod)
-        route->object.drawlod = 0.0007f * lod;
-    else if (height)
-        route->object.drawlod = 0.65f * height;
-    else
-    {
-#ifdef DEBUG
-        char msg[MAX_NAME+64];
-        sprintf(msg, "Can't parse \"%s\"", route->object.physical_name);
-        xplog(msg);
-#endif
-        route->object.drawlod = DEFAULT_DRAWLOD;	/* Perhaps a v7 object? */
-    }
-
+    activating_route = activating_route->next;
 #ifdef DO_BENCHMARK
-    gettimeofday(&t2, NULL);		/* stop */
-    snprintf(line, MAX_NAME, "%d us in LOD calculation", (int) ((t2.tv_sec-t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec));
-    xplog(line);
+    if (!activating_route)
+    {
+        struct timeval t2;
+        char msg[64];
+        gettimeofday(&t2, NULL);		/* stop */
+        sprintf(msg, "%d us in activate loading resources", (int) ((t2.tv_sec-activating_loading_t1.tv_sec) * 1000000 + t2.tv_usec - activating_loading_t1.tv_usec));
+        xplog(msg);
+    }
 #endif
 
-    return route->object.objref;
+    /* Do next object. This can turn synchronous if the user placed the plane at our airport while we were loading */
+    activate2(&airport);
 }
 
 
@@ -503,13 +483,16 @@ static int sortroute(const void *a, const void *b)
 /* Going active - load resources. Return non-zero if success */
 int activate(airport_t *airport)
 {
-    route_t *route, **routes;
     userref_t *userref;
     extref_t *extref;
     XPLMPluginID PluginID;
-    int count, i;
+    int i;
 
     assert (airport->state==inactive);
+
+#ifdef DO_BENCHMARK
+    gettimeofday(&activating_elapsed_t1, NULL);		/* start */
+#endif
 
     /* Register per-route DataRefs with X-Plane. Do this before loading objects so DataRef lookups work. */
     for(i=0; i<dataref_count; i++)
@@ -549,50 +532,123 @@ int activate(airport_t *airport)
         /* Silently fail on failed lookup - like .obj files do */
     }
 
-    /* Check for collisions and lookup library objects on first activation */
+    /* We have five further tasks on activation:
+     * 1. lookup library objects and expand highway routes
+     * 2. determine collisions between routes
+     * 3. ask X-Plane to load objects
+     * 4. parse objects to determine LOD
+     * 5. sort routes by XPLMObjectRef for batched drawing
+     *
+     * (1) takes typically a few milliseconds or tens of milliseconds for a complex config.
+     * (2) can take a large number of seconds for a complex config with, say, 500 overlapping routes.
+     * (3) and (4) take roughly the same time if the .obj files are loaded in the OS cache (they're both parsing
+     * the same .obj files) and can take a number of seconds.
+     * (5) takes a few milliseconds.
+     *
+     * (1) and (2) only need to be done on first activation. (3), (4) and (5) we have to do on every activation,
+     * since we unload objects on de-activation.
+     *
+     * We do (1) immediately below, since (3) and (4) depend on its output.
+     * We do (3) and (4) in worker threads.
+     * XPSDK expects calls to be made from the main thread so we do (3) in the main thread, either synchronously
+     * or asynchronously depending on whether the user has just placed their plane at our airport.
+     * We do (5) after the worker threads have completed, since it depends on (3)
+     */
     if (!airport->done_first_activation)
     {
-        if (!lookup_objects(airport)) return 0;
-        if (!check_collisions(airport)) return 0;
+        lookup_objects(airport);
+        if (!worker_start(&collision_worker, check_collisions)) return 0;
         airport->done_first_activation = -1;
     }
+    if (!worker_start(&LOD_worker, check_LODs)) return 0;
 
-    /* Load objects */
-    {
-        char msg[MAX_NAME+64];
+    /* Start loading objects */
 #ifdef DO_BENCHMARK
-        struct timeval t1, t2;
-        gettimeofday(&t1, NULL);		/* start */
+    gettimeofday(&activating_loading_t1, NULL);		/* start */
 #endif
-        for (route = airport->routes; route; route = route->next)
+    airport->state = activating;
+    activating_route = airport->routes;
+    if (!airport->new_airport)
+        XPLMLoadObjectAsync(activating_route->object.physical_name, loadobject, activating_route);
+    else
+        activate2(airport);	/* Synchronous */
+
+    return 2;
+}
+
+
+/* Contine going active - load resources. */
+static void activate2(airport_t *airport)
+{
+    route_t *route, **routes;
+    int count, i;
+#ifdef DO_BENCHMARK
+    struct timeval t2;
+    char msg[64];
+#endif
+
+    if (airport->new_airport)
+    {
+        /* User has placed their plane at our airport. Load synchronously from here on. */
+        while (activating_route)
         {
-            if (!loadobject(route))
+            if (!(activating_route->object.objref = XPLMLoadObject(activating_route->object.physical_name)))
             {
-                sprintf(msg, "Can't load object or train \"%s\"", route->object.name);
-                return xplog(msg);
+                char msg[MAX_NAME+64];
+                sprintf(msg, "Can't load object or train \"%s\"", activating_route->object.name);
+                xplog(msg);
+                clearconfig(airport);
+                return;
             }
-            if (route->highway)		/* If previously deactivated, just let it continue when and where it left off */
-                route->next_time=0;	/* apart from highways, which always need resetting to maintain spacing */
+            activating_route = activating_route->next;
         }
+        airport->new_airport = 0;
 #ifdef DO_BENCHMARK
         gettimeofday(&t2, NULL);		/* stop */
-        sprintf(msg, "%d us in activate loading resources", (int) ((t2.tv_sec-t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec));
+        sprintf(msg, "%d us in activate loading resources", (int) ((t2.tv_sec-activating_loading_t1.tv_sec) * 1000000 + t2.tv_usec - activating_loading_t1.tv_usec));
         xplog(msg);
 #endif
     }
+    else if (activating_route)
+    {
+        /* Async - load next */
+        XPLMLoadObjectAsync(activating_route->object.physical_name, loadobject, activating_route);
+        return;
+    }
+    else if (!worker_is_finished(&LOD_worker) || !worker_is_finished(&collision_worker))
+    {
+        /* Async loading done, but other tasks not done */
+        return;
+    }
+
+    /* All done */
+    worker_wait(&LOD_worker);
+    worker_wait(&collision_worker);
 
     /* Sort routes by XPLMObjectRef and assign XPLMDrawInfo_t entries in sequence so objects can be drawn in batches.
      * Rather than actually shuffling the routes around in memory we just sort an array of pointers and then go back
      * and fix up the linked list and pointers into the XPLMDrawInfo_t array. */
-    for (count = 0, route = airport->routes; route; count++, route = route->next);
+    for (count = 0, route = airport->routes; route; count++, route = route->next)
+    {
+        if (route->highway)		/* If previously deactivated, just let it continue when and where it left off */
+            route->next_time=0;		/* apart from highways, which always need resetting to maintain spacing */
+    }
     if (!airport->drawinfo)
     {
         if (!(airport->drawinfo = calloc(count, sizeof(XPLMDrawInfo_t))))
-            return xplog("Out of memory!");
+        {
+            xplog("Out of memory!");
+            clearconfig(airport);
+            return;
+        }
         for (i = 0; i<count; airport->drawinfo[i++].structSize = sizeof(XPLMDrawInfo_t));
     }
     if (!(routes = malloc(count * sizeof(route))))
-        return xplog("Out of memory!");
+    {
+        xplog("Out of memory!");
+        clearconfig(airport);
+        return;
+    }
     for (i = 0, route = airport->routes; route; route = route->next)
         routes[i++] = route;
     qsort(routes, count, sizeof(route), sortroute);
@@ -609,8 +665,16 @@ int activate(airport_t *airport)
     if (airport->drawroutes)
         labelwin = XPLMCreateWindow(0, 1, 1, 0, 1, labelcallback, NULL, NULL, NULL);	/* Under the menubar */
 
+#ifdef DO_BENCHMARK
+    {
+        struct timeval t2;
+        char msg[64];
+        gettimeofday(&t2, NULL);		/* stop */
+        sprintf(msg, "%d us in activate total elapsed", (int) ((t2.tv_sec-activating_elapsed_t1.tv_sec) * 1000000 + t2.tv_usec - activating_elapsed_t1.tv_usec));
+        xplog(msg);
+    }
+#endif
     airport->state=active;
-    return 2;
 }
 
 
@@ -619,7 +683,7 @@ static void countlibraryobjs(const char *inFilePath, void *inRef)
 {}	/* Don't need to do anything */
 
 
-/* Callback from XPLMLookupObjects to load a library object */
+/* Callback from XPLMLookupObjects to pick a library object */
 static void chooselibraryobj(const char *inFilePath, void *inRef)
 {
     route_t *route=inRef;
@@ -627,7 +691,7 @@ static void chooselibraryobj(const char *inFilePath, void *inRef)
         route->object.physical_name = strdup(inFilePath);		/* Load the nth object */
 }
 
-/* Callback from XPLMLookupObjects to load a highway library object */
+/* Callback from XPLMLookupObjects to enumerate a highway library object */
 static void enumeratehighwayobj(const char *inFilePath, void *inRef)
 {
     highway_t *highway=inRef;
@@ -678,7 +742,7 @@ static int lookup_objects(airport_t *airport)
                     struct stat info;
                     objdef_t *objdef = highway->expanded + (highway->obj_count ++);
 
-                    if ((objdef->physical_name = malloc(strlen(pkgpath) + strlen(objdef->name) + 2)))
+                    if ((objdef->physical_name = malloc(strlen(pkgpath) + strlen(highway->objects[i].name) + 2)))
                     {
                         strcpy(objdef->physical_name, pkgpath);
                         strcat(objdef->physical_name, "/");
@@ -787,8 +851,95 @@ static int lookup_objects(airport_t *airport)
 }
 
 
+/*
+ * Emulate X-Plane's LOD calculation for scenery objects
+ *
+ * X-Plane 10 appears to calculate view distance as follows:
+ * - Object contains ATTR_LOD statement:
+ *     view_distance = max(ATTR_LOD)    * 0.0007 * (screen_width / "sim/private/controls/reno/LOD_bias_rat")
+ * - Otherwise:
+ *     view_distance = height           * 0.65   * (screen_width / "sim/private/controls/reno/LOD_bias_rat")
+ * - Fallback for flat objects (skipped here):
+ *     view_distance = min(width,depth) * 0.093  * (screen_width / "sim/private/controls/reno/LOD_bias_rat")
+ */
+static void *check_LODs(void *arg)
+{
+    FILE *h;
+    route_t *route, *other;
+    char line[MAX_NAME+64];
+    float height=0, lod=0;
+#ifdef DO_BENCHMARK
+    char msg[64];
+    struct timeval t1, t2;
+    gettimeofday(&t1, NULL);		/* start */
+#endif
+
+    for (route=airport.routes; route; route=route->next)
+    {
+        worker_check_stop(&LOD_worker);
+
+        /* If we've already loaded this object then use its LOD */
+        route->object.drawlod = 0;
+        for (other = airport.routes; other!=route; other = other->next)
+            if (!strcmp(route->object.physical_name, other->object.physical_name))
+            {
+                route->object.drawlod = other->object.drawlod;
+                break;
+            }
+        if (route->object.drawlod) continue;
+
+        if (!(h=fopen(route->object.physical_name, "r")))
+        {
+#ifdef DEBUG
+            char msg[MAX_NAME+64];
+            sprintf(msg, "Can't parse \"%s\"", route->object.physical_name);
+            xplog(msg);
+#endif
+            route->object.drawlod = DEFAULT_DRAWLOD;
+            continue;
+        }
+
+        while (fgets(line, sizeof(line), h))
+        {
+            float y;
+            if (sscanf(line, " VT %*f %f", &y) == 1)
+            {
+                if (y > height) height = y;
+            }
+            else if (sscanf(line, " ATTR_LOD %*f %f", &y) == 1)
+            {
+                if (y > lod) lod = y;
+            }
+        }
+        fclose(h);
+
+        if (lod)
+            route->object.drawlod = 0.0007f * lod;
+        else if (height)
+            route->object.drawlod = 0.65f * height;
+        else
+        {
+#ifdef DEBUG
+            char msg[MAX_NAME+64];
+            sprintf(msg, "Can't parse \"%s\"", route->object.physical_name);
+            xplog(msg);
+#endif
+            route->object.drawlod = DEFAULT_DRAWLOD;	/* Perhaps a v7 object? */
+        }
+    }
+
+#ifdef DO_BENCHMARK
+    gettimeofday(&t2, NULL);		/* stop */
+    sprintf(msg, "%d us in activate LOD calculation", (int) ((t2.tv_sec-t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec));
+    xplog(msg);
+#endif
+    worker_has_finished(&LOD_worker);
+    return NULL;
+}
+
+
 /* Check for collisions - O(n * log(n) * m^2) ! */
-static int check_collisions(airport_t *airport)
+static void *check_collisions(void *arg)
 {
     route_t *route, *other;
 #ifdef DO_BENCHMARK
@@ -797,9 +948,10 @@ static int check_collisions(airport_t *airport)
     gettimeofday(&t1, NULL);		/* start */
 #endif
 
-    assert (!airport->done_first_activation);
+    for (route=airport.routes; route; route=route->next)
+    {
+        worker_check_stop(&collision_worker);
 
-    for (route=airport->routes; route; route=route->next)
         if (!route->parent && !route->highway)		/* Skip child routes and highways */
         {
             int rrev = route->path[route->pathlen-1].flags.reverse;
@@ -847,14 +999,22 @@ static int check_collisions(airport_t *airport)
                             collision_t *newc;
 
                             if (!(newc=malloc(sizeof(collision_t))))
-                                return xplog("Out of memory!");
+                            {
+                                xplog("Out of memory!");
+                                worker_has_finished(&collision_worker);
+                                return NULL;
+                            }
                             newc->route = other;
                             newc->node = o0;
                             newc->next = route->path[r0].collisions;
                             route->path[r0].collisions = newc;
 
                             if (!(newc=malloc(sizeof(collision_t))))
-                                return xplog("Out of memory!");
+                            {
+                                xplog("Out of memory!");
+                                worker_has_finished(&collision_worker);
+                                return NULL;
+                            }
                             newc->route = route;
                             newc->node = r0;
                             newc->next = other->path[o0].collisions;
@@ -864,14 +1024,15 @@ static int check_collisions(airport_t *airport)
                 }
             }
         }
+    }
 
 #ifdef DO_BENCHMARK
     gettimeofday(&t2, NULL);		/* stop */
     sprintf(buffer, "%d us in activate check collisions", (int) ((t2.tv_sec-t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec));
     xplog(buffer);
 #endif
-
-    return 1;
+    worker_has_finished(&collision_worker);
+    return NULL;
 }
 
 
@@ -881,7 +1042,12 @@ void deactivate(airport_t *airport)
     route_t *route;
     int i;
 
-    if (airport->state!=active) return;
+    if (airport->state!=active && airport->state!=activating) return;
+
+    activating_route = NULL;		/* Abandon any pending async object load */
+    /* These aren't coded to be resumable ('though they could be) - have to wait */
+    worker_wait(&LOD_worker);
+    worker_wait(&collision_worker);
 
     for(route=airport->routes; route; route=route->next)
     {
