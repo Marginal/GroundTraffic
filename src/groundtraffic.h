@@ -86,9 +86,10 @@
 #define MAX_NAME 256		/* Arbitrary limit on object name lengths */
 #define TILE_RANGE 1		/* How many tiles away from plane's tile to consider getting out of bed for */
 #define ACTIVE_POLL 16		/* Poll to see if we've come into range every n frames */
-#define ACTIVE_DISTANCE 8000.f	/* Distance [m] from tower location at which to actually get out of bed */
-#define ACTIVE_WATER 24000.f	/* As above when "water" flag is set (you can see a long way on water) */
+#define ACTIVE_DISTANCE 5000.f	/* Distance [m] from tower location at which to actually get out of bed */
+#define ACTIVE_WATER 20000.f	/* As above when "water" flag is set (you can see a long way on water) */
 #define ACTIVE_HYSTERESIS (ACTIVE_DISTANCE*0.05f)
+#define RADIUS 6378145.f	/* from sim/physics/earth_radius_m [m] */
 #define DEFAULT_DRAWLOD 2.f	/* Equivalent to an object 3m high */
 #define DEFAULT_LOD 2.25f	/* Equivalent to "medium" world detail distance */
 #define DEFAULT_DRAWCARS 3.f	/* Equivalent to "Chicago Suburbs" world detail distance */
@@ -341,7 +342,6 @@ typedef struct
     enum { noconfig=0, inactive, activating, active } state;
     int done_first_activation;	/* Whether we've calculated collisions and expanded highways */
     int new_airport;		/* Whether we've moved to a new airport, so activation should be immediate */
-    char ICAO[5];
     dloc_t tower;
     dpoint_t p;			/* Remember OpenGL location of tower to detect scenery shift */
     int drawroutes;

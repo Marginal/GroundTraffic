@@ -54,23 +54,10 @@ em { font-style:normal; color:FireBrick; }
 <h2>Animation instructions</h2>
 
 <p>Use Notepad, TextEdit, or any other text editor to create a plain text file named <samp>GroundTraffic.txt</samp> in your scenery package folder. Save this blank file with an &ldquo;ANSI&rdquo;, &ldquo;Western&rdquo; or &ldquo;UTF-8&rdquo; encoding. (If using TextEdit, you may have to first choose <samp>Format&nbsp;&rarr; Make Plain Text</samp> to see those choices).</p>
-<p>Add a &ldquo;Header&rdquo; statement to this file, optionally followed by a &ldquo;Water&rdquo; and/or &ldquo;Debug&rdquo; statement, followed by one or more &ldquo;<a href="#Route">Routes</a>&rdquo;. You can also optionally add comments to the file.</p>
-
-<h3>Header</h3>
-<p>The Header statement tells the plugin the location of your airport. It should be of the form &ldquo;ICAO&nbsp;lat&nbsp;lon&rdquo;, where:</p>
-<dl>
-  <dt>ICAO</dt>
-  <dd>Four-character ICAO airport code.</dd>
-  <dt>lat &amp; lon</dt>
-  <dd>A location near the centre of your airport. The control tower is often a good choice.</dd>
-</dl>
-<p>For example Seattle-Tacoma airport tower:</p>
-<pre>KSEA 	47.4557260 -122.3013928
-
-</pre>
+<p>Add one or more &ldquo;<a href="#Route">Routes</a>&rdquo; and/or &ldquo;<a href="#Highway">Highways</a>&rdquo; to this file and, optionally, a &ldquo;Water&rdquo; statement, &ldquo;Debug&rdquo; statement, and/or comments.</p>
 
 <h3>Water</h3>
-<p>The Water statement tells the plugin that some or all of your routes are over water. In practice this causes the plugin to activate sooner as the user approaches the airport (since you can see things at sea from a large distance) and, when &ldquo;water reflection detail&rdquo; is set to &ldquo;medium&rdquo; or above under X-Plane's Rendering Options, to draw objects with reflections. There is a performance cost to both of these activities, so don't use this statement unless you need to.</p>
+<p>The Water statement tells the plugin that some or all of your routes are on water. In practice this causes the plugin to activate sooner as the user approaches the airport (since you can see things at sea from a large distance) and, when &ldquo;water reflection detail&rdquo; is set to &ldquo;medium&rdquo; or above under X-Plane's Rendering Options, to draw objects with reflections. There is a performance cost to both of these activities, so don't use this statement unless you need to.</p>
 <p>The Water statement just consists of the word &ldquo;<code>water</code>&rdquo; and should be preceded by a blank line:</p>
 <pre>
 

@@ -46,7 +46,6 @@ void clearconfig(airport_t *airport)
 
     deactivate(airport);
 
-    airport->ICAO[0]='\0';
     airport->tower.lat=airport->tower.lon=0;
     airport->tower.alt = (double) INVALID_ALT;
     airport->state = noconfig;
@@ -165,10 +164,11 @@ int readconfig(char *pkgpath, airport_t *airport)
     struct stat info;
     char buffer[MAX_NAME+128], line[MAX_NAME+64];
     FILE *h;
-    int lineno=0, count=0;
+    int lineno=0, count=0, water=0;
     route_t *currentroute=NULL;
     train_t *currenttrain=NULL;
     userref_t *userref;
+    bbox_t bounds;
 #ifdef DO_BENCHMARK
     struct timeval t1, t2;
     gettimeofday(&t1, NULL);		/* start */
@@ -215,6 +215,7 @@ int readconfig(char *pkgpath, airport_t *airport)
     }
     if (info.st_mtime==mtime) return 0;		/* File hasn't changed */
     clearconfig(airport);			/* File has changed - free old config */
+    bbox_init(&bounds);
 
     if (!(h=fopen(buffer, "r")))
     {
@@ -247,22 +248,6 @@ int readconfig(char *pkgpath, airport_t *airport)
         {
             continue;
         }
-        else if (airport->state==noconfig)	/* Airport header */
-        {
-            if (strlen(c1)==4)
-                strcpy(airport->ICAO, c1);
-            else
-                return failconfig(h, airport, buffer, "Expecting a 4 character airport ICAO code, found \"%s\" at line %d", c1, lineno);
-            c1=strtok(NULL, sep);
-            c2=strtok(NULL, sep);
-            if (!c1 || !sscanf(c1, "%lf%n", &airport->tower.lat, &eol1) || c1[eol1] ||
-                !c2 || !sscanf(c2, "%lf%n", &airport->tower.lon, &eol2) || c2[eol2])
-                return failconfig(h, airport, buffer, "Expecting an airport location \"lat lon\", found \"%s %s\" at line %d", N(c1), N(c2), lineno);
-            if ((c1=strtok(NULL, sep)))
-                return failconfig(h, airport, buffer, "Extraneous input \"%s\" at line %d", c1, lineno);
-
-            airport->state=inactive;
-        }
         else if (currentroute && currentroute->highway)		/* Existing highway */
         {
             highway_t *highway = currentroute->highway;
@@ -294,6 +279,7 @@ int readconfig(char *pkgpath, airport_t *airport)
                 node->waypoint.lat = d1;
                 node->waypoint.lon = d2;
                 bbox_add(&currentroute->bbox, node->waypoint.lat, node->waypoint.lon);
+                bbox_add(&bounds, node->waypoint.lat, node->waypoint.lon);
             }
             else
             {
@@ -503,6 +489,7 @@ int readconfig(char *pkgpath, airport_t *airport)
                     !c2 || !sscanf(c2, "%f%n", &node->waypoint.lon, &eol2) || c2[eol2])
                     return failconfig(h, airport, buffer, "Expecting a waypoint \"lat lon\", a command or a blank line, found \"%s %s\" at line %d", N(c1), N(c2), lineno);
                 bbox_add(&currentroute->bbox, node->waypoint.lat, node->waypoint.lon);
+                bbox_add(&bounds, node->waypoint.lat, node->waypoint.lon);
             }
             if ((c1=strtok(NULL, sep)))
                 return failconfig(h, airport, buffer, "Extraneous input \"%s\" at line %d", c1, lineno);
@@ -641,13 +628,24 @@ int readconfig(char *pkgpath, airport_t *airport)
         else if (!strcasecmp(c1, "water"))
         {
             airport->reflections = -1;
-            airport->active_distance = ACTIVE_WATER;
+            water = -1;
             if ((c1=strtok(NULL, sep))) return failconfig(h, airport, buffer, "Extraneous input \"%s\" at line %d", c1, lineno);
         }
         else if (!strcasecmp(c1, "debug"))
         {
             airport->drawroutes = -1;
             if ((c1=strtok(NULL, sep))) return failconfig(h, airport, buffer, "Extraneous input \"%s\" at line %d", c1, lineno);
+        }
+        else if (lineno==1)	/* Used to be airport header ICAO lat lon */
+        {
+            /* Silently skip input if in valid old format */
+            c2=strtok(NULL, sep);
+            c3=strtok(NULL, sep);
+            if (strlen(c1)!=4 ||
+                !c2 || !sscanf(c2, "%lf%n", &airport->tower.lat, &eol2) || c2[eol2] ||
+                !c3 || !sscanf(c3, "%lf%n", &airport->tower.lon, &eol3) || c3[eol3] ||
+                strtok(NULL, sep))
+                return failconfig(h, airport, buffer, "Expecting a route or train, found \"%s\" at line %d", c1, lineno);
         }
         else
         {
@@ -677,10 +675,24 @@ int readconfig(char *pkgpath, airport_t *airport)
         userref = userref->next;
     }
 
-    if (airport->state==noconfig)
-        return failconfig(h, airport, buffer, "Can't read groundtraffic.txt");
-    else if (!airport->routes)
+    if (!airport->routes)
         return failconfig(h, airport, buffer, "No routes defined!");
+
+    /* Finishing up - determine "tower" location and activation radius */
+    airport->state = inactive;
+    airport->tower.lat = (bounds.minlat + bounds.maxlat) / 2;
+    airport->tower.lon = (bounds.minlon + bounds.maxlon) / 2;
+    /* Great circle distance, using Haversine formula. http://mathforum.org/library/drmath/view/51879.html */
+    {
+        float slat = sinf((bounds.maxlat-bounds.minlat) * (float) (M_PI/360));
+        float slon = sinf((bounds.maxlon-bounds.minlon) * (float) (M_PI/360));
+        float aa = slat*slat + cosf(bounds.minlat * (float) (M_PI/180)) * cosf(bounds.maxlat * (float) (M_PI/180)) * slon*slon;
+        airport->active_distance = RADIUS * atan2f(sqrtf(aa), sqrtf(1-aa)) + (water ? ACTIVE_WATER : ACTIVE_DISTANCE);
+#ifdef DEBUG
+        sprintf(buffer, "Tower=%.9lf,%.9lf r=%d", airport->tower.lat, airport->tower.lon, (int) (RADIUS * atan2f(sqrtf(aa), sqrtf(1-aa))));
+        xplog(buffer);
+#endif
+    }
 
     fclose(h);
     mtime=info.st_mtime;
