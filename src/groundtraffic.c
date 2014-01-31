@@ -444,6 +444,8 @@ static void loadobject(XPLMObjectRef inObject, void *inRef)
         char msg[MAX_NAME+64];
         sprintf(msg, "Can't load object or train \"%s\"", activating_route->object.name);
         xplog(msg);
+        worker_stop(&LOD_worker);
+        worker_stop(&collision_worker);
         clearconfig(&airport);
         return;
     }
@@ -556,8 +558,8 @@ int activate(airport_t *airport)
      */
     if (!airport->done_first_activation)
     {
-        lookup_objects(airport);
-        if (!worker_start(&collision_worker, check_collisions)) return 0;
+        if (!lookup_objects(airport) || !worker_start(&collision_worker, check_collisions))
+            return 0;
         airport->done_first_activation = -1;
     }
     if (!worker_start(&LOD_worker, check_LODs)) return 0;
@@ -597,6 +599,8 @@ static void activate2(airport_t *airport)
                 char msg[MAX_NAME+64];
                 sprintf(msg, "Can't load object or train \"%s\"", activating_route->object.name);
                 xplog(msg);
+                worker_stop(&LOD_worker);
+                worker_stop(&collision_worker);
                 clearconfig(airport);
                 return;
             }
