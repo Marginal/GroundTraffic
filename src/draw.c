@@ -115,6 +115,8 @@ void labelcallback(XPLMWindowID inWindowID, void *inRefcon)
     route_t *route;
     char buf[32];
 
+    if (!airport.drawroutes) return;	/* labelwin is not destroyed immediately on deactivation */
+
     for (route=airport.routes; route; route=route->next)
         if (!route->parent)
         {

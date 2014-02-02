@@ -43,6 +43,7 @@ const char datarefs[dataref_count][60] = {
 
 /* In this file */
 static XPLMWindowID labelwin = 0;
+static int done_new_airport = 0;
 
 static int newairportcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon);
 static float flightcallback(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop, int inCounter, void *inRefcon);
@@ -168,7 +169,7 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFrom, long inMessage, void 
          * - If the user has placed the plane at our airport we can activate synchronously before the first draw frame.
          * We can't do these checks here since the view DataRefs aren't yet updated with the new plane position. */
         XPLMRegisterDrawCallback(newairportcallback, xplm_Phase_FirstScene, airport.state==active || airport.state==activating, NULL);
-        XPLMSetFlightLoopCallbackInterval(flightcallback, 0, 1, NULL);	/* pause flight callback */
+        XPLMSetFlightLoopCallbackInterval(flightcallback, 0, 1, NULL);	/* pause flight callback to ensure newairportcallback happends first*/
     }
     else if (inMessage==XPLM_MSG_SCENERY_LOADED)
     {
@@ -195,13 +196,13 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFrom, long inMessage, void 
 /* Check whether we've come into or gone out of range */
 static void check_range(airport_t *airport)
 {
+    double airport_x, airport_y, airport_z;
+    float view_x, view_y, view_z;
+
     if (airport->state == inactive)
     {
         if (intilerange(airport->tower))
         {
-            double airport_x, airport_y, airport_z;
-            float view_x, view_y, view_z;
-
             if (airport->tower.alt == (double) INVALID_ALT)
                 proberoutes(airport);	/* First time we've encountered our airport Determine elevations. */
 
@@ -217,11 +218,6 @@ static void check_range(airport_t *airport)
     }
     else if (airport->state == active || airport->state == activating)
     {
-        /* Do this check here rather than in drawcallback() because we can't delete labelwin in the middle of
-           the draw callbacks. */
-        double airport_x, airport_y, airport_z;
-        float view_x, view_y, view_z;
-
         if (!intilerange(airport->tower))
         {
             deactivate(airport);
@@ -242,16 +238,17 @@ static void check_range(airport_t *airport)
 }
 
 
-/* One-shot draw callback after new airport */
+/* Draw callback after new airport */
 static int newairportcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
 {
-    airport.new_airport = -1;	/* Plane was moved manually so activate() should operate synchronously  */
-    check_range(&airport);
-    airport.new_airport = 0;
-
-    XPLMUnregisterDrawCallback(newairportcallback, xplm_Phase_FirstScene, inIsBefore, inRefcon);
-    /* All inactive plugins get called immediately after a new airport, so spread out poll across frames */
-    XPLMSetFlightLoopCallbackInterval(flightcallback, -1 - (rand() % ACTIVE_POLL), 1, NULL);
+    if (!done_new_airport)		/* Only do this once */
+    {
+        airport.new_airport = -1;	/* Plane was moved manually so activate() should operate synchronously  */
+        check_range(&airport);
+        airport.new_airport = 0;	/* Flag will be reset anyway after synchronous activation is complete */
+        XPLMSetFlightLoopCallbackInterval(flightcallback, -1, 1, NULL);	/* Re-start ASAP */
+        done_new_airport = -1;
+    }
 
     return 1;
 }
@@ -259,8 +256,30 @@ static int newairportcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *in
 /* Flight loop callback for checking whether we've come into or gone out of range */
 static float flightcallback(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop, int inCounter, void *inRefcon)
 {
-    check_range(&airport);
-    return -ACTIVE_POLL;
+    if (done_new_airport)
+    {
+        /* First flightcallback after newairportcallback */
+        done_new_airport = 0;
+
+        /* Do this here rather than in newairportcallback because unregistering a draw callback within a draw callback can crash */
+        XPLMUnregisterDrawCallback(newairportcallback, xplm_Phase_FirstScene,  0, inRefcon);
+        XPLMUnregisterDrawCallback(newairportcallback, xplm_Phase_FirstScene, -1, inRefcon);
+
+        /* Do this here rather than in deactivate because destroying a window during a draw callback can crash */
+        if (airport.state!=active && labelwin)
+        {
+            XPLMDestroyWindow(labelwin);
+            labelwin = 0;
+        }
+
+        /* All plugins' flightcallbacks get called immediately after a new airport, so spread out subsequent polls */
+        return -1 - (rand() % ACTIVE_POLL);
+    }
+    else
+    {
+        check_range(&airport);
+        return -ACTIVE_POLL;
+    }
 }
 
 
@@ -1081,9 +1100,6 @@ void deactivate(airport_t *airport)
     ref_varref = 0;
 
     XPLMUnregisterDrawCallback(drawcallback, xplm_Phase_Objects, 0, NULL);
-    if (labelwin)
-        XPLMDestroyWindow(labelwin);
-    labelwin = 0;
 
     airport->state=inactive;
     last_frame = 0;
