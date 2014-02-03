@@ -166,7 +166,7 @@ int readconfig(char *pkgpath, airport_t *airport)
     struct stat info;
     char buffer[MAX_NAME+128], line[MAX_NAME+64];
     FILE *h;
-    int lineno=0, count=0, water=0, maxpathlen=0;
+    int lineno=0, count=0, water=0, maxpathlen=0, doneprologue=0;
     route_t *currentroute=NULL;
     train_t *currenttrain=NULL;
     userref_t *userref;
@@ -649,7 +649,7 @@ int readconfig(char *pkgpath, airport_t *airport)
             airport->drawroutes = -1;
             if ((c1=strtok(NULL, sep))) return failconfig(h, airport, buffer, "Extraneous input \"%s\" at line %d", c1, lineno);
         }
-        else if (lineno==1)	/* Used to be airport header ICAO lat lon */
+        else if (!doneprologue)	/* Used to be airport header ICAO lat lon */
         {
             /* Silently skip input if in valid old format */
             c2=strtok(NULL, sep);
@@ -664,6 +664,7 @@ int readconfig(char *pkgpath, airport_t *airport)
         {
             return failconfig(h, airport, buffer, "Expecting a route or train, found \"%s\" at line %d", c1, lineno);
         }
+        doneprologue = -1;
     }
 
     /* Turn train routes into multiple individual routes */
