@@ -227,16 +227,15 @@ int readconfig(char *pkgpath, airport_t *airport)
     }
     while (fgets(line, sizeof(line), h))
     {
-        char *c1, *c2, *c3;
+        char *c1, *c2=NULL, *c3;
         int eol1, eol2, eol3;
-
         if (!lineno && !strncmp(line, "\xef\xbb\xbf", 3))	/* skip UTF-8 BOM */
             c1=strtok(line+3, sep);
         else
             c1=strtok(line, sep);
         lineno++;
 
-        if (!c1)				/* Blank line = end of route or train */
+        if (!c1)						/* Blank line = end of route or train */
         {
             if (currentroute && !currentroute->pathlen)
                 return failconfig(h, airport, buffer, currentroute->highway ? "Empty highway at line %d" : "Empty route at line %d", lineno);
@@ -246,7 +245,7 @@ int readconfig(char *pkgpath, airport_t *airport)
             currenttrain = NULL;
             continue;
         }
-        else if (*c1=='#')			/* Skip comment lines */
+        else if (*c1=='#')					/* Skip comment lines */
         {
             continue;
         }
@@ -254,56 +253,43 @@ int readconfig(char *pkgpath, airport_t *airport)
         {
             highway_t *highway = currentroute->highway;
             int n;	/* Object count */
-            float d1, d2;
+            char *c4;
+
             c2=strtok(NULL, sep);
-
-            for (n=0; n<MAX_HIGHWAY && highway->objects[n].name; n++);
-            if (!c1 || !sscanf(c1, "%f%n", &d1, &eol1) || c1[eol1] ||
-                !c2 || !sscanf(c2, "%f%n", &d2, &eol2) || c2[eol2])
-                return failconfig(h, airport, buffer, currentroute->pathlen ? "Expecting a waypoint \"lat lon\" or a blank line, found \"%s %s\" at line %d" : (n ? "Expecting a car \"offset heading\", a waypoint \"lat lon\", or a blank line, found \"%s %s\" at line %d" : "Expecting a car \"offset heading\", found \"%s %s\" at line %d"), N(c1), N(c2), lineno);
-
-            for (c1 = c2+strlen(c2)+1; isspace(*c1); c1++);		/* ltrim */
-            for (c2 = c1+strlen(c1)-1; c2>=c1 && isspace(*c2); *(c2--) = '\0');	/* rtrim */
-            if (!*c1)
+            for (c3 = c2+strlen(c2)+1; isspace(*c3); c3++);			/* ltrim */
+            for (c4 = c3+strlen(c3)-1; c4>=c3 && isspace(*c4); *(c4--) = '\0');	/* rtrim */
+            if (!*c3)
             {
                 /* Waypoint */
-                path_t *path, *node;
-
-                if (!n)
+                if (!highway->objects[0].name)	/* Expect at least one car */
                     return failconfig(h, airport, buffer, "Expecting a car \"offset heading object\" at line %d", lineno);
-                if (!(path = realloc(currentroute->path, (1+currentroute->pathlen) * sizeof(path_t))))
-                    return failconfig(h, airport, buffer, "Out of memory!");
-                currentroute->path = path;
-
-                node = path + currentroute->pathlen++;
-                memset(node, 0, sizeof(path_t));
-                node->attime[0] = INVALID_AT;
-                node->waypoint.lat = d1;
-                node->waypoint.lon = d2;
-                bbox_add(&currentroute->bbox, node->waypoint.lat, node->waypoint.lon);
-                bbox_add(&bounds, node->waypoint.lat, node->waypoint.lon);
-                if (currentroute->pathlen > maxpathlen) maxpathlen = currentroute->pathlen;
+                /* Fall through for waypoint */
             }
             else
             {
                 /* Car */
                 if (currentroute->pathlen)	/* Once we've had the first waypoint, we only expect waypoints */
                     return failconfig(h, airport, buffer, "Expecting a waypoint \"lat lon\" or a blank line at line %d", lineno);
-                else if (n>=MAX_HIGHWAY)
+
+                for (n=0; n<MAX_HIGHWAY && highway->objects[n].name; n++);
+                if (n>=MAX_HIGHWAY)
                     return failconfig(h, airport, buffer, "Exceeded %d objects in a highway at line %d", MAX_HIGHWAY, lineno);
-                else if (strlen(c1) >= MAX_NAME)
+                else if (!c1 || !sscanf(c1, "%f%n", &highway->objects[n].offset, &eol1) || c1[eol1] ||
+                         !c2 || !sscanf(c2, "%f%n", &highway->objects[n].offset, &eol2) || c2[eol2])
+                    return failconfig(h, airport, buffer, "Expecting a car \"offset heading\", found \"%s %s\" at line %d", N(c1), N(c2), lineno);
+                else if (strlen(c3) >= MAX_NAME)
                     return failconfig(h, airport, buffer, "Object name exceeds %d characters at line %d", MAX_NAME-1, lineno);
-                highway->objects[n].offset = d1;
-                highway->objects[n].heading = d2;
-                if (!(highway->objects[n].name = strdup(c1)))
+                else if (!(highway->objects[n].name = strdup(c3)))
                     return failconfig(h, airport, buffer, "Out of memory!");
+                continue;
             }
         }
-        else if (currentroute)			/* Existing route */
+
+        if (currentroute)			/* Existing route */
         {
             path_t *node = currentroute->pathlen ? currentroute->path + (currentroute->pathlen - 1) : NULL;
 
-            if (!strcasecmp(c1, "pause"))
+            if (!currentroute->highway && !strcasecmp(c1, "pause"))
             {
                 int pausetime;
                 if (!node)
@@ -335,7 +321,7 @@ int readconfig(char *pkgpath, airport_t *airport)
                     }
                 }
             }
-            else if (!strcasecmp(c1, "at"))
+            else if (!currentroute->highway && !strcasecmp(c1, "at"))
             {
                 int hour, minute, i=0;
                 char daynames[7][10] = { "sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday" };
@@ -370,7 +356,7 @@ int readconfig(char *pkgpath, airport_t *airport)
                 }
                 if (!node->atdays) node->atdays = DAY_ALL;
             }
-            else if (!strcasecmp(c1, "when") || !strcasecmp(c1, "and"))
+            else if (!currentroute->highway && (!strcasecmp(c1, "when") || !strcasecmp(c1, "and")))
             {
                 whenref_t *whenref;
                 extref_t *extref;
@@ -440,7 +426,7 @@ int readconfig(char *pkgpath, airport_t *airport)
                     whenref->to = foo;
                 }
             }
-            else if (!strcasecmp(c1, "backup"))
+            else if (!currentroute->highway && !strcasecmp(c1, "backup"))
             {
                 if (!node)
                     return failconfig(h, airport, buffer, "Route can't start with a \"backup\" command at line %d", lineno);
@@ -449,7 +435,7 @@ int readconfig(char *pkgpath, airport_t *airport)
 
                 node->flags.backup=1;
             }
-            else if (!strcasecmp(c1, "reverse"))
+            else if (!currentroute->highway && !strcasecmp(c1, "reverse"))
             {
                 int i;
                 if (!node)
@@ -460,7 +446,7 @@ int readconfig(char *pkgpath, airport_t *airport)
                 node->flags.reverse=1;
                 currentroute=NULL;		/* reverse terminates */
             }
-            else if (!strcasecmp(c1, "set"))
+            else if (!currentroute->highway && !strcasecmp(c1, "set"))
             {
                 setcmd_t *setcmd;
 
@@ -478,26 +464,36 @@ int readconfig(char *pkgpath, airport_t *airport)
             }
             else				/* waypoint */
             {
-                path_t *path;
+                path_t *path, *last;
 
                 if (!(path = realloc(currentroute->path, (1+currentroute->pathlen) * sizeof(path_t))))
                     return failconfig(h, airport, buffer, "Out of memory!");
                 currentroute->path = path;
 
-                node = path + currentroute->pathlen++;
+                node = path + currentroute->pathlen;
+                last = node - 1;
                 memset(node, 0, sizeof(path_t));
                 node->attime[0] = INVALID_AT;
-                c2=strtok(NULL, sep);
+                if (!currentroute->highway) c2=strtok(NULL, sep);	/* done above for highways */
                 if (!c1 || !sscanf(c1, "%f%n", &node->waypoint.lat, &eol1) || c1[eol1] ||
                     !c2 || !sscanf(c2, "%f%n", &node->waypoint.lon, &eol2) || c2[eol2])
-                    return failconfig(h, airport, buffer, "Expecting a waypoint \"lat lon\", a command or a blank line, found \"%s %s\" at line %d", N(c1), N(c2), lineno);
+                    return failconfig(h, airport, buffer, currentroute->pathlen ? (currentroute->highway ? "Expecting a waypoint \"lat lon\" or a blank line, found \"%s %s\" at line %d" : "Expecting a waypoint \"lat lon\", a command or a blank line, found \"%s %s\" at line %d") : "Expecting a waypoint \"lat lon\", found \"%s %s\" at line %d", N(c1), N(c2), lineno);
+                else if (currentroute->pathlen && node->waypoint.lat==last->waypoint.lat && node->waypoint.lon==last->waypoint.lon)
+                {
+                    /* Duplicate nodes screw up cornering and collision avoidance, but KJFK contains loads so we will just skip them for now */
+                    // return failconfig(h, airport, buffer, "Duplicate waypoint at line %d", lineno);
+                    sprintf(buffer, "Note: Ignoring duplicate waypoint at line %d", lineno);
+                    xplog(buffer);
+                    continue;
+                }
                 bbox_add(&currentroute->bbox, node->waypoint.lat, node->waypoint.lon);
                 bbox_add(&bounds, node->waypoint.lat, node->waypoint.lon);
-                if (currentroute->pathlen > maxpathlen) maxpathlen = currentroute->pathlen;
+                if (++(currentroute->pathlen) > maxpathlen) maxpathlen = currentroute->pathlen;
             }
             if ((c1=strtok(NULL, sep)))
                 return failconfig(h, airport, buffer, "Extraneous input \"%s\" at line %d", c1, lineno);
         }
+
         else if (currenttrain)			/* Existing train */
         {
             int n;	/* Train length */
