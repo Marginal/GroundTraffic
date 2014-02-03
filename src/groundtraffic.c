@@ -891,10 +891,7 @@ static int lookup_objects(airport_t *airport)
  */
 static void *check_LODs(void *arg)
 {
-    FILE *h;
-    route_t *route, *other;
-    char line[MAX_NAME+64];
-    float height=0, lod=0;
+    route_t *route;
 #ifdef DO_BENCHMARK
     char msg[64];
     struct timeval t1, t2;
@@ -903,6 +900,11 @@ static void *check_LODs(void *arg)
 
     for (route=airport.routes; route; route=route->next)
     {
+        FILE *h;
+        route_t *other;
+        char line[MAX_NAME+64];
+        float height=0, lod=0;
+
         worker_check_stop(&LOD_worker);
 
         /* If we've already loaded this object then use its LOD */
