@@ -62,8 +62,9 @@ static collision_t* iscollision(route_t *route, int tryno)
             }
 
             /* Have to wait if he will wait when he reaches the co-located end node, or if we'll get there too early */
-            /* We don't check whether he might wait for a collision - gets too complicated */
+            /* We don't check whether he *might* wait for a collision - gets too complicated */
             if (c->route->last_node == c->node &&	/* On colliding segment */
+                !(c->route->state.dataref || c->route->state.waiting || c->route->state.collision || c->route->state.paused) &&	/* He's not waiting at previous node */
                 (c_end_node->whenrefs || c_end_node->attime[0] != INVALID_AT ||
                  route->next_time + t <= c->route->next_time + COLLISION_INTERVAL + c_end_node->pausetime)) /* Our route->next_time hasn't yet been updated yet so ~= now */
             {
