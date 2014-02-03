@@ -15,6 +15,7 @@ float last_frame=0;		/* last time we recalculated */
 static int is_night=0;		/* was night last time we recalculated? */
 float lod_factor;		/* screen_width / lod_bias at time of last draw */
 int font_width, font_semiheight;
+char *labeltbl = NULL;
 #ifdef DO_BENCHMARK
 int drawcumul  = 0;		/* clock time taken drawing [us] */
 int drawframes = 0;		/* over cumulative number of frames */
@@ -113,42 +114,48 @@ void labelcallback(XPLMWindowID inWindowID, void *inRefcon)
     float waycolor[] = { 1, 1, 1 }, routecolor[] = { 0.5f, 1, 1 };
     int i;
     route_t *route;
-    char buf[32];
 
     if (!airport.drawroutes) return;	/* labelwin is not destroyed immediately on deactivation */
 
     for (route=airport.routes; route; route=route->next)
         if (!route->parent)
-        {
             for (i=0; i<route->pathlen; i++)
             {
                 path_t *node = route->path + i;
                 if (node->drawX && node->drawY)
                 {
-                    snprintf(buf, sizeof(buf), "%d", i);
-                    XPLMDrawTranslucentDarkBox(node->drawX-font_width, node->drawY+font_semiheight-2, node->drawX+(strlen(buf)-1)*font_width+1, node->drawY-font_semiheight-2);
-                    XPLMDrawString(waycolor, node->drawX-font_width, node->drawY-font_semiheight, buf, NULL, xplmFont_Basic);
+                    // XPLMDrawTranslucentDarkBox(node->drawX-font_width, node->drawY+font_semiheight-2, node->drawX+(strlen(labeltbl+5*i)-1)*font_width+1, node->drawY-font_semiheight-2);
+                    XPLMDrawString(waycolor, node->drawX-font_width, node->drawY-font_semiheight, labeltbl+5*i, NULL, xplmFont_Basic);
                 }
             }
+
+    for (route=airport.routes; route; route=route->next)
+        if (!route->parent)
             if (route->drawX && route->drawY)
             {
+                char buf[32];
+                int off;
+
+                sprintf(buf, "%d", route->lineno);
+                off = strlen(buf);
+
                 /* Test state flags in same order as drawcallback */
                 if (route->state.waiting)
-                    snprintf(buf, sizeof(buf), "%d %d\xE2\x96\xAA" "At", route->lineno, route->last_node);
+                    sprintf(buf+off, " %d\xE2\x96\xAA" "At", route->last_node);	/* BLACK SMALL SQUARE */
                 else if (route->state.dataref)
-                    snprintf(buf, sizeof(buf), "%d %d\xE2\x96\xAA" "When", route->lineno, route->last_node);
+                    sprintf(buf+off, " %d\xE2\x96\xAA" "When", route->last_node);
                 else if (route->state.paused)
-                    snprintf(buf, sizeof(buf), "%d %d\xE2\x96\xAA" "Pause", route->lineno, route->last_node);
+                    sprintf(buf+off, " %d\xE2\x96\xAA" "Pause", route->last_node);
                 else if (route->state.collision == (collision_t*) -1)
-                    snprintf(buf, sizeof(buf), "%d %d\xE2\xA8\xAF" "aircraft", route->lineno, route->last_node);
+                    sprintf(buf+off, " %d\xE2\xA8\xAF" "aircraft", route->last_node);	/* VECTOR OR CROSS PRODUCT */
                 else if (route->state.collision)
-                    snprintf(buf, sizeof(buf), "%d %d\xE2\xA8\xAF" "%d", route->lineno, route->last_node, route->state.collision->route->lineno);
+                    sprintf(buf+off, " %d\xE2\xA8\xAF" "%d", route->last_node, route->state.collision->route->lineno);
                 else
-                    snprintf(buf, sizeof(buf), "%d %d\xE2\x9E\xA1" "%d", route->lineno, route->last_node, route->next_node);
-                XPLMDrawTranslucentDarkBox(route->drawX-2*font_width, route->drawY+3*font_semiheight, route->drawX+(strlen(buf)-4)*font_width+1, route->drawY+font_semiheight);
-                XPLMDrawString(routecolor, route->drawX-2*font_width, route->drawY+font_semiheight+2, buf, NULL, xplmFont_Basic);
+                    sprintf(buf+off, " %d\xE2\x9E\xA1" "%d", route->last_node, route->next_node);	/* BLACK RIGHTWARDS ARROW */
+                XPLMDrawTranslucentDarkBox(route->drawX-off*font_width, route->drawY+3*font_semiheight, route->drawX+(strlen(buf)-2-off)*font_width+1, route->drawY+font_semiheight);
+                XPLMDrawString(routecolor, route->drawX-off*font_width, route->drawY+font_semiheight+2, buf, NULL, xplmFont_Basic);
+                XPLMDrawString(&(route->drawcolor.r), route->drawX, route->drawY+font_semiheight+3, "\xE2\x96\xAE", NULL, xplmFont_Basic);	/* BLACK VERTICAL RECTANGLE */
             }
-        }
 }
 
 
@@ -261,7 +268,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                     GLdouble winX, winY, winZ;
 
                     gluProject(route->drawinfo->x, route->drawinfo->y, route->drawinfo->z, model, proj, view, &winX, &winY, &winZ);
-                    if (winZ <= 1)	/* not behind us */
+                    if (winZ<=1 && winX>=0 && winX<view[2] && winY>=0 && winY<view[3])	/* on screen and not behind us */
                     {
                         route->drawX = winX;
                         route->drawY = winY;
@@ -277,7 +284,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
 
                         glVertex3fv(&node->p.x);
                         gluProject(node->p.x, node->p.y, node->p.z, model, proj, view, &winX, &winY, &winZ);
-                        if (winZ <= 1)	/* not behind us */
+                        if (winZ<=1 && winX>=0 && winX<view[2] && winY>=0 && winY<view[3])	/* on screen and not behind us */
                         {
                             node->drawX = winX;
                             node->drawY = winY;

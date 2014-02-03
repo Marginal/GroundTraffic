@@ -405,6 +405,7 @@ extern int drawframes;
 
 extern float last_frame;	/* Global so can be reset while disabled */
 extern float lod_factor;
+extern char *labeltbl;
 extern int font_width, font_semiheight;
 
 

@@ -138,6 +138,8 @@ void clearconfig(airport_t *airport)
     free(airport->drawinfo);
     airport->drawinfo = NULL;
 
+    free(labeltbl);
+    labeltbl = NULL;
     mtime=-1;		/* Don't cache */
 }   
 
@@ -164,7 +166,7 @@ int readconfig(char *pkgpath, airport_t *airport)
     struct stat info;
     char buffer[MAX_NAME+128], line[MAX_NAME+64];
     FILE *h;
-    int lineno=0, count=0, water=0;
+    int lineno=0, count=0, water=0, maxpathlen=0;
     route_t *currentroute=NULL;
     train_t *currenttrain=NULL;
     userref_t *userref;
@@ -280,6 +282,7 @@ int readconfig(char *pkgpath, airport_t *airport)
                 node->waypoint.lon = d2;
                 bbox_add(&currentroute->bbox, node->waypoint.lat, node->waypoint.lon);
                 bbox_add(&bounds, node->waypoint.lat, node->waypoint.lon);
+                if (currentroute->pathlen > maxpathlen) maxpathlen = currentroute->pathlen;
             }
             else
             {
@@ -490,6 +493,7 @@ int readconfig(char *pkgpath, airport_t *airport)
                     return failconfig(h, airport, buffer, "Expecting a waypoint \"lat lon\", a command or a blank line, found \"%s %s\" at line %d", N(c1), N(c2), lineno);
                 bbox_add(&currentroute->bbox, node->waypoint.lat, node->waypoint.lon);
                 bbox_add(&bounds, node->waypoint.lat, node->waypoint.lon);
+                if (currentroute->pathlen > maxpathlen) maxpathlen = currentroute->pathlen;
             }
             if ((c1=strtok(NULL, sep)))
                 return failconfig(h, airport, buffer, "Extraneous input \"%s\" at line %d", c1, lineno);
@@ -542,9 +546,10 @@ int readconfig(char *pkgpath, airport_t *airport)
             }
             else
             {
-                currentroute->drawcolor.r = ((float) rand()) / RAND_MAX;
-                currentroute->drawcolor.g = ((float) rand()) / RAND_MAX;
-                currentroute->drawcolor.b = ((float) rand()) / RAND_MAX;
+                int r = rand();	/* Use the lower 15bits, which is all you get on Windows */
+                currentroute->drawcolor.r = ((float) (0x001 + (r & 0x001F))) / 0x0020;
+                currentroute->drawcolor.g = ((float) (0x020 + (r & 0x03E0))) / 0x0400;
+                currentroute->drawcolor.b = ((float) (0x400 + (r & 0x7C00))) / 0x8000;
             }
 
             c1=strtok(NULL, sep);
@@ -618,9 +623,10 @@ int readconfig(char *pkgpath, airport_t *airport)
             }
             else
             {
-                currentroute->drawcolor.r = ((float) rand()) / RAND_MAX;
-                currentroute->drawcolor.g = ((float) rand()) / RAND_MAX;
-                currentroute->drawcolor.b = ((float) rand()) / RAND_MAX;
+                int r = rand();	/* Use the lower 15bits, which is all you get on Windows */
+                currentroute->drawcolor.r = ((float) (0x001 + (r & 0x001F))) / 0x0020;
+                currentroute->drawcolor.g = ((float) (0x020 + (r & 0x03E0))) / 0x0400;
+                currentroute->drawcolor.b = ((float) (0x400 + (r & 0x7C00))) / 0x8000;
             }
             currentroute->speed *= (float) (1000.0 / (60*60));	/* convert km/h to m/s */
             currentroute->highway = highway;
@@ -692,6 +698,17 @@ int readconfig(char *pkgpath, airport_t *airport)
         sprintf(buffer, "Tower=%.9lf,%.9lf r=%d", airport->tower.lat, airport->tower.lon, (int) (RADIUS * atan2f(sqrtf(aa), sqrtf(1-aa))));
         xplog(buffer);
 #endif
+    }
+
+    if (airport->drawroutes)
+    {
+        /* build route label lookup table for speed */
+        int i;
+
+        if (!(labeltbl = malloc(maxpathlen*5)))
+            return failconfig(h, airport, buffer, "Out of memory!");
+        for (i=0; i<maxpathlen; i++)
+            sprintf(labeltbl+5*i, "%d", i);
     }
 
     fclose(h);
