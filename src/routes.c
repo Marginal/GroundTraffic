@@ -465,6 +465,7 @@ int readconfig(char *pkgpath, airport_t *airport)
             else				/* waypoint */
             {
                 path_t *path, *last;
+                float slat, slon, aa;
 
                 if (!(path = realloc(currentroute->path, (1+currentroute->pathlen) * sizeof(path_t))))
                     return failconfig(h, airport, buffer, "Out of memory!");
@@ -487,7 +488,17 @@ int readconfig(char *pkgpath, airport_t *airport)
                     continue;
                 }
                 bbox_add(&currentroute->bbox, node->waypoint.lat, node->waypoint.lon);
+
+                /* determine activation radius using Haversine formula. http://mathforum.org/library/drmath/view/51879.html */
                 bbox_add(&bounds, node->waypoint.lat, node->waypoint.lon);
+                airport->tower.lat = (bounds.minlat + bounds.maxlat) / 2;
+                airport->tower.lon = (bounds.minlon + bounds.maxlon) / 2;
+                slat = sinf((bounds.maxlat-bounds.minlat) * (float) (M_PI/360));
+                slon = sinf((bounds.maxlon-bounds.minlon) * (float) (M_PI/360));
+                aa = slat*slat + cosf(bounds.minlat * (float) (M_PI/180)) * cosf(bounds.maxlat * (float) (M_PI/180)) * slon*slon;
+                if ((airport->active_distance = RADIUS * atan2f(sqrtf(aa), sqrtf(1-aa))) > MAX_RADIUS)
+                    return failconfig(h, airport, buffer, "Waypoint too far away at line %d", lineno);
+
                 if (++(currentroute->pathlen) > maxpathlen) maxpathlen = currentroute->pathlen;
             }
             if ((c1=strtok(NULL, sep)))
@@ -680,21 +691,13 @@ int readconfig(char *pkgpath, airport_t *airport)
     if (!airport->routes)
         return failconfig(h, airport, buffer, "No routes defined!");
 
-    /* Finishing up - determine "tower" location and activation radius */
-    airport->state = inactive;
-    airport->tower.lat = (bounds.minlat + bounds.maxlat) / 2;
-    airport->tower.lon = (bounds.minlon + bounds.maxlon) / 2;
-    /* Great circle distance, using Haversine formula. http://mathforum.org/library/drmath/view/51879.html */
-    {
-        float slat = sinf((bounds.maxlat-bounds.minlat) * (float) (M_PI/360));
-        float slon = sinf((bounds.maxlon-bounds.minlon) * (float) (M_PI/360));
-        float aa = slat*slat + cosf(bounds.minlat * (float) (M_PI/180)) * cosf(bounds.maxlat * (float) (M_PI/180)) * slon*slon;
-        airport->active_distance = RADIUS * atan2f(sqrtf(aa), sqrtf(1-aa)) + (water ? ACTIVE_WATER : ACTIVE_DISTANCE);
+    /* Finishing up */
 #ifdef DEBUG
-        sprintf(buffer, "Tower=%.9lf,%.9lf r=%d", airport->tower.lat, airport->tower.lon, (int) (RADIUS * atan2f(sqrtf(aa), sqrtf(1-aa))));
-        xplog(buffer);
+    sprintf(buffer, "Tower=%.9lf,%.9lf r=%d", airport->tower.lat, airport->tower.lon, (int) airport->active_distance);
+    xplog(buffer);
 #endif
-    }
+    airport->state = inactive;
+    airport->active_distance += (water ? ACTIVE_WATER : ACTIVE_DISTANCE);
 
     if (airport->drawroutes)
     {

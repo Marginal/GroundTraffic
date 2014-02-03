@@ -89,6 +89,7 @@
 #define ACTIVE_DISTANCE 5000.f	/* Distance [m] from tower location at which to actually get out of bed */
 #define ACTIVE_WATER 20000.f	/* As above when "water" flag is set (you can see a long way on water) */
 #define ACTIVE_HYSTERESIS (ACTIVE_DISTANCE*0.05f)
+#define MAX_RADIUS 4000.f	/* Arbitrary limit on size of routes' bounding box */
 #define RADIUS 6378145.f	/* from sim/physics/earth_radius_m [m] */
 #define DEFAULT_DRAWLOD 2.f	/* Equivalent to an object 3m high */
 #define DEFAULT_LOD 2.25f	/* Equivalent to "medium" world detail distance */
