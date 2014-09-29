@@ -389,6 +389,11 @@ void clearconfig(airport_t *airport);
 void labelcallback(XPLMWindowID inWindowID, void *inRefcon);
 int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon);
 
+void drawdebug3d(int drawnodes, GLint view[4]);
+void drawdebug2d();
+int drawmap3d(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon);
+int drawmap2d(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon);
+
 
 /* Globals */
 extern char *pkgpath;
@@ -419,6 +424,15 @@ static inline int utf8_strlen(const char *s)
     while (*s)
         if (((*s++) & 0xC0) != 0x80) len++;	/* Not a continuation byte */
     return len;
+}
+
+
+static inline int intilerange(dloc_t loc)
+{
+    double tile_lat, tile_lon;
+    tile_lat = floor(XPLMGetDatad(ref_plane_lat));
+    tile_lon = floor(XPLMGetDatad(ref_plane_lon));
+    return ((abs(tile_lat - floor(loc.lat)) <= TILE_RANGE) && (abs(tile_lon - floor(loc.lon)) <= TILE_RANGE));
 }
 
 

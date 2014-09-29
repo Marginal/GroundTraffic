@@ -56,16 +56,6 @@ static void *check_LODs(void *arg);
 static void *check_collisions(void *arg);
 
 
-/* inlines */
-static inline int intilerange(dloc_t loc)
-{
-    double tile_lat, tile_lon;
-    tile_lat = floor(XPLMGetDatad(ref_plane_lat));
-    tile_lon = floor(XPLMGetDatad(ref_plane_lon));
-    return ((abs(tile_lat - floor(loc.lat)) <= TILE_RANGE) && (abs(tile_lon - floor(loc.lon)) <= TILE_RANGE));
-}
-
-
 PLUGIN_API int XPluginStart(char *outName, char *outSignature, char *outDescription)
 {
     char buffer[PATH_MAX], *c;
@@ -129,6 +119,8 @@ PLUGIN_API int XPluginStart(char *outName, char *outSignature, char *outDescript
     if (time(&t)!=-1 && (tm = localtime(&t)))	year=tm->tm_year;			/* What year is it? */
 
     XPLMRegisterFlightLoopCallback(flightcallback, 0, NULL);	/* inactive - wait for XPLM_MSG_AIRPORT_LOADED */
+    XPLMRegisterDrawCallback(drawmap3d, xplm_Phase_LocalMap3D, 0, NULL);
+    XPLMRegisterDrawCallback(drawmap2d, xplm_Phase_LocalMap2D, 0, NULL);
 
     return 1;
 }
@@ -136,6 +128,8 @@ PLUGIN_API int XPluginStart(char *outName, char *outSignature, char *outDescript
 
 PLUGIN_API void XPluginStop(void)
 {
+    XPLMUnregisterDrawCallback(drawmap3d, xplm_Phase_LocalMap3D, 0, NULL);
+    XPLMUnregisterDrawCallback(drawmap2d, xplm_Phase_LocalMap2D, 0, NULL);
     XPLMUnregisterFlightLoopCallback(flightcallback, NULL);
     XPLMDestroyProbe(ref_probe);
 }

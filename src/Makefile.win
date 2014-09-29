@@ -12,7 +12,7 @@ INC=-I$(XPSDK)\CHeaders\XPLM -I$(XPSDK)/CHeaders/Widgets
 CFLAGS=-nologo -fp:fast $(BUILD) $(DEFINES) $(INC)
 LDFLAGS=-LD
 
-SRC=.\groundtraffic.c .\draw.c .\routes.c .\planes.c
+SRC=.\groundtraffic.c .\draw.c .\routes.c .\planes.c .\drawdebug.c
 LIBS=$(XPSDK)\Libraries\Win\XPLM$(ARCHXP).lib $(XPSDK)\Libraries\Win\XPWidgets$(ARCHXP).lib GlU32.Lib OpenGL32.Lib
 TARGETDIR=..\$(PROJECT)
 INSTALLDIR=X:\Desktop\X-Plane 10\Custom Scenery\KSEA Demo GroundTraffic\plugins\$(PROJECT)

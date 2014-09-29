@@ -14,7 +14,7 @@ INC=-F$(XPSDK)/Libraries/Mac -I$(XPSDK)/CHeaders/XPLM
 CFLAGS=-arch i386 -arch x86_64 -march=core2 -ffast-math -pipe -Wall -Winline -Wno-missing-braces -fvisibility=hidden -mmacosx-version-min=10.6 $(BUILD) $(DEFINES) $(INC)
 
 VPATH=
-SRC=groundtraffic.c draw.c routes.c planes.c
+SRC=groundtraffic.c draw.c routes.c planes.c drawdebug.c
 LIBS=-framework XPLM -framework OpenGL
 TARGETDIR=../$(PROJECT)
 INSTALLDIR=~/Desktop/X-Plane\ 10/Custom\ Scenery/KSEA\ Demo\ GroundTraffic/plugins/$(PROJECT)

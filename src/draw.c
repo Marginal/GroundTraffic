@@ -112,51 +112,8 @@ static collision_t* iscollision(route_t *route, int tryno)
 /* For drawing route nodes. Relies on the fact that the OpenGL view is not clipped to our window */
 void labelcallback(XPLMWindowID inWindowID, void *inRefcon)
 {
-    float waycolor[] = { 1, 1, 1 }, routecolor[] = { 0.5f, 1, 1 };
-    int i;
-    route_t *route;
-
-    if (!airport.drawroutes) return;	/* labelwin is not destroyed immediately on deactivation */
-
-    for (route=airport.routes; route; route=route->next)
-        if (!route->parent)
-            for (i=0; i<route->pathlen; i++)
-            {
-                path_t *node = route->path + i;
-                if (node->drawX && node->drawY)
-                {
-                    // XPLMDrawTranslucentDarkBox(node->drawX-font_width, node->drawY+font_semiheight-2, node->drawX+(strlen(labeltbl+5*i)-1)*font_width+1, node->drawY-font_semiheight-2);
-                    XPLMDrawString(waycolor, node->drawX-font_width, node->drawY-font_semiheight, labeltbl+5*i, NULL, xplmFont_Basic);
-                }
-            }
-
-    for (route=airport.routes; route; route=route->next)
-        if (!route->parent)
-            if (route->drawX && route->drawY)
-            {
-                char buf[32];
-                int off;
-
-                sprintf(buf, "%d", route->lineno);
-                off = strlen(buf);
-
-                /* Test state flags in same order as drawcallback */
-                if (route->state.waiting)
-                    sprintf(buf+off, " %d\xE2\x96\xAA" "At", route->last_node);	/* BLACK SMALL SQUARE */
-                else if (route->state.dataref)
-                    sprintf(buf+off, " %d\xE2\x96\xAA" "When", route->last_node);
-                else if (route->state.paused)
-                    sprintf(buf+off, " %d\xE2\x96\xAA" "Pause", route->last_node);
-                else if (route->state.collision == (collision_t*) -1)
-                    sprintf(buf+off, " %d\xE2\xA8\xAF" "aircraft", route->last_node);	/* VECTOR OR CROSS PRODUCT */
-                else if (route->state.collision)
-                    sprintf(buf+off, " %d\xE2\xA8\xAF" "%d", route->last_node, route->state.collision->route->lineno);
-                else
-                    sprintf(buf+off, " %d\xE2\x9E\xA1" "%d", route->last_node, route->next_node);	/* BLACK RIGHTWARDS ARROW */
-                XPLMDrawTranslucentDarkBox(route->drawX-off*font_width, route->drawY+3*font_semiheight, route->drawX+(strlen(buf)-2-off)*font_width+1, route->drawY+font_semiheight);
-                XPLMDrawString(routecolor, route->drawX-off*font_width, route->drawY+font_semiheight+2, buf, NULL, xplmFont_Basic);
-                XPLMDrawString(&(route->drawcolor.r), route->drawX, route->drawY+font_semiheight+3, "\xE2\x96\xAE", NULL, xplmFont_Basic);	/* BLACK VERTICAL RECTANGLE */
-            }
+    if (airport.drawroutes)	/* labelwin is not destroyed immediately on deactivation */
+        drawdebug2d();
 }
 
 
@@ -251,50 +208,13 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
 #ifdef DEBUG
             int planeno;
 #endif
-            GLdouble model[16], proj[16];
             GLint view[4] = { 0 };
 
             XPLMSetGraphicsState(0, 0, 0,   0, 1,   0, 0);
             glLineWidth(1.5);
 
-            /* This is slow! */
-            glGetDoublev(GL_MODELVIEW_MATRIX, model);
-            glGetDoublev(GL_PROJECTION_MATRIX, proj);
             XPLMGetScreenSize(view+2, view+3);	/* Real viewport reported by GL_VIEWPORT will be larger than physical screen if FSAA enabled */
-
-            for(route=airport.routes; route; route=route->next)
-                if (!route->parent)
-                {
-                    int i;
-                    GLdouble winX, winY, winZ;
-
-                    gluProject(route->drawinfo->x, route->drawinfo->y, route->drawinfo->z, model, proj, view, &winX, &winY, &winZ);
-                    if (winZ<=1 && winX>=0 && winX<view[2] && winY>=0 && winY<view[3])	/* on screen and not behind us */
-                    {
-                        route->drawX = winX;
-                        route->drawY = winY;
-                    }
-                    else
-                        route->drawX = route->drawY = 0;
-
-                    glColor3fv(&route->drawcolor.r);
-                    glBegin((route->highway || route->path[route->pathlen-1].flags.reverse) ? GL_LINE_STRIP : GL_LINE_LOOP);
-                    for (i=0; i<route->pathlen; i++)
-                    {
-                        path_t *node = route->path + i;
-
-                        glVertex3fv(&node->p.x);
-                        gluProject(node->p.x, node->p.y, node->p.z, model, proj, view, &winX, &winY, &winZ);
-                        if (winZ<=1 && winX>=0 && winX<view[2] && winY>=0 && winY<view[3])	/* on screen and not behind us */
-                        {
-                            node->drawX = winX;
-                            node->drawY = winY;
-                        }
-                        else
-                            node->drawX = node->drawY = 0;
-                    }
-                    glEnd();
-                }
+            drawdebug3d(-1, view);
 
 #ifdef DEBUG
             /* Draw AI plane positions */
