@@ -277,6 +277,8 @@ int readconfig(char *pkgpath, airport_t *airport)
                 else if (!c1 || !sscanf(c1, "%f%n", &highway->objects[n].offset, &eol1) || c1[eol1] ||
                          !c2 || !sscanf(c2, "%f%n", &highway->objects[n].offset, &eol2) || c2[eol2])
                     return failconfig(h, airport, buffer, "Expecting a car \"offset heading\", found \"%s %s\" at line %d", N(c1), N(c2), lineno);
+                else if (*c3 == '.' || *c3 == '/' || *c3 == '\\')
+                    return failconfig(h, airport, buffer, "Object name cannot start with a \"%c\" at line %d", *c3, lineno);
                 else if (strlen(c3) >= MAX_NAME)
                     return failconfig(h, airport, buffer, "Object name exceeds %d characters at line %d", MAX_NAME-1, lineno);
                 else if (!(highway->objects[n].name = strdup(c3)))
@@ -528,6 +530,8 @@ int readconfig(char *pkgpath, airport_t *airport)
             for (c2 = c1+strlen(c1)-1; c2>=c1 && isspace(*c2); *(c2--) = '\0');	/* rtrim */
             if (!*c1)
                 return failconfig(h, airport, buffer, "Expecting an object name at line %d", lineno);
+            else if (*c1 == '.' || *c1 == '/' || *c1 == '\\')
+                return failconfig(h, airport, buffer, "Object name cannot start with a \"%c\" at line %d", *c1, lineno);
             else if (strlen(c1) >= MAX_NAME)
                 return failconfig(h, airport, buffer, "Object name exceeds %d characters at line %d", MAX_NAME-1, lineno);
             else if (!(currenttrain->objects[n].name = strdup(c1)))
@@ -573,6 +577,8 @@ int readconfig(char *pkgpath, airport_t *airport)
             for (c2 = c1+strlen(c1)-1; c2>=c1 && isspace(*c2); *(c2--) = '\0');	/* rtrim */
             if (!*c1)
                 return failconfig(h, airport, buffer, "Expecting an object name at line %d", lineno);
+            else if (*c1 == '.' || *c1 == '/' || *c1 == '\\')
+                return failconfig(h, airport, buffer, "Object name cannot start with a \"%c\" at line %d", *c1, lineno);
             else if (strlen(c1) >= MAX_NAME)
                 return failconfig(h, airport, buffer, "Object name exceeds %d characters at line %d", MAX_NAME-1, lineno);
             else if (!(currentroute->object.name = strdup(c1)))
@@ -586,6 +592,8 @@ int readconfig(char *pkgpath, airport_t *airport)
             for (c2 = c1+strlen(c1)-1; c2>=c1 && isspace(*c2); *(c2--) = '\0');	/* rtrim */
             if (!*c1)
                 return failconfig(h, airport, buffer, "Expecting a train name at line %d", lineno);
+            else if (*c1 == '.' || *c1 == '/' || *c1 == '\\')
+                return failconfig(h, airport, buffer, "Train name cannot start with a \"%c\" at line %d", *c1, lineno);
             else if (strlen(c1) >= MAX_NAME)
                 return failconfig(h, airport, buffer, "Train name exceeds %d characters at line %d", MAX_NAME-1, lineno);
             for (currenttrain=airport->trains; currenttrain; currenttrain=currenttrain->next)
