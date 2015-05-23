@@ -341,6 +341,7 @@ typedef struct collision_t
 typedef struct
 {
     enum { noconfig=0, inactive, activating, active } state;
+    int case_folding;		/* Whether our package is on a case-sensitive file system (i.e. Linux) */
     int done_first_activation;	/* Whether we've calculated collisions and expanded highways */
     int new_airport;		/* Whether we've moved to a new airport, so activation should be immediate */
     dloc_t tower;

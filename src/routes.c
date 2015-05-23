@@ -177,33 +177,54 @@ int readconfig(char *pkgpath, airport_t *airport)
 #endif
 
 #if APL || LIN		/* Might be a case sensitive file system */
-    DIR *dir;
-    struct dirent *ent;
+    ino_t lower=0, upper=0;
 
-    *buffer='\0';
-    if (!(dir=opendir(pkgpath)))
+    strcpy(buffer, pkgpath);
+    strcat(buffer, "/GROUNDTRAFFIC.TXT");
+    if (!stat(buffer, &info))
+        upper = info.st_ino;
+    strcpy(buffer + strlen(pkgpath), "/groundtraffic.txt");
+    if (!stat(buffer, &info))
+        lower = info.st_ino;
+
+    if (lower && upper==lower)
     {
-        clearconfig(airport);
-        xplog("Can't find my scenery folder");
-        return 1;
+        airport->case_folding = -1;
     }
-    while ((ent=readdir(dir)))
-        if (!strcasecmp(ent->d_name, "groundtraffic.txt"))
+    else
+    {
+        /* Case-sensitive filesystem or file does not exist */
+        DIR *dir;
+        struct dirent *ent;
+
+        if (!(dir=opendir(pkgpath)))
         {
-            strcpy(buffer, pkgpath);
-            strcat(buffer, "/");
-            strcat(buffer, ent->d_name);
-            break;
+            clearconfig(airport);
+            xplog("Can't find my scenery folder");
+            return 1;
         }
-    closedir(dir);
-    if (!*buffer)
-    {
-        clearconfig(airport);
-        sprintf(buffer, "Can't find groundtraffic.txt in %s", pkgpath);
-        xplog(buffer);
-        return 1;
+        *buffer = '\0';
+        while ((ent=readdir(dir)))
+            if (!strcasecmp(ent->d_name, "groundtraffic.txt"))
+            {
+                /* Go with first found if multiple files exist */
+                strcpy(buffer, pkgpath);
+                strcat(buffer, "/");
+                strcat(buffer, ent->d_name);
+                break;
+            }
+        closedir(dir);
+        if (!*buffer)
+        {
+            clearconfig(airport);
+            sprintf(buffer, "Can't find groundtraffic.txt in %s", pkgpath);
+            xplog(buffer);
+            return 1;
+        }
+        airport->case_folding = 0;
     }
-#else	/* Windows uses a case folding file system */
+#else	/* Assume Windows uses a case folding file system */
+    airport->case_folding = -1;
     strcpy(buffer, pkgpath);
     strcat(buffer, "/groundtraffic.txt");
 #endif

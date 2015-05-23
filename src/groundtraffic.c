@@ -768,7 +768,7 @@ static int lookup_objects(airport_t *airport)
                         strcpy(objdef->physical_name, pkgpath);
                         strcat(objdef->physical_name, "/");
                         strcat(objdef->physical_name, highway->objects[i].name);
-                        if (stat(objdef->physical_name, &info))	/* stat it to force error if missing even if it's not used */
+                        if (airport->case_folding && stat(objdef->physical_name, &info))	/* stat it to force error if missing even if it's not used */
                         {
                             char msg[MAX_NAME+64];
                             snprintf(msg, sizeof(msg), "Can't find object \"%s\"", highway->objects[i].name);
@@ -850,7 +850,8 @@ static int lookup_objects(airport_t *airport)
                     strcpy(route->object.physical_name, pkgpath);
                     strcat(route->object.physical_name, "/");
                     strcat(route->object.physical_name, route->object.name);
-                    if (stat(route->object.physical_name, &info))	/* stat it first to suppress misleading error in Log */
+
+                    if (airport->case_folding && stat(route->object.physical_name, &info))	/* stat it first to suppress misleading error in Log */
                     {
                         char msg[MAX_NAME+64];
                         snprintf(msg, sizeof(msg), "Can't find object or train \"%s\"", route->object.name);
@@ -913,6 +914,7 @@ static void *check_LODs(void *arg)
 
         if (!(h=fopen(route->object.physical_name, "r")))
         {
+            /* FIXME: Should handle case-sensitive filesystems */
 #ifdef DEBUG
             char msg[MAX_NAME+64];
             sprintf(msg, "Can't parse \"%s\"", route->object.physical_name);
