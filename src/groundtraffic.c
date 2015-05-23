@@ -500,8 +500,9 @@ int activate(airport_t *airport)
 {
     userref_t *userref;
     extref_t *extref;
-    XPLMPluginID PluginID;
     int i;
+    const char *const pluginsigs[] = { "xplanesdk.examples.DataRefEditor", "com.leecbaker.datareftool", NULL };
+    const char *const *pluginsig;
 
     assert (airport->state==inactive);
 
@@ -518,17 +519,21 @@ int activate(airport_t *airport)
                                           NULL, NULL, NULL, NULL, NULL, NULL,
                                           NULL, NULL, varrefcallback, NULL, NULL, NULL, (void*) ((intptr_t) i), NULL);
 
-    /* Register DataRefs with DRE. */
-    if ((PluginID = XPLMFindPluginBySignature("xplanesdk.examples.DataRefEditor")) != XPLM_NO_PLUGIN_ID)
+    /* Register DataRefs with DataRefEditor and DataRefTool. */
+    for (pluginsig = pluginsigs; *pluginsig; pluginsig++)
     {
-        for(i=0; i<dataref_count; i++)
-            XPLMSendMessageToPlugin(PluginID, 0x01000000, (void*) datarefs[i]);
-        XPLMSendMessageToPlugin(PluginID, 0x01000000, REF_VAR);
+        XPLMPluginID PluginID;
+        if ((PluginID = XPLMFindPluginBySignature(*pluginsig)) != XPLM_NO_PLUGIN_ID)
+        {
+            for(i=0; i<dataref_count; i++)
+                XPLMSendMessageToPlugin(PluginID, 0x01000000, (void*) datarefs[i]);
+            XPLMSendMessageToPlugin(PluginID, 0x01000000, REF_VAR);
 
-        /* Register user DataRefs with DRE. We don't do this at load to avoid cluttering up the display with inactive DataRefs. */
-        for (userref = airport->userrefs; userref; userref = userref->next)
-            if (userref->ref)
-                XPLMSendMessageToPlugin(PluginID, 0x01000000, (void*) userref->name);
+            /* Register user DataRefs. We don't do this at load to avoid cluttering up the display with inactive DataRefs. */
+            for (userref = airport->userrefs; userref; userref = userref->next)
+                if (userref->ref)
+                    XPLMSendMessageToPlugin(PluginID, 0x01000000, (void*) userref->name);
+        }
     }
 
     /* Lookup externally published DataRefs */
