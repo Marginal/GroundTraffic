@@ -433,7 +433,7 @@ static inline int intilerange(dloc_t loc)
     double tile_lat, tile_lon;
     tile_lat = floor(XPLMGetDatad(ref_plane_lat));
     tile_lon = floor(XPLMGetDatad(ref_plane_lon));
-    return ((abs(tile_lat - floor(loc.lat)) <= TILE_RANGE) && (abs(tile_lon - floor(loc.lon)) <= TILE_RANGE));
+    return ((fabs(tile_lat - floor(loc.lat)) <= TILE_RANGE) && (fabs(tile_lon - floor(loc.lon)) <= TILE_RANGE));
 }
 
 
