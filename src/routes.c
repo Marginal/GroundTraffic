@@ -296,7 +296,7 @@ int readconfig(char *pkgpath, airport_t *airport)
                 if (n>=MAX_HIGHWAY)
                     return failconfig(h, airport, buffer, "Exceeded %d objects in a highway at line %d", MAX_HIGHWAY, lineno);
                 else if (!c1 || !sscanf(c1, "%f%n", &highway->objects[n].offset, &eol1) || c1[eol1] ||
-                         !c2 || !sscanf(c2, "%f%n", &highway->objects[n].offset, &eol2) || c2[eol2])
+                         !c2 || !sscanf(c2, "%f%n", &highway->objects[n].heading, &eol2) || c2[eol2])
                     return failconfig(h, airport, buffer, "Expecting a car \"offset heading\", found \"%s %s\" at line %d", N(c1), N(c2), lineno);
                 else if (*c3 == '.' || *c3 == '/' || *c3 == '\\')
                     return failconfig(h, airport, buffer, "Object name cannot start with a \"%c\" at line %d", *c3, lineno);
