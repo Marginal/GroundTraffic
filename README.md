@@ -22,3 +22,30 @@ Windows 32 or 64 bit binary:
     vcvarsall [target]
     nmake -f Makefile.win
 
+This fork by nst0022 (2020-04-23)
+----
+
+I have changed the code from XPLMDrawObjects to XPLMInstancing, which is mandatory for X-Plane 11.50 Vulkan.
+
+As I am on Linux, I could not compile for Windows or Mac, but tested the changes in a separate configuration (64-bit Linux only).
+
+In the make files for Windows and Mac, XPSDK213 needs probably to be replaced by XPSDK302, like in the make file for Linux, but I did not want to touch these files, nor did I change the version number.
+
+I have marked all changes with 'nst0022' in the source code, which might be better readable than the diff here on GitHub.
+
+The plugin works (here) now for the following custom sceneries:
+
+- San Francisco Golden Gate Bridge
+- San Francisco Oakland Bay Bridge
+- San Francisco Airport Vehicles [1]
+- San Francisco Cable Cars and Ferries [1]
+- San Diego Coronado Bridge
+
+covering the GroundTraffic statements 'route', 'highway', and 'train'.
+
+I will not maintain the source code further on, because I have only a rudimentary understanding of what happens internally. This source code is an offer for scenery maintainers, who want to consider the changes for their own purposes.
+____
+[1] One peculiarity: In these two GroundTraffic.txt files, I had to replace all objects, that contained ANIM_begin/_end in their .obj files, which caused X-Plane to crash on first XPLMInstanceSetPosition, with their non-ANIM counter parts:
+1. for San Francisco Cable Cars and Ferries I duplicated Ferry_SFO.obj to Ferry_SFO_no_anim.obj and removed the animation
+2. for San Francisco Airport Vehicles I simply replaced all '/Active/' with '/' in GroundTraffic.txt
+Of course, these changes should only show that it works. What has to be done for the custom sceneries has to be determined by their respective authors.

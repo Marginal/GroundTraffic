@@ -114,13 +114,13 @@ PLUGIN_API int XPluginStart(char *outName, char *outSignature, char *outDescript
     strcat(outName, c);
     strcat(outSignature, ".");
     strcat(outSignature, c);
-    
+
     srand(time(NULL));	/* Seed rng */
     if (time(&t)!=-1 && (tm = localtime(&t)))	year=tm->tm_year;			/* What year is it? */
 
     XPLMRegisterFlightLoopCallback(flightcallback, 0, NULL);	/* inactive - wait for XPLM_MSG_AIRPORT_LOADED */
-    XPLMRegisterDrawCallback(drawmap3d, xplm_Phase_LocalMap3D, 0, NULL);
-    XPLMRegisterDrawCallback(drawmap2d, xplm_Phase_LocalMap2D, 0, NULL);
+    //XPLMRegisterDrawCallback(drawmap3d, xplm_Phase_LocalMap3D, 0, NULL); // nst0022
+    //XPLMRegisterDrawCallback(drawmap2d, xplm_Phase_LocalMap2D, 0, NULL); // nst0022
 
     return 1;
 }
@@ -128,8 +128,8 @@ PLUGIN_API int XPluginStart(char *outName, char *outSignature, char *outDescript
 
 PLUGIN_API void XPluginStop(void)
 {
-    XPLMUnregisterDrawCallback(drawmap3d, xplm_Phase_LocalMap3D, 0, NULL);
-    XPLMUnregisterDrawCallback(drawmap2d, xplm_Phase_LocalMap2D, 0, NULL);
+    //XPLMUnregisterDrawCallback(drawmap3d, xplm_Phase_LocalMap3D, 0, NULL); // nst0022
+    //XPLMUnregisterDrawCallback(drawmap2d, xplm_Phase_LocalMap2D, 0, NULL); // nst0022
     XPLMUnregisterFlightLoopCallback(flightcallback, NULL);
     XPLMDestroyProbe(ref_probe);
 }
@@ -162,7 +162,8 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFrom, long inMessage, void 
          *   any new airport is activated and tries to register those same DataRefs.
          * - If the user has placed the plane at our airport we can activate synchronously before the first draw frame.
          * We can't do these checks here since the view DataRefs aren't yet updated with the new plane position. */
-        XPLMRegisterDrawCallback(newairportcallback, xplm_Phase_FirstScene, airport.state==active || airport.state==activating, NULL);
+        //XPLMRegisterDrawCallback(newairportcallback, xplm_Phase_FirstScene, airport.state==active || airport.state==activating, NULL);
+        XPLMRegisterDrawCallback(newairportcallback, xplm_Phase_Modern3D, airport.state==active || airport.state==activating, NULL); // nst0022
         XPLMSetFlightLoopCallbackInterval(flightcallback, 0, 1, NULL);	/* pause flight callback to ensure newairportcallback happends first*/
     }
     else if (inMessage==XPLM_MSG_SCENERY_LOADED)
@@ -256,8 +257,10 @@ static float flightcallback(float inElapsedSinceLastCall, float inElapsedTimeSin
         done_new_airport = 0;
 
         /* Do this here rather than in newairportcallback because unregistering a draw callback within a draw callback can crash */
-        XPLMUnregisterDrawCallback(newairportcallback, xplm_Phase_FirstScene,  0, inRefcon);
-        XPLMUnregisterDrawCallback(newairportcallback, xplm_Phase_FirstScene, -1, inRefcon);
+        //XPLMUnregisterDrawCallback(newairportcallback, xplm_Phase_FirstScene,  0, inRefcon);
+        //XPLMUnregisterDrawCallback(newairportcallback, xplm_Phase_FirstScene, -1, inRefcon);
+        XPLMUnregisterDrawCallback(newairportcallback, xplm_Phase_Modern3D,  0, inRefcon); // nst0022
+        XPLMUnregisterDrawCallback(newairportcallback, xplm_Phase_Modern3D, -1, inRefcon); // nst0022
 
         /* Do this here rather than in deactivate because destroying a window during a draw callback can crash */
         if (airport.state!=active && labelwin)
@@ -445,6 +448,9 @@ static void loadobject(XPLMObjectRef inObject, void *inRef)
 {
     if (!activating_route)
     {
+        // nst0022 it appears, that XPLMDestroyInstance(activating_route->instance_ref); is necessary,
+        //         but this code was never reached during testing
+
         /* We were deactivated / disabled */
         if (inObject) XPLMUnloadObject(inObject);
         return;
@@ -679,11 +685,13 @@ static void activate2(airport_t *airport)
     {
         routes[i]->drawinfo = airport->drawinfo + i;
         routes[i]->next = i < count-1 ? routes[i+1] : NULL;
+        routes[i]->instance_ref = XPLMCreateInstance(routes[i]->object.objref, NULL); // nst0022
     }
     free(routes);
 
     XPLMEnableFeature("XPLM_WANTS_REFLECTIONS", airport->reflections);
-    XPLMRegisterDrawCallback(drawcallback, xplm_Phase_Objects, 0, NULL);	/* After other 3D objects */
+    //XPLMRegisterDrawCallback(drawcallback, xplm_Phase_Objects, 0, NULL);	/* After other 3D objects */
+    XPLMRegisterDrawCallback(drawcallback, xplm_Phase_Modern3D, 0, NULL);	// nst0022
     if (airport->drawroutes)
     {
         XPLMGetFontDimensions(xplmFont_Basic, &font_width, &font_semiheight, NULL);
@@ -1096,13 +1104,15 @@ void deactivate(airport_t *airport)
     /* Unregister per-route DataRefs */
     for(i=0; i<dataref_count; i++)
     {
+        XPLMDestroyInstance(route->instance_ref); // nst0022
         XPLMUnregisterDataAccessor(ref_datarefs[i]);
         ref_datarefs[i] = 0;
     }
     XPLMUnregisterDataAccessor(ref_varref);
     ref_varref = 0;
 
-    XPLMUnregisterDrawCallback(drawcallback, xplm_Phase_Objects, 0, NULL);
+    //XPLMUnregisterDrawCallback(drawcallback, xplm_Phase_Objects, 0, NULL);
+    XPLMUnregisterDrawCallback(drawcallback, xplm_Phase_Modern3D, 0, NULL); // nst0022
 
     airport->state=inactive;
     last_frame = 0;
