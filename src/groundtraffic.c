@@ -114,7 +114,7 @@ PLUGIN_API int XPluginStart(char *outName, char *outSignature, char *outDescript
     strcat(outName, c);
     strcat(outSignature, ".");
     strcat(outSignature, c);
-    
+
     srand(time(NULL));	/* Seed rng */
     if (time(&t)!=-1 && (tm = localtime(&t)))	year=tm->tm_year;			/* What year is it? */
 
@@ -445,6 +445,9 @@ static void loadobject(XPLMObjectRef inObject, void *inRef)
 {
     if (!activating_route)
     {
+        // nst0022 it appears, that XPLMDestroyInstance(activating_route->instance_ref); is necessary,
+        //         but this code was never reached during testing
+
         /* We were deactivated / disabled */
         if (inObject) XPLMUnloadObject(inObject);
         return;
@@ -679,11 +682,13 @@ static void activate2(airport_t *airport)
     {
         routes[i]->drawinfo = airport->drawinfo + i;
         routes[i]->next = i < count-1 ? routes[i+1] : NULL;
+        routes[i]->instance_ref = XPLMCreateInstance(routes[i]->object.objref, NULL); // nst0022
     }
     free(routes);
 
     XPLMEnableFeature("XPLM_WANTS_REFLECTIONS", airport->reflections);
-    XPLMRegisterDrawCallback(drawcallback, xplm_Phase_Objects, 0, NULL);	/* After other 3D objects */
+    //XPLMRegisterDrawCallback(drawcallback, xplm_Phase_Objects, 0, NULL);	/* After other 3D objects */
+    XPLMRegisterDrawCallback(drawcallback, xplm_Phase_Modern3D, 0, NULL);	// nst0022
     if (airport->drawroutes)
     {
         XPLMGetFontDimensions(xplmFont_Basic, &font_width, &font_semiheight, NULL);
@@ -1096,13 +1101,15 @@ void deactivate(airport_t *airport)
     /* Unregister per-route DataRefs */
     for(i=0; i<dataref_count; i++)
     {
+        XPLMDestroyInstance(route->instance_ref); // nst0022
         XPLMUnregisterDataAccessor(ref_datarefs[i]);
         ref_datarefs[i] = 0;
     }
     XPLMUnregisterDataAccessor(ref_varref);
     ref_varref = 0;
 
-    XPLMUnregisterDrawCallback(drawcallback, xplm_Phase_Objects, 0, NULL);
+    //XPLMUnregisterDrawCallback(drawcallback, xplm_Phase_Objects, 0, NULL);
+    XPLMUnregisterDrawCallback(draw_callback, xplm_Phase_Modern3D, 0, NULL); // nst0022
 
     airport->state=inactive;
     last_frame = 0;
