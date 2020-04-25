@@ -49,3 +49,8 @@ ____
 1. for San Francisco Cable Cars and Ferries I duplicated Ferry_SFO.obj to Ferry_SFO_no_anim.obj and removed the animation
 2. for San Francisco Airport Vehicles I simply replaced all '/Active/' with '/' in GroundTraffic.txt
 Of course, these changes should only show that it works. What has to be done for the custom sceneries has to be determined by their respective authors.
+
+Update by nst0022 (2020-04-25)
+----
+
+Due to [this](https://forums.x-plane.org/index.php?/forums/topic/210452-groundtraffic-plugin-for-x1150-vulkan/&do=findComment&comment=1903841) comment in the org forum (QUOTE: I had one mail exchange with Jonathan a couple of month ago and his interests have wandered far away from flight simulation a few years ago. He has no interest at this time to pick up any activity on his past projects and he didn't sound like he will ever do again.) I have closed the pull request to avoid possible future confusion.
