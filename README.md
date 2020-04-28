@@ -54,3 +54,18 @@ Update by nst0022 (2020-04-25)
 ----
 
 Due to [this](https://forums.x-plane.org/index.php?/forums/topic/210452-groundtraffic-plugin-for-x1150-vulkan/&do=findComment&comment=1903841) comment in the org forum (QUOTE: I had one mail exchange with Jonathan a couple of month ago and his interests have wandered far away from flight simulation a few years ago. He has no interest at this time to pick up any activity on his past projects and he didn't sound like he will ever do again.) I have closed the pull request to avoid possible future confusion.
+
+Update by nst0022 (2020-04-28)
+----
+
+Changes due to [this](https://forums.x-plane.org/index.php?/forums/topic/210452-groundtraffic-plugin-for-x1150-vulkan/&do=findComment&comment=1908165) comment in the org forum:
+
+Version 1.61
+
+- groundtraffic.c - fix cut&paste error (XPLMDetroyInstance)
+- Makefile.win - change XPSDK version to 302
+- Makefile.mac - change XPSDK version to 302
+
+All other, Windows-specific changes in the above forum post need review by a knowlegable Windows user.
+
+Especially, the changes need to be enclosed in #if IBM ... #endif

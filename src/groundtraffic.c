@@ -1099,12 +1099,12 @@ void deactivate(airport_t *airport)
     {
         XPLMUnloadObject(route->object.objref);
         route->object.objref=0;
+        XPLMDestroyInstance(route->instance_ref); // nst0022
     }
 
     /* Unregister per-route DataRefs */
     for(i=0; i<dataref_count; i++)
     {
-        XPLMDestroyInstance(route->instance_ref); // nst0022
         XPLMUnregisterDataAccessor(ref_datarefs[i]);
         ref_datarefs[i] = 0;
     }
