@@ -129,6 +129,7 @@ void labelcallback(XPLMWindowID inWindowID, void *inRefcon)
 static void drawroutes()
 {
     float view_x, view_y, view_z;
+    float dummy = 0.0f; // nst0022 1.62
 
     view_x=XPLMGetDataf(ref_view_x);
     view_y=XPLMGetDataf(ref_view_y);
@@ -145,7 +146,7 @@ static void drawroutes()
             /* Have to check draw range every frame since "now" isn't updated while sim paused */
             if (indrawrange(drawroute->drawinfo->x-view_x, drawroute->drawinfo->y-view_y, drawroute->drawinfo->z-view_z, drawroute->object.drawlod * lod_factor))
                 //XPLMDrawObjects(drawroute->object.objref, 1, drawroute->drawinfo, is_night, 1); // nst0022
-                XPLMInstanceSetPosition(drawroute->instance_ref, drawroute->drawinfo, NULL);      // nst0022
+                XPLMInstanceSetPosition(drawroute->instance_ref, drawroute->drawinfo, &dummy);    // nst0022 1.62
 
             if (drawroute->next && drawroute->object.objref == drawroute->next->object.objref)
                 drawroute->next->state.hasdataref = -1;	/* propagate flag to all routes using this objref */

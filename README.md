@@ -69,3 +69,12 @@ Version 1.61
 All other, Windows-specific changes in the above forum post need review by a knowlegable Windows user.
 
 Especially, the changes need to be enclosed in #if IBM ... #endif
+
+Update by nst0022 (2020-04-29)
+----
+
+Changes due to [this](https://developer.x-plane.com/2020/04/xplminstance-two-tricks/) communication between Ben Supnik and Yuri Lyubimkin as of 2020-04-28
+
+Version 1.62
+
+- groundtraffic.c and draw.c - fix crash when ANIM
