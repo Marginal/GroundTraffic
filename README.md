@@ -45,9 +45,10 @@ covering the GroundTraffic statements 'route', 'highway', and 'train'.
 
 I will not maintain the source code further on, because I have only a rudimentary understanding of what happens internally. This source code is an offer for scenery maintainers, who want to consider the changes for their own purposes.
 ____
-[1] One peculiarity: In these two GroundTraffic.txt files, I had to replace all objects, that contained ANIM_begin/_end in their .obj files, which caused X-Plane to crash on first XPLMInstanceSetPosition, with their non-ANIM counter parts:
+[1] One peculiarity (fixed with version 1.62): In these two GroundTraffic.txt files, I had to replace all objects, that contained ANIM_begin/_end in their .obj files, which caused X-Plane to crash on first XPLMInstanceSetPosition, with their non-ANIM counter parts:
 1. for San Francisco Cable Cars and Ferries I duplicated Ferry_SFO.obj to Ferry_SFO_no_anim.obj and removed the animation
 2. for San Francisco Airport Vehicles I simply replaced all '/Active/' with '/' in GroundTraffic.txt
+
 Of course, these changes should only show that it works. What has to be done for the custom sceneries has to be determined by their respective authors.
 
 Update by nst0022 (2020-04-25)
@@ -78,3 +79,14 @@ Changes due to [this](https://developer.x-plane.com/2020/04/xplminstance-two-tri
 Version 1.62
 
 - groundtraffic.c and draw.c - fix crash when ANIM
+
+Update by nst0022 (2020-04-30)
+----
+
+Version was still 1.61
+
+Version 1.62 part 2
+
+- version.mak - show version as 1.62
+
+This only affects the version shown in X-Plane's PluginManager
