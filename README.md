@@ -89,4 +89,18 @@ Version 1.62 part 2
 
 - version.mak - show version as 1.62
 
-This only affects the version shown in X-Plane's PluginManager
+This only affects the version shown in X-Plane's PluginAdmin
+
+Update by nst0022 (2020-05-03)
+----
+
+Changes due to [this](https://developer.x-plane.com/sdk/XPLMDisplay/) documentation (find "xplm_Phase_Modern3D" and read thru the rest of the paragraph):
+
+Version 2.1
+
+- draw.c, groundtraffic.c - replace xplm_Phase_Modern3D with xplm_Phase_Window
+
+This should re-enable Mac users under Metal to use the plugin again.
+
+NOTE: This update breaks "debug" mode, until someone redesigns it to use a different mechanism to draw on scenery.
+

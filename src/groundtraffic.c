@@ -15,6 +15,7 @@ BOOL APIENTRY DllMain(HANDLE hModule, DWORD ul_reason, LPVOID lpReserved)
 { return TRUE; }
 #endif
 
+#define XPLM_PHASE xplm_Phase_Window // nst0022 2.1
 
 /* Globals */
 char *pkgpath;
@@ -163,7 +164,8 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFrom, long inMessage, void 
          * - If the user has placed the plane at our airport we can activate synchronously before the first draw frame.
          * We can't do these checks here since the view DataRefs aren't yet updated with the new plane position. */
         //XPLMRegisterDrawCallback(newairportcallback, xplm_Phase_FirstScene, airport.state==active || airport.state==activating, NULL);
-        XPLMRegisterDrawCallback(newairportcallback, xplm_Phase_Modern3D, airport.state==active || airport.state==activating, NULL); // nst0022
+        //XPLMRegisterDrawCallback(newairportcallback, xplm_Phase_Modern3D, airport.state==active || airport.state==activating, NULL); // nst0022
+        XPLMRegisterDrawCallback(newairportcallback, XPLM_PHASE, airport.state==active || airport.state==activating, NULL); // nst0022 2.1
         XPLMSetFlightLoopCallbackInterval(flightcallback, 0, 1, NULL);	/* pause flight callback to ensure newairportcallback happends first*/
     }
     else if (inMessage==XPLM_MSG_SCENERY_LOADED)
@@ -259,8 +261,10 @@ static float flightcallback(float inElapsedSinceLastCall, float inElapsedTimeSin
         /* Do this here rather than in newairportcallback because unregistering a draw callback within a draw callback can crash */
         //XPLMUnregisterDrawCallback(newairportcallback, xplm_Phase_FirstScene,  0, inRefcon);
         //XPLMUnregisterDrawCallback(newairportcallback, xplm_Phase_FirstScene, -1, inRefcon);
-        XPLMUnregisterDrawCallback(newairportcallback, xplm_Phase_Modern3D,  0, inRefcon); // nst0022
-        XPLMUnregisterDrawCallback(newairportcallback, xplm_Phase_Modern3D, -1, inRefcon); // nst0022
+        //XPLMUnregisterDrawCallback(newairportcallback, xplm_Phase_Modern3D,  0, inRefcon); // nst0022
+        //XPLMUnregisterDrawCallback(newairportcallback, xplm_Phase_Modern3D, -1, inRefcon); // nst0022
+        XPLMUnregisterDrawCallback(newairportcallback, XPLM_PHASE,  0, inRefcon); // nst0022 2.1
+        XPLMUnregisterDrawCallback(newairportcallback, XPLM_PHASE, -1, inRefcon); // nst0022 2.1
 
         /* Do this here rather than in deactivate because destroying a window during a draw callback can crash */
         if (airport.state!=active && labelwin)
@@ -692,7 +696,8 @@ static void activate2(airport_t *airport)
 
     XPLMEnableFeature("XPLM_WANTS_REFLECTIONS", airport->reflections);
     //XPLMRegisterDrawCallback(drawcallback, xplm_Phase_Objects, 0, NULL);	/* After other 3D objects */
-    XPLMRegisterDrawCallback(drawcallback, xplm_Phase_Modern3D, 0, NULL);	// nst0022
+    //XPLMRegisterDrawCallback(drawcallback, xplm_Phase_Modern3D, 0, NULL);	// nst0022
+    XPLMRegisterDrawCallback(drawcallback, XPLM_PHASE, 0, NULL);	          // nst0022 2.1
     if (airport->drawroutes)
     {
         XPLMGetFontDimensions(xplmFont_Basic, &font_width, &font_semiheight, NULL);
@@ -1113,7 +1118,8 @@ void deactivate(airport_t *airport)
     ref_varref = 0;
 
     //XPLMUnregisterDrawCallback(drawcallback, xplm_Phase_Objects, 0, NULL);
-    XPLMUnregisterDrawCallback(drawcallback, xplm_Phase_Modern3D, 0, NULL); // nst0022
+    //XPLMUnregisterDrawCallback(drawcallback, xplm_Phase_Modern3D, 0, NULL); // nst0022
+    XPLMUnregisterDrawCallback(drawcallback, XPLM_PHASE, 0, NULL);            // nst0022 2.1
 
     airport->state=inactive;
     last_frame = 0;

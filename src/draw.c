@@ -198,7 +198,10 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
         maproutes(&airport);
     }
 
-    if (!XPLMGetDatai(ref_rentype))
+    // nst0022 2.1  The following 'if' only works with xplm_Phase_Modern3D, for all other it needs to be commented out,
+    //              otherwise lod_factor gets not set, so there would be no objects drawn at all
+    //              Unclear, why this is necessary in the first place (3D rendering type: 0 = normal, 1 = reflections in water)
+    //if (!XPLMGetDatai(ref_rentype))
     {
         int width;
         XPLMGetScreenSize(&width, NULL);
