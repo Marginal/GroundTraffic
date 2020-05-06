@@ -104,3 +104,12 @@ This should re-enable Mac users under Metal to use the plugin again.
 
 NOTE: This update breaks "debug" mode, until someone redesigns it to use a different mechanism to draw on scenery.
 
+Update by nst0022 (2020-05-06)
+----
+
+Changes due to [this](https://forums.x-plane.org/index.php?/forums/topic/210452-groundtraffic-plugin-for-x1150-vulkan/&page=2&tab=comments#comment-1909239) post:
+
+Version 2.2
+
+- draw.c, groundtraffic.c, groundtraffic.h - XPLMInstanceSetPosition not via draw callback but via flight loop
+

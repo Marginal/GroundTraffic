@@ -230,6 +230,8 @@ static void check_range(airport_t *airport)
                 deactivate(airport);
             else if (airport->state == activating && !activating_route)
                 activate2(airport);	/* obj loading is complete - check for completion of other tasks */
+            else if (airport->state == active && !activating_route) // nst0022 2.2
+                drawcallback();                                     // nst0022 2.2
         }
     }
 }
@@ -279,7 +281,8 @@ static float flightcallback(float inElapsedSinceLastCall, float inElapsedTimeSin
     else
     {
         check_range(&airport);
-        return -ACTIVE_POLL;
+        //return -ACTIVE_POLL; // nst0022 2.2
+        return -1;             // nst0022 2.2 every frame
     }
 }
 
@@ -697,7 +700,7 @@ static void activate2(airport_t *airport)
     XPLMEnableFeature("XPLM_WANTS_REFLECTIONS", airport->reflections);
     //XPLMRegisterDrawCallback(drawcallback, xplm_Phase_Objects, 0, NULL);	/* After other 3D objects */
     //XPLMRegisterDrawCallback(drawcallback, xplm_Phase_Modern3D, 0, NULL);	// nst0022
-    XPLMRegisterDrawCallback(drawcallback, XPLM_PHASE, 0, NULL);	          // nst0022 2.1
+    //XPLMRegisterDrawCallback(drawcallback, XPLM_PHASE, 0, NULL);	          // nst0022 2.1, nst0022 2.2
     if (airport->drawroutes)
     {
         XPLMGetFontDimensions(xplmFont_Basic, &font_width, &font_semiheight, NULL);
@@ -1119,7 +1122,7 @@ void deactivate(airport_t *airport)
 
     //XPLMUnregisterDrawCallback(drawcallback, xplm_Phase_Objects, 0, NULL);
     //XPLMUnregisterDrawCallback(drawcallback, xplm_Phase_Modern3D, 0, NULL); // nst0022
-    XPLMUnregisterDrawCallback(drawcallback, XPLM_PHASE, 0, NULL);            // nst0022 2.1
+    //XPLMUnregisterDrawCallback(drawcallback, XPLM_PHASE, 0, NULL);          // nst0022 2.1, nst0022 2.2
 
     airport->state=inactive;
     last_frame = 0;

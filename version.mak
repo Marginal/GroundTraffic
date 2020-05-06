@@ -1,2 +1,2 @@
 PROJECT=GroundTraffic
-VERSION=2.1
+VERSION=2.2

@@ -391,7 +391,8 @@ int readconfig(char *pkgpath, airport_t *airport);
 void clearconfig(airport_t *airport);
 
 void labelcallback(XPLMWindowID inWindowID, void *inRefcon);
-int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon);
+//int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon); // nst0022 2.2
+int drawcallback();                                                           // nst0022 2.2
 
 void drawdebug3d(int drawnodes, GLint view[4]);
 void drawdebug2d();

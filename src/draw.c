@@ -175,7 +175,8 @@ static void drawroutes()
 
 
 /* Main update and draw loop */
-int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
+//int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon) // nst0022 2.2
+int drawcallback()                                                           // nst0022 2.2
 {
     double airport_x, airport_y, airport_z;
     float now;
