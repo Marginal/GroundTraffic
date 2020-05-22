@@ -113,3 +113,30 @@ Version 2.2
 
 - draw.c, groundtraffic.c, groundtraffic.h - XPLMInstanceSetPosition not via draw callback but via flight loop
 
+Status quo by nst0022 (2020-05-22)
+----
+
+- as of version 2.2, the plugin runs under 64-bit Linux and 64-bit Windows
+- the plugin should work on a Mac, which still needs to be confirmed
+- the plugin should run with reasonable performance
+- "debug" mode is still broken and needs to be redesigned as mentioned above
+
+Nice to have:
+
+- the plugin should be redesigned to act as a general plugin, instead of an individual per custom scenery
+
+Known bugs located in X-Plane itself:
+
+- animations of wheel turnings are erratic (X11.50b9)
+
+See [this](https://forums.x-plane.org/index.php?/forums/topic/210452-groundtraffic-plugin-for-x1150-vulkan) thread for a history on how this fork evolved
+
+The plugin has currently no owner
+
+A potential volunteer needs to:
+
+- have a thorough understanding of the inner workings of the plugin
+- have a thorough understanding of the X-Plane API
+- be able to develop for three platforms (Windows, Mac, Linux)
+
+This fork has now been frozen
