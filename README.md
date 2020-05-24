@@ -113,7 +113,7 @@ Version 2.2
 
 - draw.c, groundtraffic.c, groundtraffic.h - XPLMInstanceSetPosition not via draw callback but via flight loop
 
-Status quo by nst0022 (2020-05-22)
+Status quo by nst0022 (2020-05-22, updated 2020-05-24)
 ----
 
 - as of version 2.2, the plugin runs under 64-bit Linux and 64-bit Windows
@@ -127,7 +127,12 @@ Nice to have:
 
 Known bugs located in X-Plane itself:
 
-- animations of wheel turnings are erratic (X11.50b9)
+- animations of wheel turnings are erratic (as of X11.50b9)
+- vehicles travel initially on water under bridges (long standing error)
+
+Needs to be investigated:
+
+- some Windows users reported, that in all animated object files, all occurrences of marginal/groundtraffic/distance need to be replaced with sim/time/total_running_time_sec
 
 See [this](https://forums.x-plane.org/index.php?/forums/topic/210452-groundtraffic-plugin-for-x1150-vulkan) thread for a history on how this fork evolved
 
