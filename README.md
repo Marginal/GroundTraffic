@@ -113,11 +113,10 @@ Version 2.2
 
 - draw.c, groundtraffic.c, groundtraffic.h - XPLMInstanceSetPosition not via draw callback but via flight loop
 
-Status quo by nst0022 (2020-05-22, updated 2020-06-22)
+Status quo by nst0022 (2020-05-22, updated 2020-06-24)
 ----
 
-- as of version 2.2, the plugin runs under 64-bit Linux and 64-bit Windows
-- the plugin should work on a Mac, which still needs to be confirmed
+- as of version 2.2, the plugin runs under 64-bit Linux, 64-bit Windows, and 64-bit Mac
 - the plugin should run with reasonable performance
 - "debug" mode is still broken and needs to be redesigned as mentioned above
 
