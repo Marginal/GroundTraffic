@@ -2,7 +2,7 @@
 
 !include ..\version.mak
 
-XPSDK=..\..\XPSDK213
+XPSDK=..\..\XPSDK302
 
 CC=cl
 #BUILD=-Zi -DDEBUG

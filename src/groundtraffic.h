@@ -59,6 +59,7 @@
 #  include <GL/glu.h>
 #endif
 
+#define XPLM302	// nst0022 requires X-Plane 11.50 or later
 #define XPLM210	/* Requires X-Plane 10.0 or later */
 #define XPLM200
 #include "XPLMDataAccess.h"
@@ -69,6 +70,7 @@
 #include "XPLMProcessing.h"
 #include "XPLMScenery.h"
 #include "XPLMUtilities.h"
+#include "XPLMInstance.h"  // nst0022
 
 #include "bbox.h"
 
@@ -303,6 +305,7 @@ typedef struct route_t
     userref_t (*varrefs)[MAX_VAR];	/* Per-route var dataref */
     struct route_t *parent;	/* Points to head of a train */
     struct route_t *next;
+    XPLMInstanceRef *instance_ref; // nst0022
 } route_t;
 
 
@@ -388,7 +391,8 @@ int readconfig(char *pkgpath, airport_t *airport);
 void clearconfig(airport_t *airport);
 
 void labelcallback(XPLMWindowID inWindowID, void *inRefcon);
-int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon);
+//int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon); // nst0022 2.2
+int drawcallback();                                                           // nst0022 2.2
 
 void drawdebug3d(int drawnodes, GLint view[4]);
 void drawdebug2d();

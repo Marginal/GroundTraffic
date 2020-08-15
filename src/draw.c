@@ -129,6 +129,7 @@ void labelcallback(XPLMWindowID inWindowID, void *inRefcon)
 static void drawroutes()
 {
     float view_x, view_y, view_z;
+    float dummy = 0.0f; // nst0022 1.62
 
     view_x=XPLMGetDataf(ref_view_x);
     view_y=XPLMGetDataf(ref_view_y);
@@ -137,40 +138,45 @@ static void drawroutes()
     drawroute=airport.routes;
     while (drawroute)
     {
-        if (drawroute->state.hasdataref)	/* Objects that use a per-route DataRef can't be batched */
-        {
+        // nst0022 batch does not work with XPLMInstanceSetPosition(),
+        //         instead, the following 'then' needs to be executed at all times
+
+        //if (drawroute->state.hasdataref)	/* Objects that use a per-route DataRef can't be batched */
+        //{
             /* Have to check draw range every frame since "now" isn't updated while sim paused */
             if (indrawrange(drawroute->drawinfo->x-view_x, drawroute->drawinfo->y-view_y, drawroute->drawinfo->z-view_z, drawroute->object.drawlod * lod_factor))
-                XPLMDrawObjects(drawroute->object.objref, 1, drawroute->drawinfo, is_night, 1);
+                //XPLMDrawObjects(drawroute->object.objref, 1, drawroute->drawinfo, is_night, 1); // nst0022
+                XPLMInstanceSetPosition(drawroute->instance_ref, drawroute->drawinfo, &dummy);    // nst0022 1.62
 
             if (drawroute->next && drawroute->object.objref == drawroute->next->object.objref)
                 drawroute->next->state.hasdataref = -1;	/* propagate flag to all routes using this objref */
 
             drawroute=drawroute->next;
-        }
-        else
-        {
-            route_t *route, *first = 0, *last = 0;
+        //}
+        //else
+        //{
+        //    route_t *route, *first = 0, *last = 0;
 
-            for (route=drawroute; route && route->object.objref==drawroute->object.objref; route=route->next)
-                /* Have to check draw range every frame since "now" isn't updated while sim paused */
-                if (indrawrange(route->drawinfo->x-view_x, route->drawinfo->y-view_y, route->drawinfo->z-view_z, route->object.drawlod * lod_factor))
-                {
-                    if (!first) first = route;
-                    last = route;
-                }
+        //    for (route=drawroute; route && route->object.objref==drawroute->object.objref; route=route->next)
+        //        /* Have to check draw range every frame since "now" isn't updated while sim paused */
+        //        if (indrawrange(route->drawinfo->x-view_x, route->drawinfo->y-view_y, route->drawinfo->z-view_z, route->object.drawlod * lod_factor))
+        //        {
+        //            if (!first) first = route;
+        //            last = route;
+        //        }
 
-            if (first)
-                XPLMDrawObjects(drawroute->object.objref, 1 + last->drawinfo - first->drawinfo, first->drawinfo, is_night, 1);
+        //    if (first)
+        //        XPLMDrawObjects(drawroute->object.objref, 1 + last->drawinfo - first->drawinfo, first->drawinfo, is_night, 1);
 
-            drawroute=route;
-        }
+        //    drawroute=route;
+        //}
     }
 }
 
 
 /* Main update and draw loop */
-int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
+//int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon) // nst0022 2.2
+int drawcallback()                                                           // nst0022 2.2
 {
     double airport_x, airport_y, airport_z;
     float now;
@@ -193,7 +199,10 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
         maproutes(&airport);
     }
 
-    if (!XPLMGetDatai(ref_rentype))
+    // nst0022 2.1  The following 'if' only works with xplm_Phase_Modern3D, for all other it needs to be commented out,
+    //              otherwise lod_factor gets not set, so there would be no objects drawn at all
+    //              Unclear, why this is necessary in the first place (3D rendering type: 0 = normal, 1 = reflections in water)
+    //if (!XPLMGetDatai(ref_rentype))
     {
         int width;
         XPLMGetScreenSize(&width, NULL);
@@ -470,7 +479,7 @@ int drawcallback(XPLMDrawingPhase inPhase, int inIsBefore, void *inRefcon)
                     route->state.collision = iscollision(route, COLLISION_TIMEOUT);
                 }
             }
-            
+
             last_node = route->path + route->last_node;
             next_node = route->path + route->next_node;
 
